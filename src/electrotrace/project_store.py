@@ -1,9 +1,4 @@
-"""Persistent project metadata and chunked signal access.
-
-The store keeps project metadata in JSON and recordings in source-native files.
-Large recordings are accessed through bounded windows rather than requiring the
-entire signal to be loaded into the browser.
-"""
+"""Persistent project metadata and chunked signal access."""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
@@ -55,19 +50,23 @@ class ProjectStore:
         if not self.project_path.exists():
             now = datetime.now(timezone.utc).isoformat()
             return Project(project_id=self.root.name, name=self.root.name, created_at=now, updated_at=now)
-        data = json.loads(self.project_path.read_text(encoding="utf-8"))
-        refs = [RecordingRef(**r) for r in data.get("recordings", [])]
-        return Project(
-            project_id=data["project_id"],
-            name=data["name"],
-            created_at=data.get("created_at", ""),
-            updated_at=data.get("updated_at", ""),
-            recordings=refs,
-        )
+        try:
+            data = json.loads(self.project_path.read_text(encoding="utf-8"))
+            refs = [RecordingRef(**r) for r in data.get("recordings", [])]
+            return Project(project_id=data["project_id"], name=data["name"], created_at=data.get("created_at", ""), updated_at=data.get("updated_at", ""), recordings=refs)
+        except (OSError, json.JSONDecodeError, KeyError, TypeError) as exc:
+            raise ValueError(f"project metadata is invalid or unreadable: {exc}") from exc
 
     def save(self, project: Project) -> None:
         project.updated_at = datetime.now(timezone.utc).isoformat()
-        self.project_path.write_text(json.dumps(project.to_dict(), indent=2), encoding="utf-8")
+        payload = json.dumps(project.to_dict(), indent=2)
+        temp_path = self.project_path.with_suffix(".json.tmp")
+        try:
+            temp_path.write_text(payload, encoding="utf-8")
+            temp_path.replace(self.project_path)
+        except OSError as exc:
+            temp_path.unlink(missing_ok=True)
+            raise ValueError(f"could not save project metadata: {exc}") from exc
 
     def add_recording(self, ref: RecordingRef) -> Project:
         project = self.load()
@@ -77,12 +76,7 @@ class ProjectStore:
         return project
 
     def window(self, recording_path: str | Path, start: int, stop: int) -> dict[str, np.ndarray]:
-        """Read a bounded sample window from a CSV/NPY/NPZ recording.
-
-        CSV is streamed with pandas skiprows/nrows for bounded access. NPY/NPZ
-        uses memory mapping where possible. This method intentionally returns
-        only the requested window.
-        """
+        """Read a bounded sample window from a CSV/NPY recording."""
         path = Path(recording_path)
         if start < 0 or stop <= start:
             raise ValueError("window must satisfy 0 <= start < stop")
@@ -90,8 +84,9 @@ class ProjectStore:
             arr = np.load(path, mmap_mode="r")
             return {"signal": np.asarray(arr[start:stop])}
         if path.suffix.lower() == ".npz":
-            data = np.load(path, mmap_mode="r")
-            return {k: np.asarray(data[k][start:stop]) for k in data.files}
+            # NPZ archives do not provide true mmap semantics; close the archive after reading.
+            with np.load(path) as data:
+                return {k: np.asarray(data[k][start:stop]) for k in data.files}
         if path.suffix.lower() == ".csv":
             import pandas as pd
             frame = pd.read_csv(path, skiprows=lambda i: i != 0 and not (start + 1 <= i <= stop))
