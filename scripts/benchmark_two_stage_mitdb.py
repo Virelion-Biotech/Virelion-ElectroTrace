@@ -53,13 +53,20 @@ def _candidate_stream(signal: np.ndarray, fs_hz: float, polarity: str, recovery:
     return all_peaks, all_prom, chosen
 
 
-def _fit_group_calibrated(features: np.ndarray, labels: np.ndarray, groups: np.ndarray, target_recall: float, seed: int) -> CandidateSuppressor:
+def _fit_group_calibrated(features: np.ndarray, labels: np.ndarray, groups: np.ndarray, target_recall: float, seed: int) -> tuple[CandidateSuppressor, list[str]]:
     labels = np.asarray(labels, dtype=int)
     groups = np.asarray(groups)
-    if len(np.unique(groups)) < 3:
+    unique_groups = np.unique(groups)
+    if len(unique_groups) < 3:
         raise ValueError("record-level calibration requires at least three training records")
-    splitter = StratifiedGroupKFold(n_splits=min(5, len(np.unique(groups))), shuffle=True, random_state=seed)
+    splitter = StratifiedGroupKFold(n_splits=min(5, len(unique_groups)), shuffle=True, random_state=seed)
     fit_idx, calibration_idx = next(splitter.split(features, labels, groups))
+    calibration_groups = sorted({str(value) for value in groups[calibration_idx]})
+    if set(groups[fit_idx]).intersection(set(groups[calibration_idx])):
+        raise RuntimeError("calibration records overlap model-fitting records")
+    if len(np.unique(labels[fit_idx])) < 2 or len(np.unique(labels[calibration_idx])) < 2:
+        raise ValueError("record-level calibration split must contain both positive and negative candidates")
+
     calibration_model = CandidateSuppressor().fit(features[fit_idx], labels[fit_idx], target_recall=target_recall, random_seed=seed, calibration_fraction=0)
     calibration_probabilities = calibration_model.predict_proba(features[calibration_idx])
     threshold = select_threshold_for_recall(labels[calibration_idx], calibration_probabilities, target_recall=target_recall)
@@ -72,10 +79,10 @@ def _fit_group_calibrated(features: np.ndarray, labels: np.ndarray, groups: np.n
         calibration_candidates=int(len(calibration_idx)),
         calibration_method="held_out_record_group",
     )
-    return final_model
+    return final_model, calibration_groups
 
 
-def _train_records(records: list[str], data_dir: Path, polarity: str, recovery: bool, seed: int) -> CandidateSuppressor:
+def _train_records(records: list[str], data_dir: Path, polarity: str, recovery: bool, seed: int) -> tuple[CandidateSuppressor, list[str]]:
     features: list[np.ndarray] = []
     labels: list[np.ndarray] = []
     groups: list[np.ndarray] = []
@@ -92,9 +99,9 @@ def _train_records(records: list[str], data_dir: Path, polarity: str, recovery: 
     matrix = np.vstack(features)
     target = np.concatenate(labels)
     group_ids = np.concatenate(groups)
-    model = _fit_group_calibrated(matrix, target, group_ids, target_recall=0.995, seed=seed)
+    model, calibration_records = _fit_group_calibrated(matrix, target, group_ids, target_recall=0.995, seed=seed)
     model.feature_names = feature_names
-    return model
+    return model, calibration_records
 
 
 def _evaluate(model: CandidateSuppressor, records: list[str], data_dir: Path, polarity: str, recovery: bool) -> list[dict]:
@@ -141,12 +148,13 @@ def main() -> int:
     n_test = max(1, int(round(len(shuffled) * args.test_fraction)))
     test_records = sorted(shuffled[:n_test]); train_records = sorted(shuffled[n_test:])
 
-    model = _train_records(train_records, data_dir, args.polarity, args.recovery, args.seed)
+    model, calibration_records = _train_records(train_records, data_dir, args.polarity, args.recovery, args.seed)
     record_results = _evaluate(model, test_records, data_dir, args.polarity, args.recovery)
     report = {
-        "schema": "electrotrace.two_stage_validation/v3",
+        "schema": "electrotrace.two_stage_validation/v4",
         "software_version": __version__,
         "train_records": train_records,
+        "calibration_records": calibration_records,
         "test_records": test_records,
         "polarity": args.polarity,
         "recovery": bool(args.recovery),
