@@ -34,3 +34,21 @@ def test_filter_endpoint():
     response = client.post("/api/filter", json={"sampling_rate_hz": fs, "signal": signal, "lowpass_hz": 40})
     assert response.status_code == 200
     assert len(response.get_json()["signal"]) == len(signal)
+
+
+def test_segment_endpoint():
+    client = app.test_client()
+    fs = 500
+    x = np.arange(2000) / fs
+    signal = np.zeros_like(x)
+    signal[[250, 750, 1250]] = 1
+    response = client.post("/api/segment", json={"sampling_rate_hz": fs, "time": x.tolist(), "signal": signal.tolist(), "peaks": [250, 750, 1250]})
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["n_beats"] == 3
+
+
+def test_native_import_requires_supported_extension():
+    client = app.test_client()
+    response = client.post("/api/analyze", data={"file": (io.BytesIO(b"not a recording"), "recording.txt")}, content_type="multipart/form-data")
+    assert response.status_code == 400
