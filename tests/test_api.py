@@ -48,6 +48,34 @@ def test_segment_endpoint():
     assert data["n_beats"] == 3
 
 
+def test_statistics_endpoint_marks_observation_level_comparisons():
+    client = app.test_client()
+    response = client.post("/api/statistics/compare", json={"group_a": [1, 2, 3], "group_b": [4, 5, 6]})
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["unit_of_analysis"] == "observation"
+    assert data["pseudoreplication_warning"] is True
+
+
+def test_statistics_endpoint_aggregates_by_subject():
+    client = app.test_client()
+    response = client.post(
+        "/api/statistics/compare",
+        json={
+            "group_a": [1, 3, 10, 12],
+            "group_b": [4, 6, 14, 16],
+            "unit_ids_a": ["s1", "s1", "s2", "s2"],
+            "unit_ids_b": ["s3", "s3", "s4", "s4"],
+        },
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["unit_of_analysis"] == "experimental_unit_mean"
+    assert data["n_units_a"] == 2
+    assert data["n_observations_a"] == 4
+    assert data["pseudoreplication_warning"] is False
+
+
 def test_native_import_requires_supported_extension():
     client = app.test_client()
     response = client.post("/api/analyze", data={"file": (io.BytesIO(b"not a recording"), "recording.txt")}, content_type="multipart/form-data")
