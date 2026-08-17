@@ -2,7 +2,7 @@
 
 Research-grade ECG and electrophysiology annotation, segmentation, phenotyping, external validation, and leakage-safe machine-learning toolkit. ElectroTrace provides an interactive web interface backed by a Python REST API for building curated research datasets with machine-assisted labeling and subject-stratified validation.
 
-**Version:** 1.5.2  
+**Version:** 1.5.3  
 **License:** MIT  
 **Status:** Active research software
 
@@ -39,6 +39,7 @@ Open `http://127.0.0.1:5000` in your browser.
 ### Large-recording architecture
 - Metadata-only registration.
 - Native lazy EDF/WFDB windows and bounded CSV windows.
+- CSV browser loading now uses the same persisted/windowed path as native recordings.
 - Bounded browser state for long recordings.
 
 ### Interactive Annotation
@@ -51,6 +52,7 @@ Open `http://127.0.0.1:5000` in your browser.
 - High-recall Stage 1 candidate generation using prominence and minimum distance.
 - **Signal-level adaptive polarity selector:** chooses positive versus negative polarity for a recording rather than merging both, using a conservative candidate-count rule validated on the complete MIT-BIH database.
 - **Two-stage R-peak pipeline:** Stage 1 candidates followed by a Random Forest false-positive suppressor using morphology, slope, energy, and RR-context features.
+- **Optional long-gap recovery:** adds at most one relaxed candidate inside unusually long RR gaps and passes it through the same Stage-2 verifier; it remains off by default pending external validation.
 - Configurable beat windows and beat-level phenotype extraction.
 
 ### Machine-Assisted Labeling
@@ -58,7 +60,7 @@ Open `http://127.0.0.1:5000` in your browser.
 - Training safeguards and reproducibility metadata.
 - Uncertainty/diversity-based active learning.
 - Already annotated/training beats excluded from suggestions.
-- Two-stage threshold selection kept separate from held-out evaluation.
+- Pipeline class handling is explicit for prediction/reporting.
 
 ### Research Analysis
 - Subject/record-level leakage-safe ML benchmarking.
@@ -87,6 +89,8 @@ python scripts/benchmark_two_stage_mitdb.py \
   --data-dir .cache/physionet/mitdb \
   --output validation_reports/mitdb_two_stage_validation.json
 ```
+
+The benchmark runner supports explicit polarity and optional recovery settings so experiments use the same candidate-generation protocol during training and held-out testing.
 
 See `docs/VALIDATION.md` and `docs/TWO_STAGE_RPEAK.md` for the reproducible protocol.
 
@@ -160,9 +164,11 @@ CI runs on Python 3.10, 3.11, and 3.12.
 
 **Not a clinical device:** ElectroTrace is research software. Automatic R-peak detection and the false-positive suppressor are research algorithms, not validated clinical algorithms.
 
-**Reproducibility:** Raw signals are not overwritten by display preprocessing. Source format, absolute time bounds, provenance, model metadata, train/test record lists, and threshold settings are preserved where applicable.
+**Reproducibility:** Raw signals are not overwritten by display preprocessing. Source format, absolute time bounds, provenance, model metadata, train/test record lists, and threshold settings are preserved where applicable. Stage-2 suppressor thresholds are calibrated on held-out training candidates by default rather than the same examples used to fit the final model.
 
-**External validation:** Report the exact dataset version, record list, detector configuration, polarity mode, matching tolerance, and model threshold.
+**External validation:** Report the exact dataset version, record list, detector configuration, polarity mode, matching tolerance, recovery setting, and model threshold.
+
+**Large-data API:** JSON signal requests are capped at 64 MB; use persistent recording registration and window access for long recordings.
 
 ## Citation
 
@@ -175,4 +181,4 @@ https://github.com/Virelion-Biotech/Virelion-ElectroTrace
 
 ---
 
-**ElectroTrace v1.5.2** · annotation, adaptive-polarity R-peak detection, two-stage verification, external validation, and leakage-safe ML.
+**ElectroTrace v1.5.3** · annotation, adaptive-polarity R-peak detection, two-stage verification, external validation, and leakage-safe ML.
