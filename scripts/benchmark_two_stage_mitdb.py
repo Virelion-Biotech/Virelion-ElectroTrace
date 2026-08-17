@@ -10,7 +10,7 @@ from pathlib import Path
 
 import numpy as np
 import wfdb
-from sklearn.model_selection import StratifiedGroupKFold
+from sklearn.model_selection import StratifiedShuffleSplit
 
 from electrotrace import __version__
 from electrotrace.candidate_suppressor import CandidateSuppressor, _candidate_features, label_candidates, select_threshold_for_recall
@@ -53,19 +53,51 @@ def _candidate_stream(signal: np.ndarray, fs_hz: float, polarity: str, recovery:
     return all_peaks, all_prom, chosen
 
 
-def _fit_group_calibrated(features: np.ndarray, labels: np.ndarray, groups: np.ndarray, target_recall: float, seed: int) -> tuple[CandidateSuppressor, list[str]]:
+def _record_level_calibration_indices(labels: np.ndarray, groups: np.ndarray, seed: int) -> tuple[np.ndarray, np.ndarray, list[str]]:
+    """Choose whole records for calibration using record-level label-rate strata."""
     labels = np.asarray(labels, dtype=int)
     groups = np.asarray(groups)
     unique_groups = np.unique(groups)
     if len(unique_groups) < 3:
         raise ValueError("record-level calibration requires at least three training records")
-    splitter = StratifiedGroupKFold(n_splits=min(5, len(unique_groups)), shuffle=True, random_state=seed)
-    fit_idx, calibration_idx = next(splitter.split(features, labels, groups))
-    calibration_groups = sorted({str(value) for value in groups[calibration_idx]})
+
+    rates = []
+    for group in unique_groups:
+        group_labels = labels[groups == group]
+        if group_labels.size == 0:
+            raise ValueError(f"record '{group}' has no candidate labels")
+        rates.append(float(np.mean(group_labels)))
+    rates = np.asarray(rates, dtype=float)
+
+    # Stratify records into up to three roughly balanced bands by positive-candidate fraction.
+    order = np.argsort(rates, kind="stable")
+    strata = np.zeros(len(unique_groups), dtype=int)
+    n_strata = min(3, len(unique_groups))
+    for rank, idx in enumerate(order):
+        strata[idx] = min(n_strata - 1, (rank * n_strata) // len(unique_groups))
+
+    test_group_count = max(1, int(round(len(unique_groups) * 0.20)))
+    if len(unique_groups) - test_group_count < 2:
+        test_group_count = 1
+
+    splitter = StratifiedShuffleSplit(n_splits=1, test_size=test_group_count, random_state=seed)
+    train_group_idx, calibration_group_idx = next(splitter.split(unique_groups, strata))
+    fit_groups = unique_groups[train_group_idx]
+    calibration_groups = unique_groups[calibration_group_idx]
+
+    fit_idx = np.flatnonzero(np.isin(groups, fit_groups))
+    calibration_idx = np.flatnonzero(np.isin(groups, calibration_groups))
     if set(groups[fit_idx]).intersection(set(groups[calibration_idx])):
         raise RuntimeError("calibration records overlap model-fitting records")
     if len(np.unique(labels[fit_idx])) < 2 or len(np.unique(labels[calibration_idx])) < 2:
         raise ValueError("record-level calibration split must contain both positive and negative candidates")
+    return fit_idx, calibration_idx, sorted(str(value) for value in calibration_groups)
+
+
+def _fit_group_calibrated(features: np.ndarray, labels: np.ndarray, groups: np.ndarray, target_recall: float, seed: int) -> tuple[CandidateSuppressor, list[str]]:
+    labels = np.asarray(labels, dtype=int)
+    groups = np.asarray(groups)
+    fit_idx, calibration_idx, calibration_groups = _record_level_calibration_indices(labels, groups, seed)
 
     calibration_model = CandidateSuppressor().fit(features[fit_idx], labels[fit_idx], target_recall=target_recall, random_seed=seed, calibration_fraction=0)
     calibration_probabilities = calibration_model.predict_proba(features[calibration_idx])
@@ -77,7 +109,7 @@ def _fit_group_calibrated(features: np.ndarray, labels: np.ndarray, groups: np.n
         threshold=float(threshold),
         calibration_fraction=float(len(calibration_idx) / len(labels)),
         calibration_candidates=int(len(calibration_idx)),
-        calibration_method="held_out_record_group",
+        calibration_method="held_out_record_group_stratified",
     )
     return final_model, calibration_groups
 
@@ -151,7 +183,7 @@ def main() -> int:
     model, calibration_records = _train_records(train_records, data_dir, args.polarity, args.recovery, args.seed)
     record_results = _evaluate(model, test_records, data_dir, args.polarity, args.recovery)
     report = {
-        "schema": "electrotrace.two_stage_validation/v4",
+        "schema": "electrotrace.two_stage_validation/v5",
         "software_version": __version__,
         "train_records": train_records,
         "calibration_records": calibration_records,
