@@ -10,7 +10,7 @@ if str(SRC) not in sys.path: sys.path.insert(0,str(SRC))
 from electrotrace.beats import segment_beats
 from electrotrace.benchmark import benchmark_models
 from electrotrace.formats import MAX_ARCHIVE_BYTES,MAX_ARCHIVE_MEMBERS,MAX_MEMBER_BYTES,load_electrophysiology
-from electrotrace.io import load_csv,load_recording,validate_dataframe
+from electrotrace.io import load_csv,validate_dataframe
 from electrotrace.metadata import recording_metadata
 from electrotrace.ml import rank_uncertain,train_classifier
 from electrotrace.phenotype import beat_phenotypes,summary_statistics
@@ -148,7 +148,7 @@ def phenotype():
 @app.post('/api/statistics/compare')
 def stats_compare():
     try:
-        d=_json(); return jsonify(compare_groups(d['group_a'],d['group_b']))
+        d=_json(); return jsonify(compare_groups(d['group_a'],d['group_b'],d.get('unit_ids_a'),d.get('unit_ids_b')))
     except (KeyError,TypeError,ValueError) as e:return jsonify({'error':str(e)}),400
 @app.post('/api/statistics/fdr')
 def stats_fdr():
