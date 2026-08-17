@@ -8,6 +8,8 @@ from scipy import signal as sps
 
 from .candidate_suppressor import CandidateSuppressor, _candidate_features
 
+DEFAULT_NEGATIVE_COUNT_RATIO = 0.70
+
 
 @dataclass(frozen=True)
 class PolarityDecision:
@@ -39,11 +41,11 @@ def _candidate_set(z: np.ndarray, fs_hz: float, scale: float) -> tuple[np.ndarra
 
 
 def select_signal_polarity(signal: np.ndarray, fs_hz: float) -> PolarityDecision:
-    """Choose the stronger ECG polarity without merging positive/negative candidates.
+    """Select one polarity per recording without merging positive/negative peaks.
 
-    The score combines robust prominence, plausible beat-count support, and RR
-    regularity. Low-confidence decisions fall back to positive polarity so the
-    historical detector behavior remains the safe default.
+    The negative-polarity path is deliberately conservative: it is selected only
+    when it produces substantially fewer Stage-1 candidates than the positive path.
+    This is a signal-level heuristic, not a clinical ECG-quality classifier.
     """
     signal, fs_hz = _validate_signal(signal, fs_hz)
     z = signal - np.median(signal)
@@ -53,39 +55,20 @@ def select_signal_polarity(signal: np.ndarray, fs_hz: float) -> PolarityDecision
 
     pos, pos_prom = _candidate_set(z, fs_hz, scale)
     neg, neg_prom = _candidate_set(-z, fs_hz, scale)
-    duration_s = signal.size / fs_hz
 
-    def score(peaks: np.ndarray, prominences: np.ndarray) -> float:
-        if len(peaks) == 0:
+    def morphology_score(prominences: np.ndarray) -> float:
+        if len(prominences) == 0:
             return 0.0
-        prominence_term = float(np.median(prominences) / max(scale, 1e-8))
-        bpm = len(peaks) / max(duration_s, 1e-8) * 60.0
-        if 35.0 <= bpm <= 180.0:
-            count_term = 1.0
-        elif bpm < 35.0:
-            count_term = max(0.0, bpm / 35.0)
-        else:
-            count_term = max(0.0, 180.0 / bpm)
-        if len(peaks) >= 3:
-            rr = np.diff(peaks) / fs_hz
-            rr_median = float(np.median(rr))
-            rr_cv = float(np.std(rr) / max(rr_median, 1e-8)) if rr_median > 0 else 1.0
-            regularity_term = 1.0 / (1.0 + rr_cv)
-        else:
-            regularity_term = 0.5
-        return float(0.55 * prominence_term + 0.20 * count_term + 0.25 * regularity_term)
+        return float(np.median(prominences) / max(scale, 1e-8))
 
-    pos_score = score(pos, pos_prom)
-    neg_score = score(neg, neg_prom)
-    if pos_score == neg_score == 0:
-        return PolarityDecision("positive", 0.0, pos_score, neg_score, len(pos), len(neg))
-    polarity = "positive" if pos_score >= neg_score else "negative"
-    best = max(pos_score, neg_score)
-    second = min(pos_score, neg_score)
-    confidence = float((best - second) / max(best, 1e-8))
-    if confidence < 0.10:
-        polarity = "positive"
-    return PolarityDecision(polarity, confidence, pos_score, neg_score, len(pos), len(neg))
+    pos_score = morphology_score(pos_prom)
+    neg_score = morphology_score(neg_prom)
+    pos_count = len(pos)
+    neg_count = len(neg)
+    ratio = neg_count / max(pos_count, 1)
+    polarity = "negative" if pos_count > 0 and neg_count > 0 and ratio < DEFAULT_NEGATIVE_COUNT_RATIO else "positive"
+    confidence = float(abs(pos_count - neg_count) / max(pos_count, neg_count, 1))
+    return PolarityDecision(polarity, confidence, pos_score, neg_score, pos_count, neg_count)
 
 
 def detect_r_peaks(signal: np.ndarray, fs_hz: float, *, polarity: str = "positive") -> np.ndarray:
