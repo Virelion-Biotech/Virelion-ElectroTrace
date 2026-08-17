@@ -76,19 +76,23 @@ class ProjectStore:
         return project
 
     def window(self, recording_path: str | Path, start: int, stop: int) -> dict[str, np.ndarray]:
-        """Read a bounded sample window from a CSV/NPY recording."""
+        """Read a bounded sample window without materializing a full recording."""
         path = Path(recording_path)
         if start < 0 or stop <= start:
             raise ValueError("window must satisfy 0 <= start < stop")
         if path.suffix.lower() == ".npy":
             arr = np.load(path, mmap_mode="r")
-            return {"signal": np.asarray(arr[start:stop])}
+            end = min(stop, arr.shape[0])
+            return {"signal": np.asarray(arr[start:end])}
         if path.suffix.lower() == ".npz":
             # NPZ archives do not provide true mmap semantics; close the archive after reading.
             with np.load(path) as data:
-                return {k: np.asarray(data[k][start:stop]) for k in data.files}
+                return {k: np.asarray(data[k][start:min(stop, data[k].shape[0])]) for k in data.files}
         if path.suffix.lower() == ".csv":
             import pandas as pd
-            frame = pd.read_csv(path, skiprows=lambda i: i != 0 and not (start + 1 <= i <= stop))
+            header = pd.read_csv(path, nrows=0)
+            if len(header.columns) == 0:
+                raise ValueError("CSV has no columns")
+            frame = pd.read_csv(path, skiprows=range(1, start + 1), nrows=stop - start)
             return {str(c): frame[c].to_numpy() for c in frame.columns}
         raise ValueError(f"Unsupported chunked format: {path.suffix}")
