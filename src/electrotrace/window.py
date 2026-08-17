@@ -48,7 +48,7 @@ def read_edf_window(path: str | Path, start: int, stop: int) -> dict[str, Any]:
             signals[label] = data
         fs = rates[0]
         time = np.arange(start, stop, dtype=float) / fs
-        return {"start": start, "stop": stop, "n_samples": n_total, "sampling_rate_hz": fs, "time_start_s": 0.0, "time_end_s": float((n_total - 1) / fs), "time": time, "signals": signals}
+        return {"start": start, "stop": stop, "n_samples": n, "total_samples": n_total, "sampling_rate_hz": fs, "time_start_s": 0.0, "time_end_s": float((n_total - 1) / fs), "time": time, "signals": signals}
     finally:
         reader.close()
 
@@ -82,7 +82,7 @@ def read_wfdb_window(path: str | Path, start: int, stop: int) -> dict[str, Any]:
     if len(labels) != signals.shape[1]:
         raise ValueError("WFDB channel metadata does not match signal dimensions")
     time = np.arange(start, stop, dtype=float) / fs
-    return {"start": start, "stop": stop, "n_samples": n_total, "sampling_rate_hz": fs, "time_start_s": 0.0, "time_end_s": float((n_total - 1) / fs), "time": time, "signals": {label: signals[:, i] for i, label in enumerate(labels)}}
+    return {"start": start, "stop": stop, "n_samples": stop - start, "total_samples": n_total, "sampling_rate_hz": fs, "time_start_s": 0.0, "time_end_s": float((n_total - 1) / fs), "time": time, "signals": {label: signals[:, i] for i, label in enumerate(labels)}}
 
 
 def read_recording_window(path: str | Path, start: int, stop: int) -> dict[str, Any]:
@@ -95,8 +95,19 @@ def read_recording_window(path: str | Path, start: int, stop: int) -> dict[str, 
     if suffix == ".csv":
         import pandas as pd
         start, stop = _validate_window(start, stop)
-        frame = pd.read_csv(path, skiprows=lambda i: i != 0 and not (start + 1 <= i <= stop))
-        if frame.empty:
-            raise ValueError("window start is beyond the recording")
-        return {"start": start, "stop": start + len(frame), "n_samples": None, "sampling_rate_hz": None, "time_start_s": float(frame.iloc[0, 0]), "time_end_s": float(frame.iloc[-1, 0]), "time": frame.iloc[:, 0].to_numpy(dtype=float), "signals": {str(c): pd.to_numeric(frame[c], errors="coerce").to_numpy(dtype=float) for c in frame.columns[1:]}}
+        frame = pd.read_csv(path, skiprows=range(1, start + 1), nrows=stop - start)
+        if frame.empty or len(frame) < stop - start:
+            raise ValueError("window start is beyond the recording" if frame.empty else "window extends beyond the recording")
+        time = pd.to_numeric(frame.iloc[:, 0], errors="coerce").to_numpy(dtype=float)
+        if not np.isfinite(time).all() or len(time) < 2 and (len(time) < 1 or not np.isfinite(time[0])):
+            raise ValueError("CSV window contains invalid time values")
+        if len(time) > 1 and np.any(np.diff(time) <= 0):
+            raise ValueError("CSV time values must be strictly increasing")
+        signals = {}
+        for c in frame.columns[1:]:
+            values = pd.to_numeric(frame[c], errors="coerce").to_numpy(dtype=float)
+            if not np.isfinite(values).all():
+                raise ValueError(f"CSV channel '{c}' contains NaN or infinite values")
+            signals[str(c)] = values
+        return {"start": start, "stop": start + len(frame), "n_samples": len(frame), "total_samples": None, "sampling_rate_hz": None, "time_start_s": float(time[0]), "time_end_s": float(time[-1]), "time": time, "signals": signals}
     raise ValueError(f"Unsupported windowed format: {path.suffix}")
