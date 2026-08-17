@@ -69,22 +69,37 @@ def _record_level_calibration_indices(labels: np.ndarray, groups: np.ndarray, se
         rates.append(float(np.mean(group_labels)))
     rates = np.asarray(rates, dtype=float)
 
-    # Stratify records into up to three roughly balanced bands by positive-candidate fraction.
     order = np.argsort(rates, kind="stable")
     strata = np.zeros(len(unique_groups), dtype=int)
     n_strata = min(3, len(unique_groups))
     for rank, idx in enumerate(order):
         strata[idx] = min(n_strata - 1, (rank * n_strata) // len(unique_groups))
 
-    test_group_count = max(1, int(round(len(unique_groups) * 0.20)))
-    if len(unique_groups) - test_group_count < 2:
-        test_group_count = 1
+    calibration_count = max(1, int(round(len(unique_groups) * 0.20)))
+    if len(unique_groups) - calibration_count < 2:
+        calibration_count = 1
 
-    splitter = StratifiedShuffleSplit(n_splits=1, test_size=test_group_count, random_state=seed)
-    train_group_idx, calibration_group_idx = next(splitter.split(unique_groups, strata))
-    fit_groups = unique_groups[train_group_idx]
+    rng = np.random.default_rng(seed)
+    calibration_group_idx: np.ndarray | None = None
+    if len(unique_groups) >= 6 and np.bincount(strata, minlength=n_strata).min() >= 2:
+        splitter = StratifiedShuffleSplit(n_splits=1, test_size=calibration_count, random_state=seed)
+        _, calibration_group_idx = next(splitter.split(unique_groups, strata))
+    else:
+        # Small-cohort fallback: sample complete records until both splits contain both classes.
+        for _ in range(200):
+            candidate_idx = np.sort(rng.choice(len(unique_groups), size=calibration_count, replace=False))
+            fit_idx_probe = np.setdiff1d(np.arange(len(unique_groups)), candidate_idx)
+            calibration_labels = labels[np.isin(groups, unique_groups[candidate_idx])]
+            fit_labels = labels[np.isin(groups, unique_groups[fit_idx_probe])]
+            if len(np.unique(calibration_labels)) >= 2 and len(np.unique(fit_labels)) >= 2:
+                calibration_group_idx = candidate_idx
+                break
+    if calibration_group_idx is None:
+        raise ValueError("unable to construct a record-level calibration split with both classes")
+
+    fit_group_idx = np.setdiff1d(np.arange(len(unique_groups)), calibration_group_idx)
+    fit_groups = unique_groups[fit_group_idx]
     calibration_groups = unique_groups[calibration_group_idx]
-
     fit_idx = np.flatnonzero(np.isin(groups, fit_groups))
     calibration_idx = np.flatnonzero(np.isin(groups, calibration_groups))
     if set(groups[fit_idx]).intersection(set(groups[calibration_idx])):
