@@ -32,7 +32,7 @@ def test_threshold_selection_hits_target_recall():
     y = np.array([1, 1, 1, 1, 0, 0, 0, 0])
     p = np.array([.99, .8, .7, .6, .95, .3, .2, .1])
     threshold = select_threshold_for_recall(y, p, target_recall=.75)
-    assert threshold == pytest.approx(.8)
+    assert threshold == pytest.approx(.7)
 
 
 def test_suppressor_trains_and_filters_candidates():
