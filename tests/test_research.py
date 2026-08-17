@@ -46,7 +46,7 @@ def test_benchmark_requires_multiple_subjects():
         benchmark_models(X, y, np.ones(10), folds=2)
 
 
-def test_benchmark_subject_level_split():
+def test_benchmark_subject_level_split_and_summary_ci():
     rng = np.random.default_rng(2)
     X = rng.normal(size=(24, 4))
     y = np.array([0, 1] * 12)
@@ -54,4 +54,8 @@ def test_benchmark_subject_level_split():
     result = benchmark_models(X, y, groups, folds=3)
     assert result["n_subjects"] == 6
     assert "random_forest" in result["models"]
-    assert len(result["models"]["random_forest"]["folds"]) == 3
+    model_result = result["models"]["random_forest"]
+    assert len(model_result["folds"]) == 3
+    assert model_result["summary"]["accuracy"]["mean"] is not None
+    assert model_result["summary"]["accuracy"]["std"] is not None
+    assert model_result["summary"]["accuracy"]["ci95_low"] <= model_result["summary"]["accuracy"]["mean"] <= model_result["summary"]["accuracy"]["ci95_high"]
