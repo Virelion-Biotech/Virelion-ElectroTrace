@@ -14,18 +14,17 @@ from pathlib import Path
 
 import numpy as np
 import wfdb
+from scipy import signal as sps
 
 from electrotrace import __version__
 from electrotrace.candidate_suppressor import CandidateSuppressor, _candidate_features, label_candidates
-from electrotrace.validation import summarize_records, validate_record
-from electrotrace.validation_detectors import detect_r_peaks
+from electrotrace.validation import DetectionMetrics, RecordValidation, summarize_records, validate_record
 
 
-def _record_detector(signal: np.ndarray, fs_hz: float) -> np.ndarray:
-    return detect_r_peaks(signal, fs_hz)
+ALLOWED_BEAT_SYMBOLS = {"/", "A", "E", "F", "J", "L", "N", "Q", "R", "S", "V", "a", "e", "f", "j"}
 
 
-def _train_records(records: list[str], data_dir: Path):
+def _train_records(records: list[str], data_dir: Path) -> CandidateSuppressor:
     features: list[np.ndarray] = []
     labels: list[np.ndarray] = []
     feature_names: list[str] | None = None
@@ -33,48 +32,72 @@ def _train_records(records: list[str], data_dir: Path):
         base = str(data_dir / record)
         rec = wfdb.rdrecord(base, channels=[0], physical=False)
         signal = np.asarray(rec.p_signal[:, 0] if rec.p_signal is not None else rec.d_signal[:, 0], dtype=float)
-        candidates, properties = __import__("scipy").signal.find_peaks(
+        candidates, properties = sps.find_peaks(
             signal - np.median(signal),
             distance=max(1, int(round(float(rec.fs) * 0.25))),
             prominence=float(np.std(signal)) * 0.5,
         )
         ann = wfdb.rdann(base, "atr")
-        symbols = np.asarray(ann.symbol)
-        allowed = {"/", "A", "E", "F", "J", "L", "N", "Q", "R", "S", "V", "a", "e", "f", "j"}
-        refs = np.asarray([s for s, symbol in zip(ann.sample, symbols) if symbol in allowed], dtype=int)
+        refs = np.asarray([s for s, symbol in zip(ann.sample, ann.symbol) if symbol in ALLOWED_BEAT_SYMBOLS], dtype=int)
         X, names = _candidate_features(signal, float(rec.fs), candidates, properties["prominences"])
         y = label_candidates(candidates, refs, float(rec.fs))
         features.append(X)
         labels.append(y)
         feature_names = names
+
     model = CandidateSuppressor().fit(np.vstack(features), np.concatenate(labels), target_recall=0.995)
     model.feature_names = feature_names
     return model
 
 
-def _evaluate(model: CandidateSuppressor, records: list[str], data_dir: Path) -> list:
-    results = []
+def _evaluate(model: CandidateSuppressor, records: list[str], data_dir: Path) -> list[dict]:
+    results: list[dict] = []
     for record in records:
         base = str(data_dir / record)
         rec = wfdb.rdrecord(base, channels=[0], physical=False)
         signal = np.asarray(rec.p_signal[:, 0] if rec.p_signal is not None else rec.d_signal[:, 0], dtype=float)
-        candidates, properties = __import__("scipy").signal.find_peaks(
+        candidates, properties = sps.find_peaks(
             signal - np.median(signal),
             distance=max(1, int(round(float(rec.fs) * 0.25))),
             prominence=float(np.std(signal)) * 0.5,
         )
         features, _ = _candidate_features(signal, float(rec.fs), candidates, properties["prominences"])
         retained, probabilities = model.filter_candidates(candidates, features)
-        # Reuse ElectroTrace's established one-to-one validation metrics.
-        def detector(_signal, _fs, retained=retained):
+
+        def detector(_signal: np.ndarray, _fs: float, retained=retained) -> np.ndarray:
             return retained
+
         result = validate_record(base, detector, channel=0, annotation_extension="atr", tolerance_ms=75)
-        result = result.to_dict()
-        result["stage1_detected"] = int(len(candidates))
-        result["stage2_retained"] = int(len(retained))
-        result["suppression_rate"] = float(1.0 - len(retained) / len(candidates)) if len(candidates) else 0.0
-        results.append(result)
+        payload = result.to_dict()
+        payload["stage1_detected"] = int(len(candidates))
+        payload["stage2_retained"] = int(len(retained))
+        payload["suppression_rate"] = float(1.0 - len(retained) / len(candidates)) if len(candidates) else 0.0
+        payload["mean_retention_probability"] = float(np.mean(probabilities)) if probabilities.size else None
+        results.append(payload)
     return results
+
+
+def _summary_from_payloads(payloads: list[dict]) -> dict:
+    results = [
+        RecordValidation(
+            record=p["record"],
+            fs_hz=float(p["fs_hz"]),
+            metrics=DetectionMetrics(
+                reference_count=int(p["reference_count"]),
+                detected_count=int(p["detected_count"]),
+                true_positive=int(p["true_positive"]),
+                false_positive=int(p["false_positive"]),
+                false_negative=int(p["false_negative"]),
+                sensitivity=float(p["sensitivity"]),
+                positive_predictive_value=float(p["positive_predictive_value"]),
+                f1=float(p["f1"]),
+                median_timing_error_ms=p["median_timing_error_ms"],
+                p95_timing_error_ms=p["p95_timing_error_ms"],
+            ),
+        )
+        for p in payloads
+    ]
+    return summarize_records(results)
 
 
 def main() -> int:
@@ -84,6 +107,9 @@ def main() -> int:
     parser.add_argument("--test-fraction", type=float, default=0.25)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
+
+    if not 0 < args.test_fraction < 1:
+        raise SystemExit("--test-fraction must be between 0 and 1")
 
     data_dir = Path(args.data_dir)
     records = list(wfdb.get_record_list("mitdb"))
@@ -97,21 +123,6 @@ def main() -> int:
     model = _train_records(train_records, data_dir)
     record_results = _evaluate(model, test_records, data_dir)
 
-    # Aggregate from the record-level TP/FP/FN counts; this remains the primary
-    # scientific endpoint for the held-out detector comparison.
-    summary = summarize_records([
-        type("ValidationResult", (), {
-            "metrics": type("Metrics", (), {
-                "reference_count": r["reference_count"],
-                "detected_count": r["detected_count"],
-                "true_positive": r["true_positive"],
-                "false_positive": r["false_positive"],
-                "false_negative": r["false_negative"],
-                "median_timing_error_ms": r["median_timing_error_ms"],
-            })()
-        })()
-        for r in record_results
-    ])
     report = {
         "schema": "electrotrace.two_stage_validation/v1",
         "software_version": __version__,
@@ -122,7 +133,7 @@ def main() -> int:
         "model_metadata": model.metadata.to_dict(),
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "record_results": record_results,
-        "summary": summary,
+        "summary": _summary_from_payloads(record_results),
     }
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
