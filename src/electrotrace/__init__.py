@@ -1,3 +1,3 @@
-"""ElectroTrace: research-grade ECG annotation and signal utilities."""
+"""ElectroTrace: research-grade ECG and electrophysiology software."""
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
