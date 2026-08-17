@@ -76,6 +76,20 @@ def test_statistics_endpoint_aggregates_by_subject():
     assert data["pseudoreplication_warning"] is False
 
 
+def test_r_peak_endpoint_rejects_partial_nonfinite_signal():
+    client = app.test_client()
+    response = client.post("/api/detect/r-peaks", json={"sampling_rate_hz": 500, "signal": [0.0, 1.0, float("nan"), 0.0] * 10})
+    assert response.status_code == 400
+    assert "NaN" in response.get_json()["error"]
+
+
+def test_segment_endpoint_rejects_nonfinite_time():
+    client = app.test_client()
+    response = client.post("/api/segment", json={"time": [0.0, 0.01, float("inf")], "peaks": [1]})
+    assert response.status_code == 400
+    assert "strictly increasing" in response.get_json()["error"]
+
+
 def test_native_import_requires_supported_extension():
     client = app.test_client()
     response = client.post("/api/analyze", data={"file": (io.BytesIO(b"not a recording"), "recording.txt")}, content_type="multipart/form-data")
