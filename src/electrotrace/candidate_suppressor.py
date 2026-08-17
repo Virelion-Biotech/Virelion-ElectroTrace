@@ -10,10 +10,11 @@ import numpy as np
 from scipy import signal as sps
 from sklearn.ensemble import RandomForestClassifier
 
-SUPPRESSOR_VERSION = "rf-candidate-suppressor-v2"
-FEATURE_SCHEMA_VERSION = "candidate-features-v2"
+SUPPRESSOR_VERSION = "rf-candidate-suppressor-v3"
+FEATURE_SCHEMA_VERSION = "candidate-features-v3"
 DEFAULT_TARGET_RECALL = 0.995
 DEFAULT_TOLERANCE_S = 0.075
+FEATURE_CHUNK_SIZE = 4096
 
 
 @dataclass(frozen=True)
@@ -48,7 +49,7 @@ def _bandpasses(zsignal: np.ndarray, fs_hz: float) -> list[np.ndarray]:
     nyq = fs_hz / 2.0
     specs = [(0.5, min(5.0, nyq * 0.9)), (5.0, min(15.0, nyq * 0.9)),
              (15.0, min(40.0, nyq * 0.9)), (40.0, min(100.0, nyq * 0.9))]
-    out = []
+    out: list[np.ndarray] = []
     for low, high in specs:
         if high <= low or high <= 0:
             out.append(np.zeros_like(zsignal))
@@ -68,6 +69,7 @@ def _candidate_features(
     prominences: Sequence[float] | None = None,
     window_s: float = 0.25,
 ) -> tuple[np.ndarray, list[str]]:
+    """Extract candidate features in bounded vectorized chunks."""
     signal, fs_hz = _validate_signal(signal, fs_hz)
     candidates = np.asarray(candidate_indices, dtype=int)
     if candidates.ndim != 1:
@@ -80,15 +82,14 @@ def _candidate_features(
     base = signal - np.median(signal)
     global_scale = float(np.std(base)) or 1.0
     zsignal = base / global_scale
-    if prominences is None:
-        prominences = np.zeros(len(candidates), dtype=float)
-    prominences = np.asarray(prominences, dtype=float)
+    prominences = np.zeros(len(candidates), dtype=float) if prominences is None else np.asarray(prominences, dtype=float)
     if prominences.ndim != 1 or len(prominences) != len(candidates):
         raise ValueError("prominences must match candidate_indices")
 
     rr = np.diff(candidates) / fs_hz if len(candidates) > 1 else np.asarray([], dtype=float)
     rr_median = float(np.median(rr)) if rr.size else 1.0
     band_signals = _bandpasses(zsignal, fs_hz)
+
     names = [
         "amplitude_z", "prominence_z", "width_s", "max_abs_slope", "mean_abs_slope",
         "local_rms", "crest_factor", "low_band_fraction", "qrs_band_fraction",
@@ -97,57 +98,69 @@ def _candidate_features(
         "rr_next_ratio",
     ] + [f"shape_{i:02d}" for i in range(64)]
 
-    rows: list[np.ndarray] = []
     radius = max(16, int(round(fs_hz * window_s)))
     half_qrs = max(4, int(round(fs_hz * 0.08)))
-    for pos, candidate in enumerate(candidates):
-        lo = max(0, int(candidate) - radius)
-        hi = min(signal.size, int(candidate) + radius + 1)
-        x = zsignal[lo:hi]
-        if x.size < 16:
-            x = np.pad(x, (0, 16 - x.size), mode="edge")
-        shape = np.interp(np.linspace(0, x.size - 1, 64), np.arange(x.size), x)
-        derivative = np.diff(x) * fs_hz
+    offsets = np.arange(-radius, radius + 1, dtype=int)
+    qslice = slice(radius - half_qrs, radius + half_qrs + 1)
+    leftslice = slice(radius - half_qrs, radius)
+    rightslice = slice(radius + 1, radius + half_qrs + 1)
+    shape_pos = np.linspace(0.0, len(offsets) - 1.0, 64)
+    shape_lo = np.floor(shape_pos).astype(int)
+    shape_hi = np.minimum(shape_lo + 1, len(offsets) - 1)
+    shape_alpha = (shape_pos - shape_lo).astype(np.float32)
 
-        qlo = max(lo, int(candidate) - half_qrs)
-        qhi = min(hi, int(candidate) + half_qrs + 1)
-        qrs = zsignal[qlo:qhi]
-        local_rms = float(np.sqrt(np.mean(qrs * qrs))) if qrs.size else 0.0
-        peak_abs = float(np.max(np.abs(qrs))) if qrs.size else 0.0
-        mean_abs = float(np.mean(np.abs(qrs))) if qrs.size else 0.0
-        crest = peak_abs / max(mean_abs, 1e-6)
-        half_height = 0.5 * peak_abs
-        width = float(np.count_nonzero(np.abs(qrs) >= half_height) / fs_hz) if qrs.size and half_height > 0 else 0.0
+    rows: list[np.ndarray] = []
+    n = len(candidates)
+    for start in range(0, n, FEATURE_CHUNK_SIZE):
+        stop = min(n, start + FEATURE_CHUNK_SIZE)
+        cand = candidates[start:stop]
+        idx = np.clip(cand[:, None] + offsets[None, :], 0, signal.size - 1)
+        x = zsignal[idx]
+        shape = x[:, shape_lo] * (1.0 - shape_alpha[None, :]) + x[:, shape_hi] * shape_alpha[None, :]
+        derivative = np.diff(x, axis=1) * fs_hz
+        qrs = x[:, qslice]
+        local_rms = np.sqrt(np.mean(qrs * qrs, axis=1))
+        peak_abs = np.max(np.abs(qrs), axis=1)
+        mean_abs = np.mean(np.abs(qrs), axis=1)
+        crest = peak_abs / np.maximum(mean_abs, 1e-6)
+        width = np.count_nonzero(np.abs(qrs) >= (0.5 * peak_abs)[:, None], axis=1) / fs_hz
 
-        left = zsignal[max(lo, int(candidate) - half_qrs):int(candidate)]
-        right = zsignal[int(candidate) + 1:min(hi, int(candidate) + half_qrs + 1)]
-        left_energy = float(np.mean(left * left)) if left.size else 0.0
-        right_energy = float(np.mean(right * right)) if right.size else 0.0
-        left_amp = float(np.max(np.abs(left))) if left.size else 0.0
-        right_amp = float(np.max(np.abs(right))) if right.size else 0.0
+        left = x[:, leftslice]
+        right = x[:, rightslice]
+        left_energy = np.mean(left * left, axis=1)
+        right_energy = np.mean(right * right, axis=1)
+        left_amp = np.max(np.abs(left), axis=1)
+        right_amp = np.max(np.abs(right), axis=1)
 
         fractions = []
-        for band in band_signals:
-            local = band[qlo:qhi]
-            fractions.append(float(np.mean(local * local)) if local.size else 0.0)
-        total_band = sum(fractions) or 1.0
+        bandq = [band[idx[:, qslice]] for band in band_signals]
+        for b in bandq:
+            fractions.append(np.mean(b * b, axis=1))
+        total_band = np.sum(fractions, axis=0)
+        total_band = np.maximum(total_band, 1e-8)
         bands = [v / total_band for v in fractions]
 
-        prev_rr = float(candidate - candidates[pos - 1]) / fs_hz if pos else rr_median
-        next_rr = float(candidates[pos + 1] - candidate) / fs_hz if pos + 1 < len(candidates) else rr_median
-        rows.append(np.asarray([
-            float(zsignal[candidate]),
-            float(prominences[pos] / global_scale),
-            width,
-            float(np.max(np.abs(derivative))) if derivative.size else 0.0,
-            float(np.mean(np.abs(derivative))) if derivative.size else 0.0,
+        prev_rr = np.empty(stop - start, dtype=float)
+        next_rr = np.empty(stop - start, dtype=float)
+        if stop - start:
+            prev_rr[0] = rr_median
+            if stop - start > 1:
+                prev_rr[1:] = np.diff(cand) / fs_hz
+            next_rr[:-1] = np.diff(cand) / fs_hz
+            next_rr[-1] = rr_median
+        prev_ratio = prev_rr / max(rr_median, 1e-6)
+        next_ratio = next_rr / max(rr_median, 1e-6)
+
+        chunk = np.column_stack([
+            zsignal[cand], prominences[start:stop] / global_scale, width,
+            np.max(np.abs(derivative), axis=1), np.mean(np.abs(derivative), axis=1),
             local_rms, crest, *bands,
-            left_energy / max(right_energy, 1e-6),
-            left_amp / max(right_amp, 1e-6),
-            prev_rr, next_rr,
-            prev_rr / max(rr_median, 1e-6), next_rr / max(rr_median, 1e-6),
-            *shape,
-        ], dtype=np.float32))
+            left_energy / np.maximum(right_energy, 1e-6),
+            left_amp / np.maximum(right_amp, 1e-6),
+            prev_rr, next_rr, prev_ratio, next_ratio,
+            shape,
+        ]).astype(np.float32)
+        rows.append(chunk)
 
     if not rows:
         return np.empty((0, len(names)), dtype=np.float32), names
@@ -196,7 +209,7 @@ class CandidateSuppressor:
         return self.model is not None and self.metadata is not None
 
     def fit(self, feature_matrix: np.ndarray, labels: Sequence[int], *, target_recall: float = DEFAULT_TARGET_RECALL,
-            random_seed: int = 42, n_estimators: int = 300) -> "CandidateSuppressor":
+            random_seed: int = 42, n_estimators: int = 150) -> "CandidateSuppressor":
         X = np.asarray(feature_matrix, dtype=float); y = np.asarray(labels, dtype=int)
         if X.ndim != 2 or X.shape[0] == 0: raise ValueError("feature_matrix must be a non-empty two-dimensional array")
         if len(y) != len(X): raise ValueError("feature_matrix and labels must have equal length")
