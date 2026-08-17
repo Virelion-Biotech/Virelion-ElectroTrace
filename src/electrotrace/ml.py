@@ -60,6 +60,19 @@ def _times_from_indices(beat_indices: np.ndarray, fs: float, time: np.ndarray | 
     return time[beat_indices]
 
 
+def _model_classes(model) -> np.ndarray:
+    classes = getattr(model, "classes_", None)
+    if classes is not None:
+        return np.asarray(classes)
+    final_estimator = getattr(model, "steps", None)
+    if final_estimator:
+        estimator = final_estimator[-1][1]
+        classes = getattr(estimator, "classes_", None)
+        if classes is not None:
+            return np.asarray(classes)
+    raise ValueError("trained model does not expose class labels")
+
+
 def build_training_set(signal: np.ndarray, fs: float, beat_indices: np.ndarray, annotations: list[dict], tolerance_s: float = 0.08, time: np.ndarray | None = None):
     signal, fs = _validate_signal(signal, fs)
     beat_indices = np.asarray(beat_indices, dtype=int)
@@ -131,7 +144,8 @@ def rank_uncertain(signal: np.ndarray, fs: float, beat_indices: np.ndarray, mode
         return []
     features = np.vstack([_beat_features(signal, fs, int(i)) for i in candidate_indices])
     probabilities = model.predict_proba(features)
-    predictions = model.classes_[np.argmax(probabilities, axis=1)]
+    classes = _model_classes(model)
+    predictions = classes[np.argmax(probabilities, axis=1)]
     entropy = -(probabilities * np.log(np.clip(probabilities, 1e-9, 1.0))).sum(axis=1)
     ranked = np.argsort(-entropy)
     selected: list[int] = []
