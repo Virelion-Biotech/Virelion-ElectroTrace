@@ -13,10 +13,22 @@ MAX_ARCHIVE_MEMBERS = 256
 MAX_MEMBER_BYTES = 512 * 1024 * 1024
 
 
+def _unique_labels(labels: list[str]) -> list[str]:
+    seen: dict[str, int] = {}
+    out = []
+    for i, raw in enumerate(labels):
+        base = str(raw).strip() or f"channel_{i + 1}"
+        count = seen.get(base, 0) + 1
+        seen[base] = count
+        out.append(base if count == 1 else f"{base}_{count}")
+    return out
+
+
 def _payload(times, signals: np.ndarray, channel_names: list[str], source_format: str) -> dict:
     signals = np.asarray(signals, dtype=float)
     if signals.ndim == 1:
         signals = signals[:, None]
+    channel_names = _unique_labels(channel_names)
     if signals.ndim != 2 or signals.shape[1] != len(channel_names):
         raise ValueError("signal/channel dimensions do not match")
     if len(times) and (not np.all(np.isfinite(times)) or np.any(np.diff(times) <= 0)):
@@ -26,15 +38,7 @@ def _payload(times, signals: np.ndarray, channel_names: list[str], source_format
         dt = float(np.median(np.diff(times)))
         if dt > 0:
             fs = round(1.0 / dt, 6)
-    return {
-        "time": np.asarray(times, dtype=float).tolist(),
-        "signals": {name: signals[:, i].tolist() for i, name in enumerate(channel_names)},
-        "signal_cols": channel_names,
-        "sampling_rate_hz": fs,
-        "duration_s": float(times[-1] - times[0]) if len(times) else 0.0,
-        "n_samples": int(len(times)),
-        "source_format": source_format,
-    }
+    return {"time": np.asarray(times, dtype=float).tolist(), "signals": {name: signals[:, i].tolist() for i, name in enumerate(channel_names)}, "signal_cols": channel_names, "sampling_rate_hz": fs, "duration_s": float(times[-1] - times[0]) if len(times) else 0.0, "n_samples": int(len(times)), "source_format": source_format}
 
 
 def load_edf(file_bytes: bytes) -> dict:
@@ -50,7 +54,7 @@ def load_edf(file_bytes: bytes) -> dict:
     try:
         reader = pyedflib.EdfReader(path)
         try:
-            channels = [str(x).strip() for x in reader.getSignalLabels()]
+            channels = _unique_labels([str(x).strip() for x in reader.getSignalLabels()])
             arrays = [reader.readSignal(i) for i in range(reader.signals_in_file)]
             rates = [float(reader.getSampleFrequency(i)) for i in range(reader.signals_in_file)]
             if not arrays:
@@ -92,7 +96,6 @@ def _safe_extract(archive: zipfile.ZipFile, root: str) -> None:
         target = os.path.realpath(os.path.join(root, name))
         if not (target == root_path or target.startswith(root_path + os.sep)):
             raise ValueError("Unsafe archive path")
-        # ZIP symlinks can escape the extraction root after extraction.
         mode = (member.external_attr >> 16) & 0o170000
         if mode == 0o120000:
             raise ValueError("WFDB ZIP symlinks are not supported")
@@ -118,8 +121,7 @@ def load_wfdb_zip(file_bytes: bytes) -> dict:
             raise ValueError("WFDB ZIP must contain a .hea header and matching signal files")
         if len(headers) > 1:
             raise ValueError("WFDB ZIP must contain exactly one record header")
-        header = headers[0]
-        record_path = os.path.splitext(header)[0]
+        record_path = os.path.splitext(headers[0])[0]
         record = wfdb.rdrecord(record_path)
         fs = float(record.fs)
         if not np.isfinite(fs) or fs <= 0:
@@ -129,7 +131,7 @@ def load_wfdb_zip(file_bytes: bytes) -> dict:
             raise ValueError("WFDB record contains insufficient signal data")
         if not np.isfinite(signals).all():
             raise ValueError("WFDB record contains NaN or infinite signal values")
-        channels = [str(x) for x in record.sig_name]
+        channels = _unique_labels([str(x) for x in record.sig_name])
         if len(channels) != signals.shape[1]:
             raise ValueError("WFDB channel metadata does not match signal dimensions")
         time = np.arange(signals.shape[0], dtype=float) / fs
