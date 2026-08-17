@@ -1,6 +1,11 @@
 const researchState={recordingId:null,storedMeta:null};
 function researchMsg(text,type='ok'){const el=$('researchMessage');if(el)el.textContent=text;message(text,type)}
 
+// Large-recording audit: route CSV browser loading through the same persistent
+// window path used for EDF/WFDB, avoiding full-trace JSON materialization.
+async function loadCsv(file){await loadNativeWindow(file);message('CSV recording stored and loaded in windowed mode.','ok')}
+window.loadCsv=loadCsv;
+
 $('storeRecording')?.addEventListener('click',async()=>{
   const file=$('fileInput')?.files?.[0];if(!file)return researchMsg('Choose a recording first.','warn');
   try{const fd=new FormData();fd.append('file',file);const r=await fetch('/api/recording',{method:'POST',body:fd});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not store recording.');researchState.recordingId=d.recording_id;researchState.storedMeta=d;if(window.state){state.recordingId=d.recording_id}if($('storedMeta'))$('storedMeta').textContent=`Stored ${String(d.format).toUpperCase()} · ${Number(d.n_samples).toLocaleString()} samples · ${Number(d.duration_s).toFixed(2)} s`;researchMsg('Recording stored for windowed access and project tracking.','ok')}catch(e){researchMsg(e.message,'error')}});
