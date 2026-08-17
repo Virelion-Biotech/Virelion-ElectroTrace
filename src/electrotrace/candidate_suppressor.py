@@ -119,10 +119,12 @@ def _candidate_features(
         left_amp = float(np.max(np.abs(left))) if left.size else 0.0
         right_amp = float(np.max(np.abs(right))) if right.size else 0.0
 
-        try:
-            width = float(sps.peak_widths(zsignal, [int(candidate)], rel_height=0.5)[0][0] / fs_hz)
-        except (ValueError, IndexError):
-            width = 0.0
+        # Stable local half-amplitude width. We deliberately avoid peak_widths()
+        # here because Stage-1 candidates may have zero measured prominence,
+        # which otherwise produces noisy PeakPropertyWarnings.
+        half_height = 0.5 * peak_abs
+        above = np.abs(qrs) >= half_height if qrs.size else np.asarray([], dtype=bool)
+        width = float(np.count_nonzero(above) / fs_hz) if above.size and half_height > 0 else 0.0
 
         prev_rr = float(candidates[pos] - candidates[pos - 1]) / fs_hz if pos else rr_median
         next_rr = float(candidates[pos + 1] - candidates[pos]) / fs_hz if pos + 1 < len(candidates) else rr_median
