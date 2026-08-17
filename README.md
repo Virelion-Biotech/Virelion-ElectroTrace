@@ -2,7 +2,7 @@
 
 Research-grade ECG and electrophysiology annotation, segmentation, phenotyping, and leakage-safe machine learning toolkit. ElectroTrace provides an interactive web interface backed by a Python REST API for building curated, publication-ready datasets with machine-assisted labeling and subject-stratified validation.
 
-**Version:** 1.2.0  
+**Version:** 1.3.1  
 **License:** MIT  
 **Status:** Active research software
 
@@ -22,7 +22,7 @@ source .venv/bin/activate
 .venv\Scripts\Activate.ps1
 
 python -m pip install -U pip
-pip install -e .
+pip install -e ".[test]"
 ```
 
 ### Running the Server
@@ -49,6 +49,12 @@ Open `http://127.0.0.1:5000` in your browser.
 - **Validation:** monotonic timestamps, rejection of NaN/infinite samples, automatic sampling rate inference, irregular-sampling warnings.
 - **Non-destructive preprocessing:** raw signal arrays preserved; filters applied only for display.
 
+### Large-recording architecture
+
+- **Metadata-only registration:** upload/registration uses EDF/WFDB headers and bounded-memory CSV scanning instead of materializing the complete signal.
+- **Native lazy windows:** EDF uses direct sample-range reads; WFDB uses header metadata plus `sampfrom`/`sampto`; CSV uses bounded row reads.
+- **Bounded browser state:** the browser loads only the requested signal window for large recordings.
+
 ### Interactive Annotation
 
 - **Multi-channel Plotly visualization:** zoom, pan, drag-to-select intervals, click-to-capture points.
@@ -68,7 +74,7 @@ Open `http://127.0.0.1:5000` in your browser.
 - **Random Forest model training:** learns from human-accepted point annotations across labeled beats.
 - **Predictive uncertainty ranking:** surfaces uncertain beats for human review in active-learning fashion.
 - **Explicit review workflow:** model suggestions remain unreviewed until human confirmation; prevents silent errors.
-- **Threshold controls:** minimum accepted annotations (≥4 across ≥2 classes) to prevent low-signal model training.
+- **Training safeguards:** supervised training requires accepted annotations from at least two labels.
 
 ### Research-Grade Analysis & Exports
 
@@ -83,12 +89,12 @@ Open `http://127.0.0.1:5000` in your browser.
 
 - **Project storage:** persistent metadata in JSON (project name, created/updated timestamps, recording inventory).
 - **Subject/group/visit tracking:** organize recordings by study structure; enables stratified ML workflows.
-- **Windowed access:** load large recordings in sample-based chunks for memory-efficient batch processing.
+- **Windowed access:** load large recordings in sample-based chunks for memory-efficient analysis.
 - **Safe archive extraction:** validates ZIP structure; prevents path traversal and symbolic link attacks.
 
 ## How It's Organized
 
-```
+```text
 .
 ├── server.py                 Flask REST API server + static file serving
 ├── web/                      Browser frontend (HTML, CSS, JavaScript)
@@ -97,10 +103,12 @@ Open `http://127.0.0.1:5000` in your browser.
 │   ├── research.js           Project storage, phenotyping, benchmarking
 │   ├── shortcuts.js          Keyboard bindings
 │   └── styles.css            Layout and theming
-├── src/electrotrace/         Python analysis backend (89% of repo)
-│   ├── __init__.py           Package metadata (v1.2.0)
+├── src/electrotrace/         Python analysis backend
+│   ├── __init__.py           Package metadata
 │   ├── io.py                 CSV loading, validation, channel labeling
 │   ├── formats.py            EDF and WFDB ZIP import + safe extraction
+│   ├── metadata.py           Metadata-only recording discovery
+│   ├── window.py             Native lazy sample-window access
 │   ├── signal.py             Butterworth filtering (high-pass, low-pass, notch)
 │   ├── beats.py              Beat segmentation from R-peak indices
 │   ├── annotations.py        Annotation model, validation, review states
@@ -110,8 +118,8 @@ Open `http://127.0.0.1:5000` in your browser.
 │   ├── benchmark.py          Leakage-safe cross-validation (StratifiedGroupKFold)
 │   ├── project.py            Recording metadata helpers (file hashing, timestamps)
 │   └── project_store.py      Persistent project JSON + chunked recording access
-├── tests/                    pytest suite (Python 3.10–3.12 in CI)
-├── sample_data/              Example CSV/EDF recordings for demo
+├── tests/                    pytest suite
+├── sample_data/              Example CSV recordings for demo
 ├── pyproject.toml            Build config, dependencies, test settings
 ├── requirements.txt          Pinned dependency list
 └── LICENSE                   MIT
@@ -119,13 +127,13 @@ Open `http://127.0.0.1:5000` in your browser.
 
 ## Data Flow
 
-1. **Upload & parse:** User selects CSV/EDF/WFDB ZIP → `server.py` validates & returns normalized signal + metadata
-2. **Display & interact:** Browser plots multi-channel signal via Plotly; user selects annotation regions or points
-3. **Segment & feature:** User triggers R-peak detection → automatic beat window segmentation + RR/HR metrics
-4. **Label & review:** User creates annotations (point/interval); marks as accepted/flagged; system computes QC stats
-5. **Train & suggest:** User trains Random Forest on accepted annotations; model ranks uncertain beats
-6. **Export & analyze:** User exports JSON (full provenance) or CSV (flat table); performs group statistics + leakage-safe ML benchmarking
-7. **Store for reuse:** User saves recording + metadata to project for windowed batch access
+1. **Upload & register:** User selects CSV/EDF/WFDB → server validates metadata without loading the whole recording.
+2. **Window & display:** Browser requests only the needed sample range and plots it via Plotly.
+3. **Segment & feature:** User triggers R-peak detection → automatic beat window segmentation + RR/HR metrics.
+4. **Label & review:** User creates annotations (point/interval); marks them accepted/flagged; system computes QC stats.
+5. **Train & suggest:** User trains Random Forest on accepted annotations; model ranks uncertain beats.
+6. **Export & analyze:** User exports JSON/CSV and performs group statistics + leakage-safe ML benchmarking.
+7. **Store for reuse:** Recordings remain available through project metadata and bounded window access.
 
 ## Dependencies
 
@@ -147,8 +155,8 @@ Open `http://127.0.0.1:5000` in your browser.
 
 ### Recording Upload & Analysis
 - `POST /api/analyze` – validate and inspect CSV file
-- `POST /api/recording` – upload and persist CSV/EDF/WFDB file
-- `GET /api/recording/<id>/window` – fetch sample window from stored recording
+- `POST /api/recording` – upload/register CSV/EDF/WFDB metadata without eager signal materialization
+- `GET /api/recording/<id>/window` – fetch only the requested sample window from stored recording
 
 ### Signal Processing
 - `POST /api/filter` – apply baseline removal, high-pass, low-pass, notch filters
@@ -224,7 +232,7 @@ pytest -q
 pytest --cov=src/electrotrace tests/
 ```
 
-CI runs on Python 3.10, 3.11, 3.12.
+CI runs on Python 3.10, 3.11, 3.12 with the test dependencies installed from `.[test]`.
 
 ## Scientific Use Notes
 
@@ -256,7 +264,7 @@ pytest -q
 
 If you use ElectroTrace in research, please cite:
 
-```
+```text
 ElectroTrace: Research-grade ECG annotation and leakage-safe ML toolkit.
 Virelion-Biotech, 2024–2026.
 https://github.com/Virelion-Biotech/Virelion-ElectroTrace
@@ -271,4 +279,4 @@ For issues, feature requests, or questions:
 
 ---
 
-**ElectroTrace v1.2** · research annotation, electrophysiology phenotyping, and leakage-safe ML dataset platform.
+**ElectroTrace v1.3.1** · research annotation, electrophysiology phenotyping, and leakage-safe ML dataset platform.
