@@ -36,6 +36,18 @@ def _auc(y_true: np.ndarray, proba: np.ndarray, classes: np.ndarray) -> float | 
         return None
 
 
+def _summary(values: list[float | None]) -> dict[str, float | None]:
+    x = np.asarray([v for v in values if v is not None and np.isfinite(v)], dtype=float)
+    if x.size == 0:
+        return {"mean": None, "std": None, "ci95_low": None, "ci95_high": None}
+    mean = float(np.mean(x))
+    if x.size == 1:
+        return {"mean": mean, "std": None, "ci95_low": None, "ci95_high": None}
+    se = float(np.std(x, ddof=1) / np.sqrt(x.size))
+    margin = 1.96 * se
+    return {"mean": mean, "std": float(np.std(x, ddof=1)), "ci95_low": mean - margin, "ci95_high": mean + margin}
+
+
 def benchmark_models(X: np.ndarray, y: np.ndarray, groups: np.ndarray, folds: int = 5, seed: int = 42) -> dict:
     X = np.asarray(X, dtype=float)
     y = np.asarray(y)
@@ -55,7 +67,6 @@ def benchmark_models(X: np.ndarray, y: np.ndarray, groups: np.ndarray, folds: in
     requested_folds = int(folds)
     if requested_folds < 2:
         raise ValueError("folds must be at least 2")
-    # StratifiedGroupKFold needs enough distinct subjects in every class, not merely enough samples.
     groups_per_class = {str(cls): len(np.unique(groups[y == cls])) for cls in labels}
     max_folds = min(len(unique_groups), min(groups_per_class.values()))
     n_splits = min(requested_folds, max_folds)
@@ -68,6 +79,7 @@ def benchmark_models(X: np.ndarray, y: np.ndarray, groups: np.ndarray, folds: in
     }
     splitter = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=seed)
     result: dict[str, object] = {"n_samples": int(len(y)), "n_subjects": int(len(unique_groups)), "folds": n_splits, "splitter": "StratifiedGroupKFold", "groups_per_class": groups_per_class, "models": {}}
+    metric_names = ("accuracy", "balanced_accuracy", "macro_f1", "weighted_f1", "roc_auc")
     for name, model in models.items():
         metrics: list[FoldMetrics] = []
         confusion = None
@@ -88,9 +100,11 @@ def benchmark_models(X: np.ndarray, y: np.ndarray, groups: np.ndarray, folds: in
             ))
             cm = confusion_matrix(y[test_idx], pred, labels=labels)
             confusion = cm if confusion is None else confusion + cm
+        fold_values = {k: [getattr(m, k) for m in metrics] for k in metric_names}
         result["models"][name] = {
             "folds": [m.to_dict() for m in metrics],
-            "mean": {k: float(np.nanmean([getattr(m, k) if getattr(m, k) is not None else np.nan for m in metrics])) for k in ("accuracy", "balanced_accuracy", "macro_f1", "weighted_f1", "roc_auc")},
+            "summary": {k: _summary(v) for k, v in fold_values.items()},
+            "mean": {k: s["mean"] for k, s in {k: _summary(v) for k, v in fold_values.items()}.items()},
             "confusion_matrix": confusion.tolist() if confusion is not None else [],
             "labels": [str(x) for x in labels],
         }
