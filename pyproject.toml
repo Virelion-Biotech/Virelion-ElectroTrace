@@ -4,14 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "electrotrace"
-version = "1.0.0"
-description = "Research-oriented ECG and electrophysiology annotation and signal-processing toolkit"
+version = "1.1.0"
+description = "Research-oriented ECG and electrophysiology annotation, segmentation, and ML-assisted labeling toolkit"
 requires-python = ">=3.10"
 dependencies = [
   "flask>=3.0",
   "numpy>=1.24",
   "pandas>=2.0",
   "scipy>=1.10",
+  "scikit-learn>=1.4",
+  "wfdb>=4.1",
+  "pyedflib>=0.1.38",
 ]
 
 [project.optional-dependencies]
