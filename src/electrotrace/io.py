@@ -81,7 +81,7 @@ def validate_dataframe(df: pd.DataFrame, time_col: str | None = None, source_for
         if numeric.isna().all():
             errors.append(f"Signal channel '{col}' contains no numeric values.")
         elif numeric.isna().any():
-            warnings.append(f"Signal channel '{col}' contains missing/non-numeric values.")
+            errors.append(f"Signal channel '{col}' contains missing/non-numeric values; impute or remove them before import.")
         if numeric.isin([np.inf, -np.inf]).any():
             errors.append(f"Signal channel '{col}' contains infinite values.")
     fs = infer_sampling_rate(time) if len(time) >= 2 and not np.any(np.diff(time) <= 0) else None
