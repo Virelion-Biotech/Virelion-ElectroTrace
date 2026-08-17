@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +37,44 @@ class Project:
         return asdict(self)
 
 
+class _FileLock:
+    def __init__(self, path: Path):
+        self.path = path
+        self.handle = None
+
+    def __enter__(self):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.handle = open(self.path, "a+")
+        try:
+            if os.name == "nt":
+                import msvcrt
+                self.handle.seek(0)
+                msvcrt.locking(self.handle.fileno(), msvcrt.LK_LOCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(self.handle.fileno(), fcntl.LOCK_EX)
+        except Exception:
+            self.handle.close()
+            self.handle = None
+            raise
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        if self.handle is None:
+            return
+        try:
+            if os.name == "nt":
+                import msvcrt
+                self.handle.seek(0)
+                msvcrt.locking(self.handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(self.handle.fileno(), fcntl.LOCK_UN)
+        finally:
+            self.handle.close()
+            self.handle = None
+
+
 class ProjectStore:
     def __init__(self, root: str | Path):
         self.root = Path(root)
@@ -45,6 +84,7 @@ class ProjectStore:
         self.annotations_dir = self.root / "annotations"
         self.annotations_dir.mkdir(exist_ok=True)
         self.project_path = self.root / "project.json"
+        self.lock_path = self.root / ".project.lock"
 
     def load(self) -> Project:
         if not self.project_path.exists():
@@ -61,19 +101,29 @@ class ProjectStore:
         project.updated_at = datetime.now(timezone.utc).isoformat()
         payload = json.dumps(project.to_dict(), indent=2)
         temp_path = self.project_path.with_suffix(".json.tmp")
-        try:
-            temp_path.write_text(payload, encoding="utf-8")
-            temp_path.replace(self.project_path)
-        except OSError as exc:
-            temp_path.unlink(missing_ok=True)
-            raise ValueError(f"could not save project metadata: {exc}") from exc
+        with _FileLock(self.lock_path):
+            try:
+                temp_path.write_text(payload, encoding="utf-8")
+                temp_path.replace(self.project_path)
+            except OSError as exc:
+                temp_path.unlink(missing_ok=True)
+                raise ValueError(f"could not save project metadata: {exc}") from exc
 
     def add_recording(self, ref: RecordingRef) -> Project:
-        project = self.load()
-        project.recordings = [r for r in project.recordings if r.recording_id != ref.recording_id]
-        project.recordings.append(ref)
-        self.save(project)
-        return project
+        with _FileLock(self.lock_path):
+            project = self.load()
+            project.recordings = [r for r in project.recordings if r.recording_id != ref.recording_id]
+            project.recordings.append(ref)
+            project.updated_at = datetime.now(timezone.utc).isoformat()
+            payload = json.dumps(project.to_dict(), indent=2)
+            temp_path = self.project_path.with_suffix(".json.tmp")
+            try:
+                temp_path.write_text(payload, encoding="utf-8")
+                temp_path.replace(self.project_path)
+            except OSError as exc:
+                temp_path.unlink(missing_ok=True)
+                raise ValueError(f"could not save project metadata: {exc}") from exc
+            return project
 
     def window(self, recording_path: str | Path, start: int, stop: int) -> dict[str, np.ndarray]:
         """Read a bounded sample window without materializing a full recording."""
@@ -85,7 +135,6 @@ class ProjectStore:
             end = min(stop, arr.shape[0])
             return {"signal": np.asarray(arr[start:end])}
         if path.suffix.lower() == ".npz":
-            # NPZ archives do not provide true mmap semantics; close the archive after reading.
             with np.load(path) as data:
                 return {k: np.asarray(data[k][start:min(stop, data[k].shape[0])]) for k in data.files}
         if path.suffix.lower() == ".csv":
