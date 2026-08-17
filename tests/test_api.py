@@ -1,0 +1,36 @@
+import io
+import os
+import sys
+
+import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from server import app
+
+
+def test_healthless_index_route():
+    client = app.test_client()
+    response = client.get("/")
+    assert response.status_code == 200
+    assert b"ElectroTrace" in response.data
+
+
+def test_analyze_csv_endpoint():
+    client = app.test_client()
+    csv = b"time,Lead_II\n0.000,0.1\n0.002,0.2\n0.004,0.3\n"
+    response = client.post("/api/analyze", data={"file": (io.BytesIO(csv), "test.csv")}, content_type="multipart/form-data")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["valid"] is True
+    assert data["sampling_rate_hz"] == 500
+    assert data["signal_cols"] == ["Lead_II"]
+
+
+def test_filter_endpoint():
+    client = app.test_client()
+    fs = 500
+    x = np.arange(1000) / fs
+    signal = np.sin(2 * np.pi * 2 * x).tolist()
+    response = client.post("/api/filter", json={"sampling_rate_hz": fs, "signal": signal, "lowpass_hz": 40})
+    assert response.status_code == 200
+    assert len(response.get_json()["signal"]) == len(signal)
