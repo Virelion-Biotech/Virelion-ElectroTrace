@@ -1,4 +1,4 @@
-"""Leakage-safe model benchmarking with subject-level splits."""
+"""Leakage-safe model benchmarking with subject-level, stratified splits."""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
@@ -7,7 +7,7 @@ import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, balanced_accuracy_score, f1_score, roc_auc_score, confusion_matrix
-from sklearn.model_selection import GroupKFold
+from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
@@ -40,27 +40,36 @@ def benchmark_models(X: np.ndarray, y: np.ndarray, groups: np.ndarray, folds: in
     X = np.asarray(X, dtype=float)
     y = np.asarray(y)
     groups = np.asarray(groups)
+    if X.ndim != 2:
+        raise ValueError("X must be a two-dimensional feature matrix")
+    if not np.isfinite(X).all():
+        raise ValueError("X contains NaN or infinite values")
     if len(X) != len(y) or len(y) != len(groups):
         raise ValueError("X, y, and groups must have equal length")
+    labels = np.unique(y)
     unique_groups = np.unique(groups)
+    if len(labels) < 2:
+        raise ValueError("Need at least two outcome classes for classification benchmarking")
     if len(unique_groups) < 2:
         raise ValueError("Need at least two subjects/groups for leakage-safe benchmarking")
     n_splits = min(int(folds), len(unique_groups))
     if n_splits < 2:
         raise ValueError("Need at least two cross-validation folds")
+    if n_splits > min(np.bincount(np.searchsorted(labels, y))):
+        raise ValueError("Each outcome class must have at least as many samples as requested folds")
 
     models = {
         "logistic_regression": make_pipeline(StandardScaler(), LogisticRegression(max_iter=2000, class_weight="balanced", random_state=seed)),
         "random_forest": RandomForestClassifier(n_estimators=300, class_weight="balanced", random_state=seed, n_jobs=-1),
     }
-    splitter = GroupKFold(n_splits=n_splits)
-    result: dict[str, object] = {"n_samples": int(len(y)), "n_subjects": int(len(unique_groups)), "folds": n_splits, "models": {}}
+    splitter = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+    result: dict[str, object] = {"n_samples": int(len(y)), "n_subjects": int(len(unique_groups)), "folds": n_splits, "splitter": "StratifiedGroupKFold", "models": {}}
     for name, model in models.items():
         metrics: list[FoldMetrics] = []
-        all_true, all_pred = [], []
         confusion = None
-        labels = np.unique(y)
         for fold, (train_idx, test_idx) in enumerate(splitter.split(X, y, groups), start=1):
+            if len(np.unique(y[train_idx])) < 2:
+                raise ValueError(f"Fold {fold} training set contains fewer than two outcome classes")
             model.fit(X[train_idx], y[train_idx])
             pred = model.predict(X[test_idx])
             proba = model.predict_proba(X[test_idx])
@@ -73,7 +82,6 @@ def benchmark_models(X: np.ndarray, y: np.ndarray, groups: np.ndarray, folds: in
                 weighted_f1=float(f1_score(y[test_idx], pred, average="weighted", zero_division=0)),
                 roc_auc=_auc(y[test_idx], proba, model.classes_),
             ))
-            all_true.extend(y[test_idx]); all_pred.extend(pred)
             cm = confusion_matrix(y[test_idx], pred, labels=labels)
             confusion = cm if confusion is None else confusion + cm
         result["models"][name] = {
