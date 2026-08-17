@@ -106,7 +106,7 @@ def train_classifier(signal: np.ndarray, fs: float, beat_indices: np.ndarray, an
     }
 
 
-def rank_uncertain(signal: np.ndarray, fs: float, beat_indices: np.ndarray, model, top_n: int = 25, time: np.ndarray | None = None, annotations: list[dict] | None = None, exclude_tolerance_s: float = 0.08) -> list[dict]:
+def rank_uncertain(signal: np.ndarray, fs: float, beat_indices: np.ndarray, model, top_n: int = 25, time: np.ndarray | None = None, annotations: list[dict] | None = None, exclude_tolerance_s: float = 0.08, min_spacing_s: float = 0.25) -> list[dict]:
     signal, fs = _validate_signal(signal, fs)
     beat_indices = np.asarray(beat_indices, dtype=int)
     if beat_indices.size == 0:
@@ -116,6 +116,9 @@ def rank_uncertain(signal: np.ndarray, fs: float, beat_indices: np.ndarray, mode
         return []
     if exclude_tolerance_s <= 0 or not np.isfinite(exclude_tolerance_s):
         raise ValueError("exclude_tolerance_s must be positive and finite")
+    min_spacing_s = float(min_spacing_s)
+    if min_spacing_s < 0 or not np.isfinite(min_spacing_s):
+        raise ValueError("min_spacing_s must be finite and non-negative")
     times = _times_from_indices(beat_indices, fs, time)
     excluded_times = [float(a["time"]) for a in (annotations or []) if a.get("type") == "point" and a.get("time") is not None]
     excluded_times.extend(float(t) for t in getattr(model, "_electrotrace_training_times", []))
@@ -131,5 +134,18 @@ def rank_uncertain(signal: np.ndarray, fs: float, beat_indices: np.ndarray, mode
     probabilities = model.predict_proba(features)
     predictions = model.classes_[np.argmax(probabilities, axis=1)]
     entropy = -(probabilities * np.log(np.clip(probabilities, 1e-9, 1.0))).sum(axis=1)
-    order = np.argsort(-entropy)[: min(top_n, len(candidate_indices))]
-    return [{"index": int(candidate_indices[i]), "time_s": float(candidate_times[i]), "predicted_label": str(predictions[i]), "confidence": float(np.max(probabilities[i])), "uncertainty": float(entropy[i])} for i in order]
+    ranked = np.argsort(-entropy)
+    selected: list[int] = []
+    for i in ranked:
+        if len(selected) >= top_n:
+            break
+        if min_spacing_s and any(abs(float(candidate_times[i]) - float(candidate_times[j])) < min_spacing_s for j in selected):
+            continue
+        selected.append(int(i))
+    return [{
+        "index": int(candidate_indices[i]),
+        "time_s": float(candidate_times[i]),
+        "predicted_label": str(predictions[i]),
+        "confidence": float(np.max(probabilities[i])),
+        "uncertainty": float(entropy[i]),
+    } for i in selected]
