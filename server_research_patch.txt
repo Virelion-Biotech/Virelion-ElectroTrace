@@ -1,1 +1,0 @@
-This placeholder is intentionally temporary and will be replaced in the atomic tree commit.
