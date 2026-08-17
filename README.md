@@ -2,7 +2,7 @@
 
 Research-grade ECG and electrophysiology annotation, segmentation, phenotyping, external validation, and leakage-safe machine-learning toolkit. ElectroTrace provides an interactive web interface backed by a Python REST API for building curated research datasets with machine-assisted labeling and subject-stratified validation.
 
-**Version:** 1.5.3  
+**Version:** 1.6.0  
 **License:** MIT  
 **Status:** Active research software
 
@@ -27,7 +27,17 @@ pip install -e ".[test]"
 python server.py
 ```
 
-Open `http://127.0.0.1:5000` in your browser.
+The default local server is `http://127.0.0.1:5000`.
+
+For any non-loopback bind, set a strong API key first:
+
+```bash
+export ELECTROTRACE_API_KEY='replace-with-a-strong-secret'
+export ELECTROTRACE_HOST='0.0.0.0'
+python server.py
+```
+
+API clients then send `Authorization: Bearer <key>` on `/api/*` requests. The default uploaded-recording retention is 24 hours and can be changed with `ELECTROTRACE_UPLOAD_TTL_S`.
 
 ## Core Capabilities
 
@@ -39,8 +49,9 @@ Open `http://127.0.0.1:5000` in your browser.
 ### Large-recording architecture
 - Metadata-only registration.
 - Native lazy EDF/WFDB windows and bounded CSV windows.
-- CSV browser loading now uses the same persisted/windowed path as native recordings.
+- CSV browser loading uses the same persisted/windowed path as native recordings.
 - Bounded browser state for long recordings.
+- Automatic cleanup of stale uploaded recordings.
 
 ### Interactive Annotation
 - Multi-channel Plotly visualization.
@@ -60,7 +71,7 @@ Open `http://127.0.0.1:5000` in your browser.
 - Training safeguards and reproducibility metadata.
 - Uncertainty/diversity-based active learning.
 - Already annotated/training beats excluded from suggestions.
-- Pipeline class handling is explicit for prediction/reporting.
+- Accepted annotations are matched to detected beats one-to-one.
 
 ### Research Analysis
 - Subject/record-level leakage-safe ML benchmarking.
@@ -90,7 +101,7 @@ python scripts/benchmark_two_stage_mitdb.py \
   --output validation_reports/mitdb_two_stage_validation.json
 ```
 
-The benchmark runner supports explicit polarity and optional recovery settings so experiments use the same candidate-generation protocol during training and held-out testing.
+The benchmark runner supports explicit polarity and optional recovery settings. Stage-2 threshold calibration is performed on whole training records kept separate from the records used to fit the final verifier and from the held-out test records.
 
 See `docs/VALIDATION.md` and `docs/TWO_STAGE_RPEAK.md` for the reproducible protocol.
 
@@ -98,59 +109,17 @@ See `docs/VALIDATION.md` and `docs/TWO_STAGE_RPEAK.md` for the reproducible prot
 
 - Persistent project metadata and recording inventory.
 - Subject/group/visit tracking.
+- Cross-process locking for project metadata updates.
 - Chunked access to large recordings.
 - Safe archive extraction.
 
-## How It's Organized
+## Security
 
-```text
-.
-├── server.py
-├── web/
-├── src/electrotrace/
-│   ├── io.py
-│   ├── formats.py
-│   ├── metadata.py
-│   ├── window.py
-│   ├── signal.py
-│   ├── beats.py
-│   ├── annotations.py
-│   ├── ml.py
-│   ├── candidate_suppressor.py
-│   ├── phenotype.py
-│   ├── statistics.py
-│   ├── benchmark.py
-│   ├── validation.py
-│   ├── validation_detectors.py
-│   └── project_store.py
-├── scripts/
-├── docs/
-├── tests/
-├── sample_data/
-├── pyproject.toml
-└── LICENSE
-```
-
-## API Endpoints
-
-### Recording
-- `POST /api/analyze`
-- `POST /api/recording`
-- `GET /api/recording/<id>/window`
-
-### Signal / Beats
-- `POST /api/filter`
-- `POST /api/detect/r-peaks`
-- `POST /api/beats`
-- `POST /api/segment`
-
-### ML / Analysis
-- `POST /api/ml/train`
-- `POST /api/ml/suggest`
-- `POST /api/phenotype`
-- `POST /api/statistics/compare`
-- `POST /api/statistics/fdr`
-- `POST /api/benchmark`
+- Non-loopback deployment fails closed unless `ELECTROTRACE_API_KEY` is configured.
+- JSON signal requests are capped at 64 MB; long recordings should use persistent windowed access.
+- Uploaded recordings are automatically removed after the configured TTL.
+- Pickle-based model loading is supported only for trusted local artifacts; do not load untrusted model files.
+- CI runs `pip-audit` and Bandit in addition to the test matrix.
 
 ## Testing
 
@@ -158,17 +127,15 @@ See `docs/VALIDATION.md` and `docs/TWO_STAGE_RPEAK.md` for the reproducible prot
 pytest -q
 ```
 
-CI runs on Python 3.10, 3.11, and 3.12.
+CI runs on Python 3.10, 3.11, and 3.12, plus dependency/security auditing on Python 3.12.
 
 ## Scientific Use Notes
 
 **Not a clinical device:** ElectroTrace is research software. Automatic R-peak detection and the false-positive suppressor are research algorithms, not validated clinical algorithms.
 
-**Reproducibility:** Raw signals are not overwritten by display preprocessing. Source format, absolute time bounds, provenance, model metadata, train/test record lists, and threshold settings are preserved where applicable. Stage-2 suppressor thresholds are calibrated on held-out training candidates by default rather than the same examples used to fit the final model.
+**Reproducibility:** Raw signals are not overwritten by display preprocessing. Source format, absolute time bounds, provenance, model metadata, train/test record lists, calibration records, and threshold settings are preserved where applicable.
 
-**External validation:** Report the exact dataset version, record list, detector configuration, polarity mode, matching tolerance, recovery setting, and model threshold.
-
-**Large-data API:** JSON signal requests are capped at 64 MB; use persistent recording registration and window access for long recordings.
+**External validation:** Report the exact dataset version, record list, detector configuration, polarity mode, matching tolerance, recovery setting, calibration records, and model threshold.
 
 ## Citation
 
@@ -181,4 +148,4 @@ https://github.com/Virelion-Biotech/Virelion-ElectroTrace
 
 ---
 
-**ElectroTrace v1.5.3** · annotation, adaptive-polarity R-peak detection, two-stage verification, external validation, and leakage-safe ML.
+**ElectroTrace v1.6.0** · annotation, adaptive-polarity R-peak detection, two-stage verification, external validation, secure deployment, and leakage-safe ML.
