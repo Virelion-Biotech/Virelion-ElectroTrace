@@ -286,4 +286,9 @@ class CandidateSuppressor:
 
     @classmethod
     def load(cls, path: str | Path) -> "CandidateSuppressor":
+        """Load a suppressor from a trusted local model file.
+
+        Pickle is executable serialization; never load model files obtained from
+        untrusted users, downloads, or external sources.
+        """
         payload = pickle.loads(Path(path).read_bytes()); obj = cls(model=payload["model"], metadata=payload["metadata"]); obj.feature_names = payload.get("feature_names"); return obj
