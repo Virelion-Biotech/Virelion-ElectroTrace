@@ -50,11 +50,11 @@ def _safe_extract(archive,root):
 def _save_upload(f):
     token=uuid.uuid4().hex; suffix=Path(f.filename or "recording.bin").suffix.lower(); dst=UPLOAD_ROOT/f"{token}{suffix}"; f.save(dst)
     if dst.stat().st_size>MAX_ARCHIVE_BYTES: dst.unlink(missing_ok=True); raise ValueError("uploaded file exceeds the limit")
-    if suffix!='.zip': return token,dst
+    if suffix not in {'.zip','.wfdb'}: return token,dst
     d=UPLOAD_ROOT/token; d.mkdir()
     try:
         with zipfile.ZipFile(dst) as z:
-            if z.testzip() is not None: raise ValueError("uploaded ZIP is corrupted")
+            if z.testzip() is not None: raise ValueError("WFDB ZIP is corrupted")
             _safe_extract(z,d)
         hs=list(d.rglob('*.hea'))
         if len(hs)!=1: raise ValueError("WFDB ZIP must contain exactly one .hea header")
