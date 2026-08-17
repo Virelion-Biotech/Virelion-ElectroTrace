@@ -29,7 +29,7 @@ def test_training_requires_two_labels():
     x = np.sin(2 * np.pi * 2 * np.arange(1500) / fs)
     peaks = np.array([250, 750, 1250])
     anns = [{"type": "point", "status": "accepted", "label": "R Peak", "time": 0.5}]
-    with pytest.raises(ValueError, match="two or more labels"):
+    with pytest.raises(ValueError, match="at least two labels"):
         build_training_set(x, fs, peaks, anns)
 
 
