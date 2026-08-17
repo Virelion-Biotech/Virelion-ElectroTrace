@@ -9,6 +9,8 @@ import pandas as pd
 
 from .formats import _unique_labels
 
+MAX_DT_SAMPLES = 10_000
+
 
 def _csv_metadata(path: Path) -> dict[str, Any]:
     header = pd.read_csv(path, nrows=0)
@@ -25,7 +27,8 @@ def _csv_metadata(path: Path) -> dict[str, Any]:
     last_value = None
     previous = None
     count = 0
-    dt_values: list[float] = []
+    dt_samples: list[float] = []
+    sample_stride = 1
     for chunk in pd.read_csv(path, usecols=[time_col], chunksize=100_000):
         values = pd.to_numeric(chunk[time_col], errors="coerce").to_numpy(dtype=float)
         if not np.isfinite(values).all():
@@ -37,22 +40,29 @@ def _csv_metadata(path: Path) -> dict[str, Any]:
                 boundary_dt = float(values[0] - previous)
                 if boundary_dt <= 0:
                     raise ValueError("CSV time values must be strictly increasing")
-                dt_values.append(boundary_dt)
+                if len(dt_samples) < MAX_DT_SAMPLES:
+                    dt_samples.append(boundary_dt)
             if len(values) > 1:
                 diffs = np.diff(values)
                 if np.any(diffs <= 0):
                     raise ValueError("CSV time values must be strictly increasing")
-                dt_values.extend(diffs.tolist())
+                if len(diffs):
+                    remaining = MAX_DT_SAMPLES - len(dt_samples)
+                    if remaining > 0:
+                        stride = max(1, int(np.ceil(len(diffs) / max(1, remaining))))
+                        sampled = diffs[::stride][:remaining]
+                        dt_samples.extend(sampled.tolist())
+                        sample_stride = max(sample_stride, stride)
             previous = float(values[-1])
             last_value = previous
             count += len(values)
-    if count < 2 or first_value is None or last_value is None:
+    if count < 2 or first_value is None or last_value is None or not dt_samples:
         raise ValueError("Recording must contain at least two samples")
-    median_dt = float(np.median(np.asarray(dt_values, dtype=float)))
+    median_dt = float(np.median(np.asarray(dt_samples, dtype=float)))
     if not np.isfinite(median_dt) or median_dt <= 0:
         raise ValueError("Could not infer a valid sampling interval")
     fs = round(1.0 / median_dt, 6)
-    return {"source_format": "csv", "sampling_rate_hz": fs, "n_samples": count, "time_start_s": first_value, "time_end_s": last_value, "duration_s": float(last_value - first_value), "channels": signal_cols}
+    return {"source_format": "csv", "sampling_rate_hz": fs, "n_samples": count, "time_start_s": first_value, "time_end_s": last_value, "duration_s": float(last_value - first_value), "channels": signal_cols, "sampling_rate_estimate_bounded": len(dt_samples) <= MAX_DT_SAMPLES}
 
 
 def _edf_metadata(path: Path) -> dict[str, Any]:
