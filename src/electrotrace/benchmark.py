@@ -52,18 +52,22 @@ def benchmark_models(X: np.ndarray, y: np.ndarray, groups: np.ndarray, folds: in
         raise ValueError("Need at least two outcome classes for classification benchmarking")
     if len(unique_groups) < 2:
         raise ValueError("Need at least two subjects/groups for leakage-safe benchmarking")
-    n_splits = min(int(folds), len(unique_groups))
+    requested_folds = int(folds)
+    if requested_folds < 2:
+        raise ValueError("folds must be at least 2")
+    # StratifiedGroupKFold needs enough distinct subjects in every class, not merely enough samples.
+    groups_per_class = {str(cls): len(np.unique(groups[y == cls])) for cls in labels}
+    max_folds = min(len(unique_groups), min(groups_per_class.values()))
+    n_splits = min(requested_folds, max_folds)
     if n_splits < 2:
-        raise ValueError("Need at least two cross-validation folds")
-    if n_splits > min(np.bincount(np.searchsorted(labels, y))):
-        raise ValueError("Each outcome class must have at least as many samples as requested folds")
+        raise ValueError(f"Need at least two distinct subjects in every class; observed {groups_per_class}")
 
     models = {
         "logistic_regression": make_pipeline(StandardScaler(), LogisticRegression(max_iter=2000, class_weight="balanced", random_state=seed)),
         "random_forest": RandomForestClassifier(n_estimators=300, class_weight="balanced", random_state=seed, n_jobs=-1),
     }
     splitter = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=seed)
-    result: dict[str, object] = {"n_samples": int(len(y)), "n_subjects": int(len(unique_groups)), "folds": n_splits, "splitter": "StratifiedGroupKFold", "models": {}}
+    result: dict[str, object] = {"n_samples": int(len(y)), "n_subjects": int(len(unique_groups)), "folds": n_splits, "splitter": "StratifiedGroupKFold", "groups_per_class": groups_per_class, "models": {}}
     for name, model in models.items():
         metrics: list[FoldMetrics] = []
         confusion = None
