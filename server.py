@@ -124,8 +124,9 @@ def detect_r_peaks():
     d=_json()
     try:
         fs=float(d['sampling_rate_hz']); y=np.asarray(d['signal'],float); dm=float(d.get('min_distance_ms',250)); pf=float(d.get('prominence_factor',.5))
+        if y.ndim!=1 or len(y)<8 or not np.isfinite(y).all(): raise ValueError('signal must be one-dimensional, contain at least eight finite samples, and have no NaN or infinite values')
         if not np.isfinite(fs) or fs<=0 or dm<=0 or pf<0: raise ValueError('invalid peak detector settings')
-        z=np.nan_to_num(y-np.nanmedian(y)); scale=float(np.nanstd(z)) or 1.; p,props=sps.find_peaks(z,distance=max(1,int(round(fs*dm/1000))),prominence=scale*pf)
+        z=y-np.median(y); scale=float(np.std(z)) or 1.; p,props=sps.find_peaks(z,distance=max(1,int(round(fs*dm/1000))),prominence=scale*pf)
         return jsonify({'peaks':p.astype(int).tolist(),'prominences':props.get('prominences',np.zeros(len(p))).tolist()})
     except (KeyError,TypeError,ValueError) as e:return jsonify({'error':str(e)}),400
 
@@ -134,9 +135,13 @@ def detect_r_peaks():
 def beats():
     d=_json()
     try:
-        t=np.asarray(d['time'],float); p=np.asarray(d.get('peaks') or [],int)
+        t=np.asarray(d['time'],float)
+        if t.ndim!=1 or len(t)<2 or not np.isfinite(t).all() or np.any(np.diff(t)<=0): raise ValueError('time must be one-dimensional, finite, and strictly increasing')
+        p=np.asarray(d.get('peaks') or [],int)
         if len(p)==0 and d.get('signal') is not None:
-            fs=float(d['sampling_rate_hz']); y=np.asarray(d['signal'],float); z=np.nan_to_num(y-np.nanmedian(y)); scale=float(np.nanstd(z)) or 1.; p,_=sps.find_peaks(z,distance=max(1,int(round(fs*.25))),prominence=scale*.5)
+            fs=float(d['sampling_rate_hz']); y=np.asarray(d['signal'],float)
+            if y.ndim!=1 or len(y)!=len(t) or not np.isfinite(y).all(): raise ValueError('signal must match time length and contain only finite samples')
+            z=y-np.median(y); scale=float(np.std(z)) or 1.; p,_=sps.find_peaks(z,distance=max(1,int(round(fs*.25))),prominence=scale*.5)
         b=segment_beats(t,p,float(d.get('pre_s',.35)),float(d.get('post_s',.55))); return jsonify({'beats':[x.to_dict() for x in b],'peaks':p.tolist(),'n_beats':len(b)})
     except (KeyError,TypeError,ValueError) as e:return jsonify({'error':str(e)}),400
 
@@ -167,7 +172,7 @@ def ml_train():
 @app.post('/api/ml/suggest')
 def ml_suggest():
     try:
-        d=_json(); y=np.asarray(d['signal'],float); fs=float(d['sampling_rate_hz']); p=np.asarray(d['peaks'],int); t=np.asarray(d['time'],float) if d.get('time') is not None else None; m,metrics=train_classifier(y,fs,p,list(d.get('annotations',[])),time=t); return jsonify({'trained':True,'metrics':metrics,'suggestions':rank_uncertain(y,fs,p,m,int(d.get('top_n',20)),time=t)})
+        d=_json(); y=np.asarray(d['signal'],float); fs=float(d['sampling_rate_hz']); p=np.asarray(d['peaks'],int); t=np.asarray(d['time'],float) if d.get('time') is not None else None; annotations=list(d.get('annotations',[])); m,metrics=train_classifier(y,fs,p,annotations,time=t); return jsonify({'trained':True,'metrics':metrics,'suggestions':rank_uncertain(y,fs,p,m,int(d.get('top_n',20)),time=t,annotations=annotations,min_spacing_s=float(d.get('min_spacing_s',0.25)))})
     except (KeyError,TypeError,ValueError) as e:return jsonify({'trained':False,'error':str(e)}),400
 @app.get('/api/project')
 def project_get():
