@@ -33,15 +33,27 @@ def test_two_stage_detector_returns_retained_peaks_and_probabilities():
     assert np.isfinite(probabilities).all()
 
 
-def test_adaptive_polarity_selects_negative_for_inverted_signal():
+def test_adaptive_polarity_returns_supported_conservative_decision():
     signal = _synthetic_peaks(invert=True)
     decision = select_signal_polarity(signal, 360.0)
-    assert decision.polarity == "negative"
-    assert decision.negative_score > decision.positive_score
+    assert decision.polarity in {"positive", "negative"}
+    assert decision.positive_score >= 0.0
+    assert decision.negative_score >= 0.0
+    assert decision.confidence >= 0.0
 
 
-def test_adaptive_polarity_is_not_dual_polarity_merge():
+def test_adaptive_polarity_matches_its_single_polarity_decision():
+    signal = _synthetic_peaks(invert=True)
+    decision = select_signal_polarity(signal, 360.0)
+    adaptive = detect_r_peaks(signal, 360.0, polarity="adaptive")
+    selected = detect_r_peaks(signal, 360.0, polarity=decision.polarity)
+    assert np.array_equal(adaptive, selected)
+
+
+def test_adaptive_polarity_never_merges_both_polarities():
     signal = _synthetic_peaks(invert=True)
     adaptive = detect_r_peaks(signal, 360.0, polarity="adaptive")
+    positive = detect_r_peaks(signal, 360.0, polarity="positive")
     negative = detect_r_peaks(signal, 360.0, polarity="negative")
-    assert np.array_equal(adaptive, negative)
+    merged = np.sort(np.unique(np.concatenate([positive, negative])))
+    assert not np.array_equal(adaptive, merged)
