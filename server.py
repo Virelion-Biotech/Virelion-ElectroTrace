@@ -1,8 +1,13 @@
 """ElectroTrace local web server. Run with: python server.py"""
 from __future__ import annotations
 
-import io
 import os
+import sys
+
+ROOT = os.path.dirname(os.path.abspath(__file__))
+SRC = os.path.join(ROOT, "src")
+if SRC not in sys.path:
+    sys.path.insert(0, SRC)
 
 import numpy as np
 from flask import Flask, jsonify, request, send_from_directory
@@ -11,13 +16,17 @@ from scipy import signal as sps
 from electrotrace.io import load_csv, validate_dataframe
 from electrotrace.signal import apply_pipeline, FilterConfigurationError
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(ROOT, "web")
+SAMPLE_DATA = os.path.join(ROOT, "sample_data")
 app = Flask(__name__, static_folder=WEB, static_url_path="")
 
 @app.get("/")
 def index():
     return send_from_directory(WEB, "index.html")
+
+@app.get("/sample_data/<path:filename>")
+def sample_data(filename: str):
+    return send_from_directory(SAMPLE_DATA, filename)
 
 @app.post("/api/analyze")
 def analyze():
@@ -73,6 +82,8 @@ def detect_r_peaks():
         y = np.asarray(data["signal"], dtype=float)
         distance_ms = float(data.get("min_distance_ms", 250))
         prominence_factor = float(data.get("prominence_factor", 0.5))
+        if distance_ms <= 0 or prominence_factor < 0:
+            raise ValueError("peak detector settings must be valid positive values")
         distance = max(1, int(round(fs * distance_ms / 1000.0)))
         centered = np.nan_to_num(y - np.nanmedian(y))
         scale = float(np.nanstd(centered)) or 1.0
