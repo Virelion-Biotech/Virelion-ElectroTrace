@@ -2,7 +2,7 @@
 
 Research-grade ECG and electrophysiology annotation, segmentation, phenotyping, external validation, and leakage-safe machine-learning toolkit. ElectroTrace provides an interactive web interface backed by a Python REST API for building curated research datasets with machine-assisted labeling and subject-stratified validation.
 
-**Version:** 1.5.0  
+**Version:** 1.5.2  
 **License:** MIT  
 **Status:** Active research software
 
@@ -16,11 +16,7 @@ Requires Python 3.10+.
 git clone https://github.com/Virelion-Biotech/Virelion-ElectroTrace.git
 cd Virelion-ElectroTrace
 python -m venv .venv
-# macOS/Linux
 source .venv/bin/activate
-# Windows PowerShell
-.venv\Scripts\Activate.ps1
-
 python -m pip install -U pip
 pip install -e ".[test]"
 ```
@@ -33,71 +29,49 @@ python server.py
 
 Open `http://127.0.0.1:5000` in your browser.
 
-**Configuration via environment variables:**
-- `ELECTROTRACE_HOST` – server listen address (default: `127.0.0.1`)
-- `ELECTROTRACE_PORT` – server port (default: `5000`)
-- `ELECTROTRACE_UPLOAD_ROOT` – temporary directory for uploaded files (default: system temp)
-- `ELECTROTRACE_PROJECT_ROOT` – persistent project storage (default: `./projects`)
-
 ## Core Capabilities
 
 ### Recording Import & Validation
-
-- **CSV import:** time column + signal columns. Recognizes `time`, `t`, `timestamp`, `time_s`, `seconds` as time columns.
-- **EDF/EDF+ support:** multi-channel recordings with automatic sampling-rate detection.
-- **WFDB ZIP archives:** compressed records with `.hea` header + signal files.
-- **Validation:** monotonic timestamps, strict rejection of NaN/infinite samples, sampling-rate inference, and irregular-sampling warnings.
-- **Non-destructive preprocessing:** raw signal arrays preserved; filters applied only for display/analysis copies.
+- CSV, EDF/EDF+, and WFDB ZIP import.
+- Strict finite-sample validation and sampling-rate checks.
+- Non-destructive preprocessing.
 
 ### Large-recording architecture
-
-- **Metadata-only registration:** upload/registration uses EDF/WFDB headers and bounded-memory CSV scanning instead of materializing the complete recording.
-- **Native lazy windows:** EDF uses direct sample-range reads; WFDB uses `sampfrom`/`sampto`; CSV uses bounded row reads.
-- **Bounded browser state:** the browser loads only the requested signal window for large recordings.
+- Metadata-only registration.
+- Native lazy EDF/WFDB windows and bounded CSV windows.
+- Bounded browser state for long recordings.
 
 ### Interactive Annotation
+- Multi-channel Plotly visualization.
+- Point/interval annotations with confidence and notes.
+- Annotator/reviewer identity and QC states.
+- Multi-annotator agreement support.
 
-- **Multi-channel Plotly visualization:** zoom, pan, drag-to-select intervals, click-to-capture points.
-- **Point and interval annotations:** flexible labeling with confidence scores and notes.
-- **Annotator identity & review states:** unreviewed, accepted, flagged workflow.
-- **Real-time QC dashboard:** annotation counts, review status, and multi-annotator agreement metrics.
-
-### Beat Segmentation & Phenotyping
-
-- **R-peak detection:** high-recall candidate generation using prominence and distance thresholding; not a validated clinical algorithm.
-- **Two-stage R-peak pipeline:** Stage 1 generates high-recall candidates; a trained Random Forest verifier suppresses likely false positives using morphology, slope, energy, and RR-context features.
-- **Configurable beat windows:** default 0.35 s pre-R, 0.55 s post-R; adjustable per session.
-- **Beat-level features:** RR intervals, heart rate, R-wave amplitude, QRS-width proxy, baseline estimation.
-- **Phenotype summaries:** beat counts, heart-rate statistics, and group-level comparisons.
+### Beat Segmentation & R-peak Detection
+- High-recall Stage 1 candidate generation using prominence and minimum distance.
+- **Signal-level adaptive polarity selector:** chooses positive versus negative polarity for a recording rather than merging both, using a conservative candidate-count rule validated on the complete MIT-BIH database.
+- **Two-stage R-peak pipeline:** Stage 1 candidates followed by a Random Forest false-positive suppressor using morphology, slope, energy, and RR-context features.
+- Configurable beat windows and beat-level phenotype extraction.
 
 ### Machine-Assisted Labeling
+- Random Forest learning from human-accepted labels.
+- Training safeguards and reproducibility metadata.
+- Uncertainty/diversity-based active learning.
+- Already annotated/training beats excluded from suggestions.
+- Two-stage threshold selection kept separate from held-out evaluation.
 
-- **Random Forest model training:** learns only from human-accepted point annotations.
-- **Training safeguards:** requires at least 4 matched accepted examples from at least 2 labels.
-- **Reproducibility metadata:** model version, feature-schema version, seed, estimator count, class weighting, and training-example count are returned with training metrics.
-- **Predictive uncertainty ranking:** surfaces uncertain beats for human review in active-learning fashion.
-- **Active-learning hygiene:** already annotated/training beats are excluded and temporally redundant adjacent candidates can be suppressed.
-- **Two-stage suppressor safeguards:** threshold selection is performed only on training records; held-out records are used only for final evaluation.
-- **Explicit review workflow:** model suggestions remain unreviewed until human confirmation.
-
-### Research-Grade Analysis & Exports
-
-- **Leakage-safe benchmarking:** `StratifiedGroupKFold` keeps subjects out of both training and validation folds simultaneously.
-- **Multi-model comparison:** Logistic Regression and Random Forest with accuracy, balanced accuracy, macro/weighted F1, and ROC-AUC where defined.
-- **Uncertainty reporting:** benchmark output includes fold-level metrics plus mean, SD, and empirical 95% CI.
-- **Experimental-unit-aware statistics:** repeated beat observations can be aggregated by subject/animal before inference; observation-level analyses are explicitly flagged for pseudoreplication risk.
-- **Phenotype statistics:** Welch t-test, Mann-Whitney U, Cohen's d for group comparisons.
-- **FDR adjustment:** Benjamini-Hochberg correction for multiple hypothesis testing.
-- **Versioned JSON export:** `electrotrace.annotation/v2` schema with provenance, source format, absolute time bounds, preprocessing, annotator, and review status.
-- **CSV export:** flat table of annotations with metadata for downstream analysis.
+### Research Analysis
+- Subject/record-level leakage-safe ML benchmarking.
+- Fold-level metrics plus mean, SD, and empirical 95% CI.
+- Experimental-unit-aware statistics and pseudoreplication warnings.
+- Welch t-test, Mann-Whitney U, Cohen's d, and Benjamini-Hochberg FDR.
 
 ### External Scientific Validation
-
-ElectroTrace includes a reproducible PhysioNet/WFDB validation harness. It compares detector sample indices against reference beat annotations and reports sensitivity, positive predictive value, F1, false positives/negatives, timing error, and per-record results.
+ElectroTrace includes a reproducible PhysioNet/WFDB validation harness reporting sensitivity, PPV, F1, false positives/negatives, timing error, and per-record performance.
 
 No external dataset is bundled with the repository.
 
-For MIT-BIH, use the included validation scripts and keep the dataset outside Git:
+For MIT-BIH:
 
 ```bash
 python scripts/validate_mitdb.py \
@@ -114,43 +88,43 @@ python scripts/benchmark_two_stage_mitdb.py \
   --output validation_reports/mitdb_two_stage_validation.json
 ```
 
-The two-stage benchmark performs record-level train/test splitting and chooses its operating threshold from training records only. See `docs/VALIDATION.md` and `docs/TWO_STAGE_RPEAK.md` for the reproducible protocol.
+See `docs/VALIDATION.md` and `docs/TWO_STAGE_RPEAK.md` for the reproducible protocol.
 
-### Project & Recording Management
+## Project & Recording Management
 
-- **Project storage:** persistent metadata in JSON (project name, timestamps, recording inventory).
-- **Subject/group/visit tracking:** organize recordings by study structure and ML grouping.
-- **Windowed access:** large recordings are accessed in sample-based chunks.
-- **Safe archive extraction:** validates ZIP structure; prevents path traversal and symlink attacks.
+- Persistent project metadata and recording inventory.
+- Subject/group/visit tracking.
+- Chunked access to large recordings.
+- Safe archive extraction.
 
 ## How It's Organized
 
 ```text
 .
-├── server.py                 Flask REST API server + static file serving
-├── web/                      Browser frontend
+├── server.py
+├── web/
 ├── src/electrotrace/
-│   ├── io.py                 CSV loading and validation
-│   ├── formats.py            EDF/WFDB import
-│   ├── metadata.py           Metadata-only recording discovery
-│   ├── window.py             Native lazy sample-window access
-│   ├── signal.py             Signal filtering
-│   ├── beats.py              Beat segmentation
-│   ├── annotations.py        Annotation model and review states
-│   ├── ml.py                 Random Forest active learning
-│   ├── candidate_suppressor.py Two-stage false-positive suppression
-│   ├── phenotype.py          Beat-level phenotypes
-│   ├── statistics.py         Group statistics and FDR
-│   ├── benchmark.py          Leakage-safe ML benchmarking
-│   ├── validation.py         External PhysioNet validation
-│   └── project_store.py      Persistent project storage
-├── scripts/                  Reproducible external-validation runners
-├── docs/                     Validation and two-stage methodology
-├── tests/                    pytest suite
-├── sample_data/              Example CSV recordings
-├── pyproject.toml            Build configuration
-├── requirements.txt          Dependency list
-└── LICENSE                   MIT
+│   ├── io.py
+│   ├── formats.py
+│   ├── metadata.py
+│   ├── window.py
+│   ├── signal.py
+│   ├── beats.py
+│   ├── annotations.py
+│   ├── ml.py
+│   ├── candidate_suppressor.py
+│   ├── phenotype.py
+│   ├── statistics.py
+│   ├── benchmark.py
+│   ├── validation.py
+│   ├── validation_detectors.py
+│   └── project_store.py
+├── scripts/
+├── docs/
+├── tests/
+├── sample_data/
+├── pyproject.toml
+└── LICENSE
 ```
 
 ## API Endpoints
@@ -174,25 +148,21 @@ The two-stage benchmark performs record-level train/test splitting and chooses i
 - `POST /api/statistics/fdr`
 - `POST /api/benchmark`
 
-### Project Management
-- `GET /api/project?name=<project>`
-- `POST /api/project/recording`
-
 ## Testing
 
 ```bash
 pytest -q
 ```
 
-CI runs on Python 3.10, 3.11, and 3.12 with test dependencies installed from `.[test]`.
+CI runs on Python 3.10, 3.11, and 3.12.
 
 ## Scientific Use Notes
 
-**Not a clinical device:** ElectroTrace is research software. Automatic R-peak detection and the second-stage suppressor are candidate-generation/research algorithms, not validated clinical algorithms. External benchmark performance does not establish clinical safety or utility.
+**Not a clinical device:** ElectroTrace is research software. Automatic R-peak detection and the false-positive suppressor are research algorithms, not validated clinical algorithms.
 
-**Reproducibility:** Raw signals are not overwritten by display preprocessing. Source format, absolute time bounds, preprocessing, annotation/review provenance, model metadata, train/test record lists, and threshold settings are preserved where applicable.
+**Reproducibility:** Raw signals are not overwritten by display preprocessing. Source format, absolute time bounds, provenance, model metadata, train/test record lists, and threshold settings are preserved where applicable.
 
-**Leakage prevention:** ML benchmarking is subject/record aware, and the two-stage MIT-BIH pipeline chooses its threshold on training records only before evaluating held-out records.
+**External validation:** Report the exact dataset version, record list, detector configuration, polarity mode, matching tolerance, and model threshold.
 
 ## Citation
 
@@ -205,4 +175,4 @@ https://github.com/Virelion-Biotech/Virelion-ElectroTrace
 
 ---
 
-**ElectroTrace v1.5.0** · annotation, two-stage R-peak verification, external validation, and leakage-safe ML.
+**ElectroTrace v1.5.2** · annotation, adaptive-polarity R-peak detection, two-stage verification, external validation, and leakage-safe ML.
