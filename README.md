@@ -1,8 +1,8 @@
 # ElectroTrace
 
-Research-grade ECG and electrophysiology annotation, segmentation, phenotyping, and leakage-safe machine learning toolkit. ElectroTrace provides an interactive web interface backed by a Python REST API for building curated, publication-ready datasets with machine-assisted labeling and subject-stratified validation.
+Research-grade ECG and electrophysiology annotation, segmentation, phenotyping, external validation, and leakage-safe machine-learning toolkit. ElectroTrace provides an interactive web interface backed by a Python REST API for building curated research datasets with machine-assisted labeling and subject-stratified validation.
 
-**Version:** 1.3.1  
+**Version:** 1.4.0  
 **License:** MIT  
 **Status:** Active research software
 
@@ -44,15 +44,15 @@ Open `http://127.0.0.1:5000` in your browser.
 ### Recording Import & Validation
 
 - **CSV import:** time column + signal columns. Recognizes `time`, `t`, `timestamp`, `time_s`, `seconds` as time columns.
-- **EDF/EDF+ support:** multi-channel recordings with automatic sampling rate detection.
+- **EDF/EDF+ support:** multi-channel recordings with automatic sampling-rate detection.
 - **WFDB ZIP archives:** compressed records with `.hea` header + signal files.
-- **Validation:** monotonic timestamps, rejection of NaN/infinite samples, automatic sampling rate inference, irregular-sampling warnings.
-- **Non-destructive preprocessing:** raw signal arrays preserved; filters applied only for display.
+- **Validation:** monotonic timestamps, strict rejection of NaN/infinite samples, sampling-rate inference, and irregular-sampling warnings.
+- **Non-destructive preprocessing:** raw signal arrays preserved; filters applied only for display/analysis copies.
 
 ### Large-recording architecture
 
-- **Metadata-only registration:** upload/registration uses EDF/WFDB headers and bounded-memory CSV scanning instead of materializing the complete signal.
-- **Native lazy windows:** EDF uses direct sample-range reads; WFDB uses header metadata plus `sampfrom`/`sampto`; CSV uses bounded row reads.
+- **Metadata-only registration:** upload/registration uses EDF/WFDB headers and bounded-memory CSV scanning instead of materializing the complete recording.
+- **Native lazy windows:** EDF uses direct sample-range reads; WFDB uses `sampfrom`/`sampto`; CSV uses bounded row reads.
 - **Bounded browser state:** the browser loads only the requested signal window for large recordings.
 
 ### Interactive Annotation
@@ -60,37 +60,77 @@ Open `http://127.0.0.1:5000` in your browser.
 - **Multi-channel Plotly visualization:** zoom, pan, drag-to-select intervals, click-to-capture points.
 - **Point and interval annotations:** flexible labeling with confidence scores and notes.
 - **Annotator identity & review states:** unreviewed, accepted, flagged workflow.
-- **Real-time QC dashboard:** annotation count, review status summary, multi-annotator agreement metrics.
+- **Real-time QC dashboard:** annotation counts, review status, and multi-annotator agreement metrics.
 
 ### Beat Segmentation & Phenotyping
 
-- **R-peak detection:** automatic candidate generation (not validated clinical-grade) using peak prominence and distance thresholding.
+- **R-peak detection:** automatic candidate generation (not validated clinical-grade) using prominence and distance thresholding.
 - **Configurable beat windows:** default 0.35 s pre-R, 0.55 s post-R; adjustable per session.
-- **Beat-level features:** RR intervals (previous and next), heart rate, R-wave amplitude, QRS width proxy, baseline estimation.
-- **Phenotype summaries:** beat counts, heart rate statistics, and group-level comparisons.
+- **Beat-level features:** RR intervals, heart rate, R-wave amplitude, QRS-width proxy, baseline estimation.
+- **Phenotype summaries:** beat counts, heart-rate statistics, and group-level comparisons.
 
 ### Machine-Assisted Labeling
 
-- **Random Forest model training:** learns from human-accepted point annotations across labeled beats.
+- **Random Forest model training:** learns only from human-accepted point annotations.
+- **Training safeguards:** requires at least 4 matched accepted examples from at least 2 labels.
+- **Reproducibility metadata:** model version, feature-schema version, seed, estimator count, class weighting, and training-example count are returned with training metrics.
 - **Predictive uncertainty ranking:** surfaces uncertain beats for human review in active-learning fashion.
-- **Explicit review workflow:** model suggestions remain unreviewed until human confirmation; prevents silent errors.
-- **Training safeguards:** supervised training requires accepted annotations from at least two labels.
+- **Active-learning hygiene:** already annotated/training beats are excluded and temporally redundant adjacent candidates can be suppressed.
+- **Explicit review workflow:** model suggestions remain unreviewed until human confirmation.
 
 ### Research-Grade Analysis & Exports
 
-- **Leakage-safe benchmarking:** StratifiedGroupKFold ensures beats from the same subject never leak into validation folds.
-- **Multi-model comparison:** Logistic Regression and Random Forest with metrics (accuracy, balanced accuracy, macro/weighted F1, ROC-AUC).
+- **Leakage-safe benchmarking:** `StratifiedGroupKFold` keeps subjects out of both training and validation folds simultaneously.
+- **Multi-model comparison:** Logistic Regression and Random Forest with accuracy, balanced accuracy, macro/weighted F1, and ROC-AUC where defined.
+- **Uncertainty reporting:** benchmark output includes fold-level metrics plus mean, SD, and empirical 95% CI.
+- **Experimental-unit-aware statistics:** repeated beat observations can be aggregated by subject/animal before inference; observation-level analyses are explicitly flagged for pseudoreplication risk.
 - **Phenotype statistics:** Welch t-test, Mann-Whitney U, Cohen's d for group comparisons.
 - **FDR adjustment:** Benjamini-Hochberg correction for multiple hypothesis testing.
-- **Versioned JSON export:** `electrotrace.annotation/v2` schema with full provenance (source format, absolute time bounds, preprocessing, annotator, review status).
-- **CSV export:** flat table of annotations with all metadata for downstream analysis.
+- **Versioned JSON export:** `electrotrace.annotation/v2` schema with provenance, source format, absolute time bounds, preprocessing, annotator, and review status.
+- **CSV export:** flat table of annotations with metadata for downstream analysis.
+
+### External Scientific Validation
+
+ElectroTrace includes a reproducible PhysioNet/WFDB validation harness. It compares detector sample indices against reference beat annotations and reports:
+
+- sensitivity/recall
+- positive predictive value
+- F1 score
+- true/false positives and negatives
+- median absolute timing error
+- 95th-percentile timing error
+- per-record and aggregate results
+
+No external dataset is bundled with the repository.
+
+Example against locally downloaded WFDB records:
+
+```bash
+python -m electrotrace.validation record_100 record_101 \
+  --detector my_detector_module:detect \
+  --annotation-extension atr \
+  --tolerance-ms 75
+```
+
+The detector callable must accept `(signal, fs_hz)` and return sample indices. For MIT-BIH-style beat annotations, the harness defaults to standard beat symbols and can be overridden with `--symbols N,V,...`.
+
+**Recommended validation sequence:**
+1. Validate on a development subset.
+2. Freeze detector parameters.
+3. Run the complete held-out record set.
+4. Report per-record and aggregate performance with the tolerance explicitly stated.
+5. Report external validation separately from any model-training benchmark.
+
+MIT-BIH Arrhythmia is a strong first external benchmark because its complete 48-record database includes computer-readable beat reference annotations generated from independent cardiologist annotation with adjudication. citeturn345972search0turn345972search1 For long-recording stress tests, PhysioNet also provides long-term ECG resources; AFDB contains 10-hour two-channel recordings with rhythm annotations, although its `.qrs` annotations are automated and manually corrected `.qrsc` files should be preferred when available. citeturn345972search6
+
+For waveform-boundary validation, the QT Database provides manual waveform onset/offset annotations for P, QRS, and T waves in addition to source beat annotations. citeturn345972search5
 
 ### Project & Recording Management
 
-- **Project storage:** persistent metadata in JSON (project name, created/updated timestamps, recording inventory).
-- **Subject/group/visit tracking:** organize recordings by study structure; enables stratified ML workflows.
-- **Windowed access:** load large recordings in sample-based chunks for memory-efficient analysis.
-- **Safe archive extraction:** validates ZIP structure; prevents path traversal and symbolic link attacks.
+- **Project storage:** persistent metadata in JSON (project name, timestamps, recording inventory).
+- **Subject/group/visit tracking:** organize recordings by study structure and ML grouping.
+- **Windowed access:** large recordings are accessed in sample-based chunks.
+- **Safe archive extraction:** validates ZIP structure; prevents path traversal and symlink attacks.
 
 ## How It's Organized
 
@@ -109,174 +149,87 @@ Open `http://127.0.0.1:5000` in your browser.
 │   ├── formats.py            EDF and WFDB ZIP import + safe extraction
 │   ├── metadata.py           Metadata-only recording discovery
 │   ├── window.py             Native lazy sample-window access
-│   ├── signal.py             Butterworth filtering (high-pass, low-pass, notch)
+│   ├── signal.py             Butterworth filtering
 │   ├── beats.py              Beat segmentation from R-peak indices
 │   ├── annotations.py        Annotation model, validation, review states
-│   ├── ml.py                 Random Forest training, feature extraction, uncertainty ranking
-│   ├── phenotype.py          Beat-level cardiac phenotypes (amplitude, rate, intervals)
+│   ├── ml.py                 Random Forest training, features, active learning
+│   ├── phenotype.py          Beat-level cardiac phenotypes
 │   ├── statistics.py         Group comparisons, FDR adjustment
-│   ├── benchmark.py          Leakage-safe cross-validation (StratifiedGroupKFold)
-│   ├── project.py            Recording metadata helpers (file hashing, timestamps)
+│   ├── benchmark.py          Leakage-safe cross-validation
+│   ├── validation.py         External PhysioNet/WFDB validation harness
+│   ├── project.py            Recording metadata helpers
 │   └── project_store.py      Persistent project JSON + chunked recording access
 ├── tests/                    pytest suite
 ├── sample_data/              Example CSV recordings for demo
 ├── pyproject.toml            Build config, dependencies, test settings
-├── requirements.txt          Pinned dependency list
+├── requirements.txt          Dependency list
 └── LICENSE                   MIT
 ```
 
 ## Data Flow
 
-1. **Upload & register:** User selects CSV/EDF/WFDB → server validates metadata without loading the whole recording.
-2. **Window & display:** Browser requests only the needed sample range and plots it via Plotly.
-3. **Segment & feature:** User triggers R-peak detection → automatic beat window segmentation + RR/HR metrics.
-4. **Label & review:** User creates annotations (point/interval); marks them accepted/flagged; system computes QC stats.
-5. **Train & suggest:** User trains Random Forest on accepted annotations; model ranks uncertain beats.
-6. **Export & analyze:** User exports JSON/CSV and performs group statistics + leakage-safe ML benchmarking.
-7. **Store for reuse:** Recordings remain available through project metadata and bounded window access.
-
-## Dependencies
-
-| Dependency | Purpose |
-|---|---|
-| **Flask ≥ 3.0** | REST API framework |
-| **NumPy ≥ 1.24** | Numerical arrays, signal processing |
-| **SciPy ≥ 1.10** | Peak detection, filtering, statistics |
-| **Pandas ≥ 2.0** | CSV parsing, tabular data |
-| **scikit-learn ≥ 1.4** | Random Forest, logistic regression, cross-validation |
-| **pyedflib ≥ 0.1.38** | EDF file reading |
-| **wfdb ≥ 4.1** | WFDB record import |
-
-**Front-end:**
-- Plotly 2.35+ (CDN) for interactive waveform visualization
-- Vanilla JavaScript (no framework)
+1. **Upload & register:** CSV/EDF/WFDB → metadata validation without full signal materialization.
+2. **Window & display:** browser requests only the needed sample range.
+3. **Segment & feature:** R-peak candidate generation → beat windows + RR/HR metrics.
+4. **Label & review:** human point/interval annotation → acceptance/QC.
+5. **Train & suggest:** accepted labels → model training → uncertainty/diversity-based suggestions.
+6. **Export & analyze:** provenance-preserving export → phenotype/statistics/ML benchmark.
+7. **Externally validate:** run the detector/analysis against independent annotated datasets.
 
 ## API Endpoints
 
 ### Recording Upload & Analysis
-- `POST /api/analyze` – validate and inspect CSV file
+- `POST /api/analyze` – validate and inspect uploaded recordings
 - `POST /api/recording` – upload/register CSV/EDF/WFDB metadata without eager signal materialization
-- `GET /api/recording/<id>/window` – fetch only the requested sample window from stored recording
+- `GET /api/recording/<id>/window` – fetch only the requested sample window
 
 ### Signal Processing
-- `POST /api/filter` – apply baseline removal, high-pass, low-pass, notch filters
-- `POST /api/detect/r-peaks` – detect R-peak candidates via peak prominence
+- `POST /api/filter` – baseline/high-pass/low-pass/notch filtering
+- `POST /api/detect/r-peaks` – detect R-peak candidates
 
 ### Beat Operations
-- `POST /api/beats` or `POST /api/segment` – segment beats from R-peaks with configurable windows
+- `POST /api/beats` or `POST /api/segment` – segment beats from peaks
 
 ### ML & Analysis
 - `POST /api/ml/train` – train Random Forest from accepted point annotations
-- `POST /api/ml/suggest` – train + return uncertainty-ranked beat suggestions
-- `POST /api/phenotype` – extract cardiac phenotypes from beat signal windows
-- `POST /api/statistics/compare` – Welch t-test, Mann-Whitney U, Cohen's d
+- `POST /api/ml/suggest` – train + return uncertainty/diversity-ranked suggestions
+- `POST /api/phenotype` – extract beat phenotypes
+- `POST /api/statistics/compare` – Welch t-test, Mann-Whitney U, Cohen's d with unit-aware aggregation support
 - `POST /api/statistics/fdr` – Benjamini-Hochberg FDR adjustment
-- `POST /api/benchmark` – StratifiedGroupKFold cross-validation (Logistic Regression + Random Forest)
+- `POST /api/benchmark` – subject-level `StratifiedGroupKFold` benchmark
 
 ### Project Management
 - `GET /api/project?name=<project>` – load project metadata
-- `POST /api/project/recording` – add recording to project with subject/group/visit info
-
-## Export Schema
-
-**JSON (`electrotrace.annotation/v2`):**
-```json
-{
-  "schema": "electrotrace.annotation/v2",
-  "file": "recording.edf",
-  "metadata": {
-    "sampling_rate_hz": 500,
-    "duration_s": 120.0,
-    "time_start_s": 0.0,
-    "time_end_s": 119.998,
-    "channels": ["II"],
-    "source_format": "EDF",
-    "annotator": "annotator_1",
-    "preprocessing": {},
-    "beat_count": 119
-  },
-  "annotations": [
-    {
-      "id": "...",
-      "label": "QRS",
-      "type": "interval",
-      "channel": "II",
-      "start": 1.5,
-      "end": 1.65,
-      "confidence": 1.0,
-      "status": "accepted",
-      "annotator": "annotator_1",
-      "notes": ""
-    }
-  ]
-}
-```
-
-**CSV export:** flat table with `file`, `id`, `type`, `label`, `channel`, `start`, `end`, `time`, `confidence`, `status`, `annotator`, `notes`.
-
-## Safety & Validation
-
-- **File upload limits:** 512 MB per file; ZIP archives limited to 256 members, 512 MB uncompressed.
-- **Path traversal prevention:** ZIP extraction validated; symlinks rejected.
-- **Signal validation:** monotonic time, finite values, no NaN/infinite samples.
-- **Filter validation:** Nyquist frequency checks, signal length validation for stable zero-phase filtering.
-- **Project name validation:** alphanumeric + `.`, `_`, `-`; max 64 characters; path traversal checks.
+- `POST /api/project/recording` – add recording with subject/group/visit metadata
 
 ## Testing
 
 ```bash
-# Run test suite
 pytest -q
-
-# Run with coverage
 pytest --cov=src/electrotrace tests/
 ```
 
-CI runs on Python 3.10, 3.11, 3.12 with the test dependencies installed from `.[test]`.
+CI runs on Python 3.10, 3.11, and 3.12 with test dependencies installed from `.[test]`.
 
 ## Scientific Use Notes
 
-**Not a clinical device:** ElectroTrace is research software. Automatic R-peak detection is a candidate generator, not a validated clinical algorithm. Use only for research; clinical applications require regulatory validation.
+**Not a clinical device:** ElectroTrace is research software. Automatic R-peak detection is a candidate generator, not a validated clinical algorithm. External benchmark performance does not establish clinical safety or clinical utility.
 
-**Reproducibility & transparency:** Raw signal arrays are never overwritten by display preprocessing. All filter configurations, source formats, absolute time bounds, and annotation/review provenance are preserved in exports. This allows downstream investigators to audit and reproduce analyses.
+**Reproducibility & transparency:** Raw signals are not overwritten by display preprocessing. Source formats, absolute time bounds, filter configuration, annotation/review provenance, and model metadata are preserved where applicable.
 
-**Leakage prevention:** The benchmark module enforces subject-level stratification (StratifiedGroupKFold), preventing beats from the same subject from appearing in both training and validation folds. This is essential for realistic generalization estimates.
+**Leakage prevention:** The benchmark module enforces subject-level stratification, and the statistics layer can aggregate repeated observations to the experimental unit before inference.
 
-**Model uncertainty is exploratory:** Trained Random Forest models serve active-learning (uncertainty ranking) and exploratory purposes only. Scores and feature importances should not be over-interpreted; always validate with domain expertise and independent cohorts.
-
-## Development
-
-### Local Setup
-```bash
-python -m venv .venv
-source .venv/bin/activate  # or .venv\Scripts\Activate.ps1 on Windows
-pip install -e ".[test]"
-pytest -q
-```
-
-### Adding a New Analysis Module
-1. Create `src/electrotrace/new_module.py`
-2. Add endpoint to `server.py` (e.g., `@app.post("/api/new_module")`)
-3. Add corresponding UI handler in `web/app.js` or `web/research.js`
-4. Add unit tests to `tests/`
+**External validation:** Validation datasets are kept outside the repository. Report the exact dataset version, record list, annotation source, detector configuration, and matching tolerance for reproducibility.
 
 ## Citation
 
-If you use ElectroTrace in research, please cite:
-
 ```text
-ElectroTrace: Research-grade ECG annotation and leakage-safe ML toolkit.
+ElectroTrace: ECG annotation, electrophysiology phenotyping, external validation,
+and leakage-safe machine-learning toolkit.
 Virelion-Biotech, 2024–2026.
 https://github.com/Virelion-Biotech/Virelion-ElectroTrace
 ```
 
-## Support
-
-For issues, feature requests, or questions:
-- Open a GitHub Issue
-- Check existing documentation and test cases for examples
-- Review API response payloads (detailed error messages provided)
-
 ---
 
-**ElectroTrace v1.3.1** · research annotation, electrophysiology phenotyping, and leakage-safe ML dataset platform.
+**ElectroTrace v1.4.0** · annotation, electrophysiology phenotyping, external validation, and leakage-safe ML.
