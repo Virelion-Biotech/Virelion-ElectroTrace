@@ -7,6 +7,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import make_pipeline
 
+FEATURE_SCHEMA_VERSION = "beat-features-v1"
+MODEL_VERSION = "rf-active-learning-v1"
 MIN_TRAINING_EXAMPLES = 4
 MIN_TRAINING_CLASSES = 2
 
@@ -89,10 +91,19 @@ def build_training_set(signal: np.ndarray, fs: float, beat_indices: np.ndarray, 
 
 def train_classifier(signal: np.ndarray, fs: float, beat_indices: np.ndarray, annotations: list[dict], time: np.ndarray | None = None):
     X, y, matched_times = build_training_set(signal, fs, beat_indices, annotations, time=time)
-    model = make_pipeline(StandardScaler(), RandomForestClassifier(n_estimators=200, class_weight="balanced", random_state=42))
+    n_estimators = 200
+    model = make_pipeline(StandardScaler(), RandomForestClassifier(n_estimators=n_estimators, class_weight="balanced", random_state=42))
     model.fit(X, y)
     model._electrotrace_training_times = matched_times.tolist()
-    return model, {"n_training_examples": int(len(y)), "classes": sorted(set(map(str, y)))}
+    return model, {
+        "n_training_examples": int(len(y)),
+        "classes": sorted(set(map(str, y))),
+        "model_version": MODEL_VERSION,
+        "feature_schema_version": FEATURE_SCHEMA_VERSION,
+        "random_seed": 42,
+        "n_estimators": n_estimators,
+        "class_weight": "balanced",
+    }
 
 
 def rank_uncertain(signal: np.ndarray, fs: float, beat_indices: np.ndarray, model, top_n: int = 25, time: np.ndarray | None = None, annotations: list[dict] | None = None, exclude_tolerance_s: float = 0.08) -> list[dict]:
