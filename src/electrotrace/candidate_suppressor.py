@@ -9,11 +9,13 @@ from typing import Sequence
 import numpy as np
 from scipy import signal as sps
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import StratifiedShuffleSplit
 
-SUPPRESSOR_VERSION = "rf-candidate-suppressor-v3"
+SUPPRESSOR_VERSION = "rf-candidate-suppressor-v4"
 FEATURE_SCHEMA_VERSION = "candidate-features-v3"
 DEFAULT_TARGET_RECALL = 0.995
 DEFAULT_TOLERANCE_S = 0.075
+DEFAULT_CALIBRATION_FRACTION = 0.20
 FEATURE_CHUNK_SIZE = 4096
 
 
@@ -28,6 +30,9 @@ class SuppressorMetadata:
     n_negative_candidates: int
     random_seed: int
     n_estimators: int
+    calibration_fraction: float = DEFAULT_CALIBRATION_FRACTION
+    calibration_candidates: int = 0
+    calibration_method: str = "held_out_stratified"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -85,6 +90,8 @@ def _candidate_features(
     prominences = np.zeros(len(candidates), dtype=float) if prominences is None else np.asarray(prominences, dtype=float)
     if prominences.ndim != 1 or len(prominences) != len(candidates):
         raise ValueError("prominences must match candidate_indices")
+    if not np.isfinite(prominences).all():
+        raise ValueError("prominences must be finite")
 
     rr = np.diff(candidates) / fs_hz if len(candidates) > 1 else np.asarray([], dtype=float)
     rr_median = float(np.median(rr)) if rr.size else 1.0
@@ -164,7 +171,10 @@ def _candidate_features(
 
     if not rows:
         return np.empty((0, len(names)), dtype=np.float32), names
-    return np.vstack(rows), names
+    out = np.vstack(rows)
+    if not np.isfinite(out).all():
+        raise ValueError("candidate feature extraction produced NaN or infinite values")
+    return out, names
 
 
 def label_candidates(candidate_indices: Sequence[int], reference_indices: Sequence[int], fs_hz: float,
@@ -193,6 +203,7 @@ def select_threshold_for_recall(y_true: Sequence[int], probabilities: Sequence[f
     y_true = np.asarray(y_true, dtype=int); probabilities = np.asarray(probabilities, dtype=float); target_recall = float(target_recall)
     if y_true.shape != probabilities.shape or y_true.ndim != 1: raise ValueError("y_true and probabilities must be one-dimensional and equal length")
     if not (0 < target_recall <= 1) or not np.isfinite(target_recall): raise ValueError("target_recall must be in (0, 1]")
+    if not np.isfinite(probabilities).all(): raise ValueError("probabilities must be finite")
     positives = int(y_true.sum())
     if positives == 0: raise ValueError("at least one positive candidate is required")
     order = np.argsort(-probabilities); recall = np.cumsum(y_true[order]) / positives
@@ -209,19 +220,50 @@ class CandidateSuppressor:
         return self.model is not None and self.metadata is not None
 
     def fit(self, feature_matrix: np.ndarray, labels: Sequence[int], *, target_recall: float = DEFAULT_TARGET_RECALL,
-            random_seed: int = 42, n_estimators: int = 150) -> "CandidateSuppressor":
+            random_seed: int = 42, n_estimators: int = 150, calibration_fraction: float = DEFAULT_CALIBRATION_FRACTION) -> "CandidateSuppressor":
         X = np.asarray(feature_matrix, dtype=float); y = np.asarray(labels, dtype=int)
         if X.ndim != 2 or X.shape[0] == 0: raise ValueError("feature_matrix must be a non-empty two-dimensional array")
         if len(y) != len(X): raise ValueError("feature_matrix and labels must have equal length")
         if not np.isfinite(X).all(): raise ValueError("feature_matrix contains NaN or infinite values")
         if set(np.unique(y)) - {0, 1} or len(np.unique(y)) < 2: raise ValueError("labels must contain both negative and positive candidates")
+        calibration_fraction = float(calibration_fraction)
+        if not 0 <= calibration_fraction < 0.5 or not np.isfinite(calibration_fraction):
+            raise ValueError("calibration_fraction must be finite and in [0, 0.5)")
+        unique, counts = np.unique(y, return_counts=True)
+        if calibration_fraction > 0 and (len(y) < 10 or np.min(counts) < 2):
+            raise ValueError("held-out threshold calibration requires at least 10 candidates and two examples per class; set calibration_fraction=0 to disable calibration")
+
+        calibration_candidates = 0
+        calibration_method = "disabled"
+        if calibration_fraction > 0:
+            splitter = StratifiedShuffleSplit(n_splits=1, test_size=calibration_fraction, random_state=int(random_seed))
+            model_idx, calibration_idx = next(splitter.split(X, y))
+            calibration_model = RandomForestClassifier(
+                n_estimators=int(n_estimators), class_weight="balanced_subsample", min_samples_leaf=2,
+                max_depth=14, random_state=int(random_seed), n_jobs=-1,
+            )
+            calibration_model.fit(X[model_idx], y[model_idx])
+            calibration_probabilities = calibration_model.predict_proba(X[calibration_idx])[:, 1]
+            threshold = select_threshold_for_recall(y[calibration_idx], calibration_probabilities, target_recall=target_recall)
+            calibration_candidates = int(len(calibration_idx))
+            calibration_method = "held_out_stratified"
+        else:
+            final_for_threshold = RandomForestClassifier(
+                n_estimators=int(n_estimators), class_weight="balanced_subsample", min_samples_leaf=2,
+                max_depth=14, random_state=int(random_seed), n_jobs=-1,
+            )
+            final_for_threshold.fit(X, y)
+            threshold = select_threshold_for_recall(y, final_for_threshold.predict_proba(X)[:, 1], target_recall=target_recall)
+            calibration_method = "training_resubstitution"
+
         model = RandomForestClassifier(n_estimators=int(n_estimators), class_weight="balanced_subsample", min_samples_leaf=2,
                                        max_depth=14, random_state=int(random_seed), n_jobs=-1)
-        model.fit(X, y); probabilities = model.predict_proba(X)[:, 1]
-        threshold = select_threshold_for_recall(y, probabilities, target_recall=target_recall)
+        model.fit(X, y)
         self.model = model
         self.metadata = SuppressorMetadata(SUPPRESSOR_VERSION, FEATURE_SCHEMA_VERSION, float(target_recall), float(threshold),
-                                           int(len(y)), int(y.sum()), int((y == 0).sum()), int(random_seed), int(n_estimators))
+                                           int(len(y)), int(y.sum()), int((y == 0).sum()), int(random_seed), int(n_estimators),
+                                           calibration_fraction=float(calibration_fraction), calibration_candidates=calibration_candidates,
+                                           calibration_method=calibration_method)
         return self
 
     def predict_proba(self, features: np.ndarray) -> np.ndarray:
