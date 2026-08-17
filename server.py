@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 import tempfile
 import uuid
@@ -31,7 +32,7 @@ WEB = os.path.join(ROOT, "web")
 SAMPLE_DATA = os.path.join(ROOT, "sample_data")
 UPLOAD_ROOT = Path(os.getenv("ELECTROTRACE_UPLOAD_ROOT", os.path.join(tempfile.gettempdir(), "electrotrace_uploads")))
 UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
-PROJECT_ROOT = Path(os.getenv("ELECTROTRACE_PROJECT_ROOT", os.path.join(ROOT, "projects")))
+PROJECT_ROOT = Path(os.getenv("ELECTROTRACE_PROJECT_ROOT", os.path.join(ROOT, "projects"))).resolve()
 PROJECT_ROOT.mkdir(parents=True, exist_ok=True)
 app = Flask(__name__, static_folder=WEB, static_url_path="")
 app.config["MAX_CONTENT_LENGTH"] = MAX_ARCHIVE_BYTES
@@ -39,6 +40,16 @@ app.config["MAX_CONTENT_LENGTH"] = MAX_ARCHIVE_BYTES
 
 def _json() -> dict:
     return request.get_json(silent=True) or {}
+
+
+def _project_store(name: str) -> ProjectStore:
+    clean = str(name).strip()
+    if not clean or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", clean):
+        raise ValueError("project name must use only letters, numbers, '.', '_' or '-' and be at most 64 characters")
+    path = (PROJECT_ROOT / clean).resolve()
+    if path != PROJECT_ROOT and PROJECT_ROOT not in path.parents:
+        raise ValueError("invalid project path")
+    return ProjectStore(path)
 
 
 def _safe_extract(archive: zipfile.ZipFile, root: str) -> None:
@@ -73,27 +84,33 @@ def _save_upload(uploaded) -> tuple[str, Path]:
     if destination.stat().st_size > MAX_ARCHIVE_BYTES:
         destination.unlink(missing_ok=True)
         raise ValueError("Uploaded file exceeds the 512 MB limit")
-    if suffix == ".zip":
-        extract_dir = UPLOAD_ROOT / token
-        extract_dir.mkdir()
-        try:
-            with zipfile.ZipFile(destination) as archive:
-                if archive.testzip() is not None:
-                    raise ValueError("Uploaded ZIP is corrupted")
-                _safe_extract(archive, str(extract_dir))
-            hea = next(extract_dir.rglob("*.hea"), None)
-            if hea is None:
-                raise ValueError("WFDB ZIP must contain a .hea record header")
-            return token, hea.with_suffix("")
-        except Exception:
-            for path in sorted(extract_dir.rglob("*"), reverse=True):
-                if path.is_file() or path.is_symlink():
-                    path.unlink(missing_ok=True)
-                elif path.is_dir():
-                    path.rmdir()
-            extract_dir.rmdir()
-            raise
-    return token, destination
+    if suffix != ".zip":
+        return token, destination
+    extract_dir = UPLOAD_ROOT / token
+    extract_dir.mkdir()
+    try:
+        with zipfile.ZipFile(destination) as archive:
+            if archive.testzip() is not None:
+                raise ValueError("Uploaded ZIP is corrupted")
+            _safe_extract(archive, str(extract_dir))
+        headers = list(extract_dir.rglob("*.hea"))
+        if len(headers) != 1:
+            raise ValueError("WFDB ZIP must contain exactly one .hea record header")
+        return token, headers[0].with_suffix("")
+    except Exception:
+        for path in sorted(extract_dir.rglob("*"), reverse=True):
+            if path.is_file() or path.is_symlink():
+                path.unlink(missing_ok=True)
+            elif path.is_dir():
+                path.rmdir()
+        extract_dir.rmdir()
+        destination.unlink(missing_ok=True)
+        raise
+
+
+@app.errorhandler(413)
+def request_too_large(_error):
+    return jsonify({"error": "Uploaded request exceeds the 512 MB limit."}), 413
 
 
 @app.get("/")
@@ -138,11 +155,7 @@ def analyze():
                 payload["signals"] = {c: df[c].astype(float).fillna(0).tolist() for c in result.signal_cols}
             return jsonify(payload)
         native = load_electrophysiology(raw, filename)
-        native["valid"] = True
-        native["errors"] = []
-        native["warnings"] = []
-        native["format"] = native["source_format"].lower()
-        native["filename"] = filename
+        native.update({"valid": True, "errors": [], "warnings": [], "format": native["source_format"].lower(), "filename": filename})
         return jsonify(native)
     except Exception as exc:
         return jsonify({"error": f"Could not read recording: {exc}"}), 400
@@ -153,6 +166,8 @@ def recording_upload():
     uploaded = request.files.get("file")
     if uploaded is None:
         return jsonify({"error": "No recording uploaded."}), 400
+    token = None
+    path = None
     try:
         token, path = _save_upload(uploaded)
         recording = load_recording(path)
@@ -166,6 +181,15 @@ def recording_upload():
             "channels": list(recording.signals.keys()),
         })
     except Exception as exc:
+        if path is not None and path.exists() and path.is_file():
+            path.unlink(missing_ok=True)
+        if token and (UPLOAD_ROOT / token).is_dir():
+            for item in sorted((UPLOAD_ROOT / token).rglob("*"), reverse=True):
+                if item.is_file() or item.is_symlink():
+                    item.unlink(missing_ok=True)
+                elif item.is_dir():
+                    item.rmdir()
+            (UPLOAD_ROOT / token).rmdir()
         return jsonify({"error": str(exc)}), 400
 
 
@@ -186,12 +210,7 @@ def recording_window(recording_id: str):
         stop = min(len(recording.time), int(request.args.get("stop", min(start + 5000, len(recording.time)))))
         if stop <= start:
             raise ValueError("invalid window")
-        return jsonify({
-            "start": start,
-            "stop": stop,
-            "time": recording.time[start:stop].tolist(),
-            "signals": {c: y[start:stop].tolist() for c, y in recording.signals.items()},
-        })
+        return jsonify({"start": start, "stop": stop, "time": recording.time[start:stop].tolist(), "signals": {c: y[start:stop].tolist() for c, y in recording.signals.items()}})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -202,14 +221,7 @@ def filter_signal():
     try:
         fs = float(data["sampling_rate_hz"])
         raw = np.asarray(data["signal"], dtype=float)
-        filtered = apply_pipeline(
-            raw,
-            fs,
-            baseline=bool(data.get("baseline", False)),
-            highpass_hz=float(data["highpass_hz"]) if data.get("highpass_hz") is not None else None,
-            lowpass_hz=float(data["lowpass_hz"]) if data.get("lowpass_hz") is not None else None,
-            notch_hz=float(data["notch_hz"]) if data.get("notch_hz") is not None else None,
-        )
+        filtered = apply_pipeline(raw, fs, baseline=bool(data.get("baseline", False)), highpass_hz=float(data["highpass_hz"]) if data.get("highpass_hz") is not None else None, lowpass_hz=float(data["lowpass_hz"]) if data.get("lowpass_hz") is not None else None, notch_hz=float(data["notch_hz"]) if data.get("notch_hz") is not None else None)
         return jsonify({"signal": filtered.tolist()})
     except (KeyError, TypeError, ValueError, FilterConfigurationError) as exc:
         return jsonify({"error": str(exc)}), 400
@@ -294,13 +306,7 @@ def benchmark():
 def ml_train():
     data = _json()
     try:
-        model, metrics = train_classifier(
-            np.asarray(data["signal"], dtype=float),
-            float(data["sampling_rate_hz"]),
-            np.asarray(data["peaks"], dtype=int),
-            list(data.get("annotations", [])),
-            time=np.asarray(data["time"], dtype=float) if data.get("time") is not None else None,
-        )
+        model, metrics = train_classifier(np.asarray(data["signal"], dtype=float), float(data["sampling_rate_hz"]), np.asarray(data["peaks"], dtype=int), list(data.get("annotations", [])), time=np.asarray(data["time"], dtype=float) if data.get("time") is not None else None)
         return jsonify({"trained": True, "metrics": metrics, "model": model.__class__.__name__})
     except (KeyError, TypeError, ValueError) as exc:
         return jsonify({"trained": False, "error": str(exc)}), 400
@@ -315,35 +321,25 @@ def ml_suggest():
         peaks = np.asarray(data["peaks"], dtype=int)
         time = np.asarray(data["time"], dtype=float) if data.get("time") is not None else None
         model, metrics = train_classifier(signal, fs, peaks, list(data.get("annotations", [])), time=time)
-        suggestions = rank_uncertain(signal, fs, peaks, model, int(data.get("top_n", 20)), time=time)
-        return jsonify({"trained": True, "metrics": metrics, "suggestions": suggestions})
+        return jsonify({"trained": True, "metrics": metrics, "suggestions": rank_uncertain(signal, fs, peaks, model, int(data.get("top_n", 20)), time=time)})
     except (KeyError, TypeError, ValueError) as exc:
         return jsonify({"trained": False, "error": str(exc)}), 400
 
 
 @app.get("/api/project")
 def project_get():
-    name = request.args.get("name", "default")
-    return jsonify(ProjectStore(PROJECT_ROOT / name).load().to_dict())
+    try:
+        return jsonify(_project_store(request.args.get("name", "default")).load().to_dict())
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
 
 @app.post("/api/project/recording")
 def project_recording():
     data = _json()
     try:
-        store = ProjectStore(PROJECT_ROOT / str(data.get("project", "default")))
-        ref = RecordingRef(
-            recording_id=str(data["recording_id"]),
-            subject_id=str(data["subject_id"]),
-            group=str(data.get("group", "")),
-            visit=str(data.get("visit", "")),
-            source_path=str(data.get("source_path", "")),
-            format=str(data.get("format", "")),
-            sampling_rate_hz=data.get("sampling_rate_hz"),
-            duration_s=data.get("duration_s"),
-            channels=list(data.get("channels", [])),
-            metadata=dict(data.get("metadata", {})),
-        )
+        store = _project_store(str(data.get("project", "default")))
+        ref = RecordingRef(recording_id=str(data["recording_id"]), subject_id=str(data["subject_id"]), group=str(data.get("group", "")), visit=str(data.get("visit", "")), source_path=str(data.get("source_path", "")), format=str(data.get("format", "")), sampling_rate_hz=data.get("sampling_rate_hz"), duration_s=data.get("duration_s"), channels=list(data.get("channels", [])), metadata=dict(data.get("metadata", {})))
         return jsonify(store.add_recording(ref).to_dict())
     except (KeyError, TypeError, ValueError) as exc:
         return jsonify({"error": str(exc)}), 400
