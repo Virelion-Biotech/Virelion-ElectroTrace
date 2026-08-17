@@ -168,12 +168,20 @@ def point_agreement(a: list[Annotation], b: list[Annotation], tolerance_s: float
     errors = []
     matches = 0
     for x in left:
-        candidates = [y for y in right if y.id not in used and y.label == x.label and abs(y.time - x.time) <= tolerance_s]  # type: ignore[operator]
+        candidates = [
+            y for y in right
+            if y.id not in used
+            and y.label == x.label
+            and y.channel == x.channel
+            and y.time is not None
+            and x.time is not None
+            and abs(y.time - x.time) <= tolerance_s
+        ]
         if candidates:
             y = min(candidates, key=lambda z: abs(z.time - x.time))
             used.add(y.id)
             matches += 1
-            errors.append(abs(y.time - x.time))  # type: ignore[operator]
+            errors.append(abs(y.time - x.time))
     total = max(len(left), len(right), 1)
     return {"matches": matches, "agreement_rate": matches / total, "mean_absolute_error_s": sum(errors) / len(errors) if errors else None}
 
