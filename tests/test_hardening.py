@@ -35,10 +35,10 @@ def test_safe_extract_rejects_zip_slip():
             _safe_extract(zf, "/tmp/electrotrace-test-root")
 
 
-def test_validation_handles_missing_signal_values_without_marking_all_data_validated():
+def test_validation_rejects_missing_signal_values():
     from electrotrace.io import validate_dataframe
 
     df = pd.DataFrame({"time": [0.0, 0.01, 0.02], "II": [1.0, np.nan, 2.0]})
     result = validate_dataframe(df)
-    assert result.valid
-    assert any("missing/non-numeric" in warning for warning in result.warnings)
+    assert not result.valid
+    assert any("missing/non-numeric" in error for error in result.errors)
