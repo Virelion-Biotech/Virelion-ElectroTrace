@@ -7,6 +7,9 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import make_pipeline
 
+MIN_TRAINING_EXAMPLES = 4
+MIN_TRAINING_CLASSES = 2
+
 
 def _validate_signal(signal: np.ndarray, fs: float) -> tuple[np.ndarray, float]:
     signal = np.asarray(signal, dtype=float)
@@ -76,8 +79,10 @@ def build_training_set(signal: np.ndarray, fs: float, beat_indices: np.ndarray, 
             y.append(str(point["label"]))
     if not X:
         raise ValueError("No detected beats fall within the annotation matching tolerance")
-    if len(set(y)) < 2:
-        raise ValueError("Need two or more labels from accepted annotations for supervised training")
+    if len(X) < MIN_TRAINING_EXAMPLES:
+        raise ValueError(f"Need at least {MIN_TRAINING_EXAMPLES} matched accepted annotations for supervised training")
+    if len(set(y)) < MIN_TRAINING_CLASSES:
+        raise ValueError("Need accepted annotations from at least two labels for supervised training")
     return np.vstack(X), np.asarray(y)
 
 
@@ -88,7 +93,7 @@ def train_classifier(signal: np.ndarray, fs: float, beat_indices: np.ndarray, an
     return model, {"n_training_examples": int(len(y)), "classes": sorted(set(map(str, y)))}
 
 
-def rank_uncertain(signal: np.ndarray, fs: float, beat_indices: np.ndarray, model, top_n: int = 25, time: np.ndarray | None = None) -> list[dict]:
+def rank_uncertain(signal: np.ndarray, fs: float, beat_indices: np.ndarray, model, top_n: int = 25, time: np.ndarray | None = None, annotations: list[dict] | None = None, exclude_tolerance_s: float = 0.08) -> list[dict]:
     signal, fs = _validate_signal(signal, fs)
     beat_indices = np.asarray(beat_indices, dtype=int)
     if beat_indices.size == 0:
@@ -96,19 +101,21 @@ def rank_uncertain(signal: np.ndarray, fs: float, beat_indices: np.ndarray, mode
     top_n = int(top_n)
     if top_n <= 0:
         return []
-    features = np.vstack([_beat_features(signal, fs, int(i)) for i in beat_indices])
+    if exclude_tolerance_s <= 0 or not np.isfinite(exclude_tolerance_s):
+        raise ValueError("exclude_tolerance_s must be positive and finite")
+    times = _times_from_indices(beat_indices, fs, time)
+    excluded_times = [float(a["time"]) for a in (annotations or []) if a.get("type") == "point" and a.get("time") is not None]
+    keep = np.ones(len(beat_indices), dtype=bool)
+    if excluded_times:
+        excluded = np.asarray(excluded_times, dtype=float)
+        keep = np.min(np.abs(times[:, None] - excluded[None, :]), axis=1) > exclude_tolerance_s
+    candidate_indices = beat_indices[keep]
+    candidate_times = times[keep]
+    if candidate_indices.size == 0:
+        return []
+    features = np.vstack([_beat_features(signal, fs, int(i)) for i in candidate_indices])
     probabilities = model.predict_proba(features)
     predictions = model.classes_[np.argmax(probabilities, axis=1)]
     entropy = -(probabilities * np.log(np.clip(probabilities, 1e-9, 1.0))).sum(axis=1)
-    times = _times_from_indices(beat_indices, fs, time)
-    order = np.argsort(-entropy)[: min(top_n, len(beat_indices))]
-    return [
-        {
-            "index": int(beat_indices[i]),
-            "time_s": float(times[i]),
-            "predicted_label": str(predictions[i]),
-            "confidence": float(np.max(probabilities[i])),
-            "uncertainty": float(entropy[i]),
-        }
-        for i in order
-    ]
+    order = np.argsort(-entropy)[: min(top_n, len(candidate_indices))]
+    return [{"index": int(candidate_indices[i]), "time_s": float(candidate_times[i]), "predicted_label": str(predictions[i]), "confidence": float(np.max(probabilities[i])), "uncertainty": float(entropy[i])} for i in order]
