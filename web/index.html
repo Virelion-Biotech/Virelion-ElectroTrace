@@ -11,7 +11,7 @@
 <header>
   <div>
     <h1>ElectroTrace</h1>
-    <p>ECG / electrophysiology annotation, beat segmentation, QC, and ML-assisted labeling.</p>
+    <p>ECG / electrophysiology annotation, beat segmentation, QC, ML, and research analysis.</p>
   </div>
   <div class="header-actions">
     <label class="button secondary">Load ECG<input id="fileInput" type="file" accept=".csv,.edf,.zip,.wfdb" hidden></label>
@@ -46,8 +46,41 @@
       <hr><h3>Compare another annotator</h3><input id="reviewFile" type="file" accept=".json"><div id="agreementResult" class="muted">Import JSON to calculate point timing agreement.</div>
     </div>
   </section>
+
+  <section class="grid main-grid">
+    <div class="card">
+      <div class="section-head"><h2>Research project</h2><span id="storedMeta" class="muted">Not stored for windowed access.</span></div>
+      <div class="form-grid">
+        <label>Project<input id="projectName" placeholder="MI regeneration"></label>
+        <label>Subject ID<input id="subjectId" placeholder="mouse_001"></label>
+        <label>Group<input id="groupName" placeholder="Sham / MI / treatment"></label>
+        <label>Visit / timepoint<input id="visitName" placeholder="Day 7"></label>
+      </div>
+      <div class="row-actions"><button id="storeRecording" class="secondary">Store large recording</button><button id="saveProjectRecording" class="secondary">Add to project</button></div>
+      <div class="form-grid" style="margin-top:12px"><label>Window start (sample)<input id="windowStart" type="number" min="0" value="0"></label><label>Window stop (sample)<input id="windowStop" type="number" min="1" value="5000"></label></div>
+      <div class="row-actions"><button id="fetchWindow" class="secondary">Load window</button></div>
+      <div id="windowInfo" class="muted">Windowed mode loads only the selected sample range.</div><div id="researchMessage" class="muted"></div><div id="projectCount" class="muted"></div>
+    </div>
+    <div class="card">
+      <div class="section-head"><h2>Phenotype / statistics</h2><span class="muted">Derived from detected beats; not a diagnostic interpretation.</span></div>
+      <button id="phenotypeAnalysis" class="secondary">Analyze current beats</button>
+      <div id="phenotypeResult" class="muted" style="margin-top:10px">No phenotype analysis yet.</div>
+      <hr>
+      <label>Group A values<input id="groupAValues" placeholder="60,62,59,64"></label>
+      <label>Group B values<input id="groupBValues" placeholder="72,70,75,74"></label>
+      <button id="comparePhenotype" class="secondary" style="margin-top:8px">Compare groups</button>
+      <div id="statsResult" class="muted" style="margin-top:10px"></div>
+      <hr>
+      <details><summary>Leakage-safe ML benchmark</summary>
+        <p class="muted">Paste JSON with <code>X</code>, <code>y</code>, and subject-level <code>groups</code>. The benchmark uses GroupKFold so beats from one subject cannot leak across train/test.</p>
+        <textarea id="benchmarkJson" rows="6" style="width:100%">{"X":[[0,0],[1,1],[0,1],[1,0]],"y":[0,1,0,1],"groups":["s1","s2","s3","s4"],"folds":2}</textarea>
+        <button id="runBenchmark" class="secondary" style="margin-top:8px">Run benchmark</button>
+        <div id="benchmarkResult" class="muted" style="margin-top:8px"></div>
+      </details>
+    </div>
+  </section>
 </main>
-<footer>ElectroTrace v1.1 · research annotation and ML-assisted dataset tool · raw signals are never overwritten.</footer>
-<script src="/app.js"></script><script src="/shortcuts.js"></script>
+<footer>ElectroTrace v1.2 · research annotation, electrophysiology phenotyping, and leakage-safe ML dataset platform.</footer>
+<script src="/app.js"></script><script src="/shortcuts.js"></script><script src="/research.js"></script>
 </body>
 </html>
