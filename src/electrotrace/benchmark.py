@@ -27,6 +27,19 @@ class FoldMetrics:
         return asdict(self)
 
 
+def _model_classes(model) -> np.ndarray:
+    classes = getattr(model, "classes_", None)
+    if classes is not None:
+        return np.asarray(classes)
+    steps = getattr(model, "steps", None)
+    if steps:
+        estimator = steps[-1][1]
+        classes = getattr(estimator, "classes_", None)
+        if classes is not None:
+            return np.asarray(classes)
+    raise ValueError("trained model does not expose class labels")
+
+
 def _auc(y_true: np.ndarray, proba: np.ndarray, classes: np.ndarray) -> float | None:
     try:
         if len(classes) == 2:
@@ -89,6 +102,7 @@ def benchmark_models(X: np.ndarray, y: np.ndarray, groups: np.ndarray, folds: in
             model.fit(X[train_idx], y[train_idx])
             pred = model.predict(X[test_idx])
             proba = model.predict_proba(X[test_idx])
+            classes = _model_classes(model)
             metrics.append(FoldMetrics(
                 fold=fold,
                 n_train=len(train_idx), n_test=len(test_idx),
@@ -96,15 +110,16 @@ def benchmark_models(X: np.ndarray, y: np.ndarray, groups: np.ndarray, folds: in
                 balanced_accuracy=float(balanced_accuracy_score(y[test_idx], pred)),
                 macro_f1=float(f1_score(y[test_idx], pred, average="macro", zero_division=0)),
                 weighted_f1=float(f1_score(y[test_idx], pred, average="weighted", zero_division=0)),
-                roc_auc=_auc(y[test_idx], proba, model.classes_),
+                roc_auc=_auc(y[test_idx], proba, classes),
             ))
             cm = confusion_matrix(y[test_idx], pred, labels=labels)
             confusion = cm if confusion is None else confusion + cm
         fold_values = {k: [getattr(m, k) for m in metrics] for k in metric_names}
+        summaries = {k: _summary(v) for k, v in fold_values.items()}
         result["models"][name] = {
             "folds": [m.to_dict() for m in metrics],
-            "summary": {k: _summary(v) for k, v in fold_values.items()},
-            "mean": {k: s["mean"] for k, s in {k: _summary(v) for k, v in fold_values.items()}.items()},
+            "summary": summaries,
+            "mean": {k: s["mean"] for k, s in summaries.items()},
             "confusion_matrix": confusion.tolist() if confusion is not None else [],
             "labels": [str(x) for x in labels],
         }
