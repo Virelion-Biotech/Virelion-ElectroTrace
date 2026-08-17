@@ -20,8 +20,8 @@ def _validate_signal(signal: np.ndarray, fs: float) -> tuple[np.ndarray, float]:
         raise ValueError("signal must be one-dimensional with at least eight samples")
     if not np.isfinite(fs) or fs <= 0:
         raise ValueError("sampling rate must be positive and finite")
-    if not np.isfinite(signal).any():
-        raise ValueError("signal contains no finite values")
+    if not np.isfinite(signal).all():
+        raise ValueError("signal contains NaN or infinite values")
     return signal, fs
 
 
@@ -34,7 +34,6 @@ def _beat_features(signal: np.ndarray, fs: float, center_index: int, window_s: f
     x = np.asarray(signal[lo:hi], dtype=float)
     if x.size < 8:
         x = np.pad(x, (0, max(0, 8 - x.size)), mode="edge")
-    x = np.nan_to_num(x)
     med = np.median(x)
     scale = np.std(x) or 1.0
     z = (x - med) / scale
