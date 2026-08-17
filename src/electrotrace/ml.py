@@ -64,9 +64,9 @@ def _model_classes(model) -> np.ndarray:
     classes = getattr(model, "classes_", None)
     if classes is not None:
         return np.asarray(classes)
-    final_estimator = getattr(model, "steps", None)
-    if final_estimator:
-        estimator = final_estimator[-1][1]
+    steps = getattr(model, "steps", None)
+    if steps:
+        estimator = steps[-1][1]
         classes = getattr(estimator, "classes_", None)
         if classes is not None:
             return np.asarray(classes)
@@ -84,13 +84,27 @@ def build_training_set(signal: np.ndarray, fs: float, beat_indices: np.ndarray, 
     if not points:
         raise ValueError("Need accepted point annotations before training")
     beat_times = _times_from_indices(beat_indices, fs, time)
+    point_times = np.asarray([float(p["time"]) for p in points], dtype=float)
+    if not np.isfinite(point_times).all():
+        raise ValueError("accepted annotation times must be finite")
+    order = np.argsort(point_times, kind="stable")
+    points_sorted = [points[int(i)] for i in order]
+    point_times = point_times[order]
+    used_points = np.zeros(len(points_sorted), dtype=bool)
     X, y, matched_times = [], [], []
+    tolerance = float(tolerance_s)
     for idx, t in zip(beat_indices, beat_times):
-        candidates = [(abs(float(p["time"]) - float(t)), p) for p in points]
-        distance, point = min(candidates, key=lambda pair: pair[0])
-        if distance <= tolerance_s:
+        pos = int(np.searchsorted(point_times, t))
+        possible = []
+        if pos < len(point_times): possible.append(pos)
+        if pos > 0: possible.append(pos - 1)
+        if not possible:
+            continue
+        best = min(possible, key=lambda j: abs(point_times[j] - float(t)))
+        if not used_points[best] and abs(point_times[best] - float(t)) <= tolerance:
+            used_points[best] = True
             X.append(_beat_features(signal, fs, int(idx)))
-            y.append(str(point["label"]))
+            y.append(str(points_sorted[best]["label"]))
             matched_times.append(float(t))
     if not X:
         raise ValueError("No detected beats fall within the annotation matching tolerance")
