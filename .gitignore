@@ -2,6 +2,6 @@ __pycache__/
 *.pyc
 .venv/
 venv/
-.streamlit/secrets.toml
 *.egg-info/
+.pytest_cache/
 .DS_Store
