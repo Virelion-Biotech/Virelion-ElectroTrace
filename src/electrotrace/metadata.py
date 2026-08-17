@@ -14,30 +14,45 @@ def _csv_metadata(path: Path) -> dict[str, Any]:
     header = pd.read_csv(path, nrows=0)
     if header.empty:
         raise ValueError("CSV has no columns")
-    from .io import TIME_COL_CANDIDATES, guess_time_column
+    from .io import guess_time_column
     time_col = guess_time_column(header.columns)
     if time_col is None:
         raise ValueError("No time column found")
     signal_cols = [str(c) for c in header.columns if str(c) != str(time_col)]
     if not signal_cols:
         raise ValueError("At least one signal channel is required")
-    chunks = []
-    first = pd.read_csv(path, usecols=[time_col], nrows=2)
-    if first.empty:
-        raise ValueError("CSV contains no samples")
-    last = None
+    first_value = None
+    last_value = None
+    previous = None
+    count = 0
+    dt_values: list[float] = []
     for chunk in pd.read_csv(path, usecols=[time_col], chunksize=100_000):
-        last = chunk
         values = pd.to_numeric(chunk[time_col], errors="coerce").to_numpy(dtype=float)
-        if not np.isfinite(values).all() or (len(values) > 1 and np.any(np.diff(values) <= 0)):
-            raise ValueError("CSV time values must be finite and strictly increasing")
-        chunks.append(values)
-    times = np.concatenate(chunks)
-    if len(times) < 2:
+        if not np.isfinite(values).all():
+            raise ValueError("CSV time values must be finite")
+        if len(values):
+            if first_value is None:
+                first_value = float(values[0])
+            if previous is not None:
+                boundary_dt = float(values[0] - previous)
+                if boundary_dt <= 0:
+                    raise ValueError("CSV time values must be strictly increasing")
+                dt_values.append(boundary_dt)
+            if len(values) > 1:
+                diffs = np.diff(values)
+                if np.any(diffs <= 0):
+                    raise ValueError("CSV time values must be strictly increasing")
+                dt_values.extend(diffs.tolist())
+            previous = float(values[-1])
+            last_value = previous
+            count += len(values)
+    if count < 2 or first_value is None or last_value is None:
         raise ValueError("Recording must contain at least two samples")
-    diffs = np.diff(times)
-    fs = round(1.0 / float(np.median(diffs)), 6)
-    return {"source_format": "csv", "sampling_rate_hz": fs, "n_samples": int(len(times)), "time_start_s": float(times[0]), "time_end_s": float(times[-1]), "duration_s": float(times[-1] - times[0]), "channels": signal_cols}
+    median_dt = float(np.median(np.asarray(dt_values, dtype=float)))
+    if not np.isfinite(median_dt) or median_dt <= 0:
+        raise ValueError("Could not infer a valid sampling interval")
+    fs = round(1.0 / median_dt, 6)
+    return {"source_format": "csv", "sampling_rate_hz": fs, "n_samples": count, "time_start_s": first_value, "time_end_s": last_value, "duration_s": float(last_value - first_value), "channels": signal_cols}
 
 
 def _edf_metadata(path: Path) -> dict[str, Any]:
@@ -48,17 +63,18 @@ def _edf_metadata(path: Path) -> dict[str, Any]:
     reader = pyedflib.EdfReader(str(path))
     try:
         labels = _unique_labels([str(x).strip() for x in reader.getSignalLabels()])
-        rates = [float(x) for x in reader.getSampleFrequency(0),] if reader.signals_in_file else []
-        if not rates or not np.isfinite(rates[0]) or rates[0] <= 0:
-            raise ValueError("EDF contains an invalid sampling rate")
+        if not reader.signals_in_file:
+            raise ValueError("EDF contains no signal channels")
         all_rates = [float(reader.getSampleFrequency(i)) for i in range(reader.signals_in_file)]
-        if any(abs(r - rates[0]) > 1e-9 for r in all_rates):
+        if any(not np.isfinite(r) or r <= 0 for r in all_rates):
+            raise ValueError("EDF contains an invalid sampling rate")
+        if any(abs(r - all_rates[0]) > 1e-9 for r in all_rates):
             raise ValueError("EDF channels have different sampling rates")
         counts = [int(x) for x in reader.getNSamples()]
         n = min(counts)
         if n < 2:
             raise ValueError("EDF contains fewer than two samples")
-        fs = rates[0]
+        fs = all_rates[0]
         return {"source_format": "edf", "sampling_rate_hz": fs, "n_samples": n, "time_start_s": 0.0, "time_end_s": float((n - 1) / fs), "duration_s": float((n - 1) / fs), "channels": labels}
     finally:
         reader.close()
@@ -71,9 +87,10 @@ def _wfdb_metadata(path: Path) -> dict[str, Any]:
         raise RuntimeError("WFDB support requires wfdb") from exc
     header = wfdb.rdheader(str(path))
     fs = float(header.fs)
-    if not np.isfinite(fs) or fs <= 0 or int(header.sig_len) < 2:
+    n = int(header.sig_len)
+    if not np.isfinite(fs) or fs <= 0 or n < 2:
         raise ValueError("WFDB record contains invalid metadata")
-    return {"source_format": "wfdb", "sampling_rate_hz": fs, "n_samples": int(header.sig_len), "time_start_s": 0.0, "time_end_s": float((int(header.sig_len) - 1) / fs), "duration_s": float((int(header.sig_len) - 1) / fs), "channels": _unique_labels([str(x) for x in header.sig_name])}
+    return {"source_format": "wfdb", "sampling_rate_hz": fs, "n_samples": n, "time_start_s": 0.0, "time_end_s": float((n - 1) / fs), "duration_s": float((n - 1) / fs), "channels": _unique_labels([str(x) for x in header.sig_name])}
 
 
 def recording_metadata(path: str | Path) -> dict[str, Any]:
