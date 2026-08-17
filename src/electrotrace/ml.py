@@ -70,26 +70,28 @@ def build_training_set(signal: np.ndarray, fs: float, beat_indices: np.ndarray, 
     if not points:
         raise ValueError("Need accepted point annotations before training")
     beat_times = _times_from_indices(beat_indices, fs, time)
-    X, y = [], []
+    X, y, matched_times = [], [], []
     for idx, t in zip(beat_indices, beat_times):
         candidates = [(abs(float(p["time"]) - float(t)), p) for p in points]
         distance, point = min(candidates, key=lambda pair: pair[0])
         if distance <= tolerance_s:
             X.append(_beat_features(signal, fs, int(idx)))
             y.append(str(point["label"]))
+            matched_times.append(float(t))
     if not X:
         raise ValueError("No detected beats fall within the annotation matching tolerance")
     if len(X) < MIN_TRAINING_EXAMPLES:
         raise ValueError(f"Need at least {MIN_TRAINING_EXAMPLES} matched accepted annotations for supervised training")
     if len(set(y)) < MIN_TRAINING_CLASSES:
         raise ValueError("Need accepted annotations from at least two labels for supervised training")
-    return np.vstack(X), np.asarray(y)
+    return np.vstack(X), np.asarray(y), np.asarray(matched_times, dtype=float)
 
 
 def train_classifier(signal: np.ndarray, fs: float, beat_indices: np.ndarray, annotations: list[dict], time: np.ndarray | None = None):
-    X, y = build_training_set(signal, fs, beat_indices, annotations, time=time)
+    X, y, matched_times = build_training_set(signal, fs, beat_indices, annotations, time=time)
     model = make_pipeline(StandardScaler(), RandomForestClassifier(n_estimators=200, class_weight="balanced", random_state=42))
     model.fit(X, y)
+    model._electrotrace_training_times = matched_times.tolist()
     return model, {"n_training_examples": int(len(y)), "classes": sorted(set(map(str, y)))}
 
 
@@ -105,6 +107,7 @@ def rank_uncertain(signal: np.ndarray, fs: float, beat_indices: np.ndarray, mode
         raise ValueError("exclude_tolerance_s must be positive and finite")
     times = _times_from_indices(beat_indices, fs, time)
     excluded_times = [float(a["time"]) for a in (annotations or []) if a.get("type") == "point" and a.get("time") is not None]
+    excluded_times.extend(float(t) for t in getattr(model, "_electrotrace_training_times", []))
     keep = np.ones(len(beat_indices), dtype=bool)
     if excluded_times:
         excluded = np.asarray(excluded_times, dtype=float)
