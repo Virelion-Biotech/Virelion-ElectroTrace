@@ -22,8 +22,13 @@ WEB=ROOT/"web"; SAMPLE_DATA=ROOT/"sample_data"
 UPLOAD_ROOT=Path(os.getenv("ELECTROTRACE_UPLOAD_ROOT",Path(tempfile.gettempdir())/"electrotrace_uploads")); PROJECT_ROOT=Path(os.getenv("ELECTROTRACE_PROJECT_ROOT",ROOT/"projects")).resolve()
 UPLOAD_ROOT.mkdir(parents=True,exist_ok=True); PROJECT_ROOT.mkdir(parents=True,exist_ok=True)
 app=Flask(__name__,static_folder=str(WEB),static_url_path=""); app.config["MAX_CONTENT_LENGTH"]=MAX_ARCHIVE_BYTES
+MAX_JSON_BODY_BYTES=64*1024*1024
 
-def _json(): return request.get_json(silent=True) or {}
+def _json():
+    length=request.content_length
+    if length is not None and length>MAX_JSON_BODY_BYTES:
+        raise ValueError("JSON request exceeds the 64 MB limit; use recording window endpoints for large signals")
+    return request.get_json(silent=True) or {}
 def _project_store(name):
     name=str(name).strip()
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}",name): raise ValueError("invalid project name")
@@ -62,6 +67,8 @@ def _save_upload(f):
 
 @app.errorhandler(413)
 def too_large(_): return jsonify({"error":"request exceeds the 512 MB limit"}),413
+@app.errorhandler(ValueError)
+def bad_value(e): return jsonify({"error":str(e)}),400
 @app.get('/')
 def index(): return send_from_directory(str(WEB),'index.html')
 @app.get('/sample_data/<path:name>')
@@ -74,7 +81,7 @@ def analyze():
     fn=f.filename or 'recording.csv'
     try:
         raw=f.read()
-        if len(raw)>MAX_ARCHIVE_BYTES: raise ValueError('uploaded file exceeds the limit')
+        if len(raw)>64*1024*1024: raise ValueError('analyze endpoint is limited to 64 MB; use /api/recording and window access for larger recordings')
         if Path(fn).suffix.lower()=='.csv':
             df=load_csv(raw); r=validate_dataframe(df,request.form.get('time_col') or None)
             out={"valid":r.valid,"errors":r.errors,"warnings":r.warnings,"time_col":r.time_col,"signal_cols":r.signal_cols,"sampling_rate_hz":r.sampling_rate_hz,"duration_s":r.duration_s,"n_samples":r.n_samples,"time_start_s":float(df[r.time_col].iloc[0]) if r.valid else None,"time_end_s":float(df[r.time_col].iloc[-1]) if r.valid else None,"format":"csv","source_format":"CSV","filename":fn}
