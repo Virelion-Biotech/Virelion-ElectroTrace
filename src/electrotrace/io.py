@@ -113,15 +113,21 @@ def load_edf(file_path: str | Path) -> Recording:
     try:
         labels = [str(x).strip() for x in reader.getSignalLabels()]
         rates = [float(reader.getSampleFrequency(i)) for i in range(reader.signals_in_file)]
+        if not rates or not all(np.isfinite(r) and r > 0 for r in rates):
+            raise ValueError("EDF contains an invalid sampling rate")
         if len(set(rates)) != 1:
             raise ValueError("EDF contains channels with different sampling rates; select/resample explicitly before analysis")
         fs = rates[0]
         signals = {label: np.asarray(reader.readSignal(i), dtype=float) for i, label in enumerate(labels)}
         n = min(map(len, signals.values()))
+        if n < 2:
+            raise ValueError("EDF contains fewer than two samples")
         signals = {k: v[:n] for k, v in signals.items()}
+        if not all(np.isfinite(v).all() for v in signals.values()):
+            raise ValueError("EDF contains NaN or infinite signal values")
         time = np.arange(n, dtype=float) / fs
         units = {label: str(reader.getPhysicalDimension(i) or "") for i, label in enumerate(labels)}
-        return Recording(time, signals, fs, "edf", units, {"duration_s": float(reader.getFileDuration())})
+        return Recording(time, signals, fs, "edf", units, {"duration_s": float(reader.getFileDuration()), "time_start_s": 0.0, "time_end_s": float(time[-1])})
     finally:
         reader.close()
 
@@ -131,12 +137,17 @@ def load_wfdb(record_path: str | Path) -> Recording:
         import wfdb
     except ImportError as exc:
         raise RuntimeError("WFDB support requires wfdb") from exc
-    path = str(record_path)
-    record = wfdb.rdrecord(path)
+    record = wfdb.rdrecord(str(record_path))
     fs = float(record.fs)
+    if not np.isfinite(fs) or fs <= 0:
+        raise ValueError("WFDB record contains an invalid sampling rate")
     signals = {str(name): np.asarray(record.p_signal[:, i], dtype=float) for i, name in enumerate(record.sig_name)}
+    if not signals or min(map(len, signals.values())) < 2:
+        raise ValueError("WFDB record contains insufficient signal data")
+    if not all(np.isfinite(v).all() for v in signals.values()):
+        raise ValueError("WFDB record contains NaN or infinite signal values")
     time = np.arange(record.sig_len, dtype=float) / fs
-    return Recording(time, signals, fs, "wfdb", metadata={"record_name": record.record_name, "units": record.units})
+    return Recording(time, signals, fs, "wfdb", metadata={"record_name": record.record_name, "units": record.units, "time_start_s": 0.0, "time_end_s": float(time[-1])})
 
 
 def load_recording(file_path: str | Path) -> Recording:
@@ -151,8 +162,10 @@ def load_recording(file_path: str | Path) -> Recording:
         result = validate_dataframe(df)
         if not result.valid:
             raise ValueError("CSV validation failed: " + " ".join(result.errors))
+        if result.sampling_rate_hz is None:
+            raise ValueError("Could not infer a valid sampling rate from the CSV time axis")
         t = df[result.time_col].to_numpy(dtype=float)
-        return Recording(t, {c: pd.to_numeric(df[c], errors="coerce").to_numpy(dtype=float) for c in result.signal_cols}, result.sampling_rate_hz or 1.0, "csv")
+        return Recording(t, {c: pd.to_numeric(df[c], errors="coerce").to_numpy(dtype=float) for c in result.signal_cols}, result.sampling_rate_hz, "csv", metadata={"time_start_s": float(t[0]), "time_end_s": float(t[-1])})
     raise ValueError(f"Unsupported recording format: {suffix}")
 
 
