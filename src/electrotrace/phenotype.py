@@ -13,9 +13,8 @@ def _validate_inputs(time: np.ndarray, signal: np.ndarray) -> float:
         raise ValueError("time contains NaN or infinite values")
     if np.any(np.diff(time) <= 0):
         raise ValueError("time must be strictly increasing")
-    finite_signal = np.isfinite(signal)
-    if finite_signal.sum() < 2:
-        raise ValueError("signal must contain at least two finite values")
+    if not np.isfinite(signal).all():
+        raise ValueError("signal contains NaN or infinite values")
     dt = float(np.median(np.diff(time)))
     if dt <= 0 or not np.isfinite(dt):
         raise ValueError("could not infer a valid sampling interval")
@@ -37,19 +36,18 @@ def beat_phenotypes(time: np.ndarray, signal: np.ndarray, r_indices: np.ndarray)
         hr = 60.0 / rr if rr is not None and rr > 0 else None
         left = max(0, idx - 2)
         right = min(len(signal), idx + 3)
-        r_amp = float(np.nanmean(signal[left:right]))
+        r_amp = float(np.mean(signal[left:right]))
         radius = max(1, int(round(0.20 / dt)))
         before = max(0, idx - radius)
         after = min(len(signal), idx + radius)
         local = signal[before:after]
         baseline_parts = [signal[before:idx], signal[idx:after]]
-        baseline_values = np.concatenate([part[np.isfinite(part)] for part in baseline_parts if np.isfinite(part).any()]) if any(np.isfinite(part).any() for part in baseline_parts) else np.array([], dtype=float)
+        baseline_values = np.concatenate([part for part in baseline_parts if len(part)]) if any(len(part) for part in baseline_parts) else np.array([], dtype=float)
         baseline = float(np.median(baseline_values)) if len(baseline_values) else 0.0
         qrs_width_proxy = None
-        finite_local = local[np.isfinite(local)]
-        if len(finite_local) > 5:
-            centered = np.nan_to_num(local - baseline)
-            peak_abs = float(np.nanmax(np.abs(centered)))
+        if len(local) > 5:
+            centered = local - baseline
+            peak_abs = float(np.max(np.abs(centered)))
             threshold = 0.5 * peak_abs
             if threshold > 0:
                 crossing = np.flatnonzero(np.abs(centered) >= threshold)
