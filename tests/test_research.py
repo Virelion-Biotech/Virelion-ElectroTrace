@@ -19,8 +19,24 @@ def test_phenotype_summary():
 def test_statistics_and_fdr():
     result = compare_groups([1, 2, 3, 4], [5, 6, 7, 8])
     assert result["n_a"] == 4 and result["n_b"] == 4
+    assert result["pseudoreplication_warning"] is True
     adjusted = benjamini_hochberg([0.01, 0.04, 0.2])
     assert adjusted[0] <= adjusted[1] <= adjusted[2]
+
+
+def test_statistics_aggregates_repeated_observations_by_unit():
+    result = compare_groups(
+        [1, 2, 10, 11],
+        [5, 6, 14, 15],
+        unit_ids_a=["s1", "s1", "s2", "s2"],
+        unit_ids_b=["s3", "s3", "s4", "s4"],
+    )
+    assert result["n_observations_a"] == 4
+    assert result["n_units_a"] == 2
+    assert result["n_a"] == 2
+    assert result["unit_of_analysis"] == "experimental_unit_mean"
+    assert result["pseudoreplication_warning"] is False
+    assert result["mean_a"] == pytest.approx(6.0)
 
 
 def test_benchmark_requires_multiple_subjects():
