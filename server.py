@@ -109,7 +109,7 @@ def recording_window(recording_id):
             hs=list((UPLOAD_ROOT/recording_id).rglob('*.hea')); path=hs[0].with_suffix('') if len(hs)==1 else None
         if path is None:return jsonify({"error":"recording not found"}),404
         start=int(request.args.get('start',0)); stop=int(request.args.get('stop',start+5000)); w=read_recording_window(path,start,stop)
-        return jsonify({"start":w['start'],"stop":w['stop'],"n_samples":w['n_samples'],"sampling_rate_hz":w['sampling_rate_hz'],"time_start_s":w['time_start_s'],"time_end_s":w['time_end_s'],"time":w['time'].tolist(),"signals":{k:np.asarray(v).tolist() for k,v in w['signals'].items()}})
+        return jsonify({"start":w['start'],"stop":w['stop'],"n_samples":w['n_samples'],"total_samples":w.get('total_samples'),"sampling_rate_hz":w['sampling_rate_hz'],"time_start_s":w['time_start_s'],"time_end_s":w['time_end_s'],"time":w['time'].tolist(),"signals":{k:np.asarray(v).tolist() for k,v in w['signals'].items()}})
     except (TypeError,ValueError,RuntimeError) as e:return jsonify({"error":str(e)}),400
 
 @app.post('/api/filter')
