@@ -146,16 +146,18 @@ def analyze():
                 "sampling_rate_hz": result.sampling_rate_hz,
                 "duration_s": result.duration_s,
                 "n_samples": result.n_samples,
+                "time_start_s": float(df[result.time_col].iloc[0]) if result.valid else None,
+                "time_end_s": float(df[result.time_col].iloc[-1]) if result.valid else None,
                 "format": "csv",
                 "source_format": "CSV",
                 "filename": filename,
             }
             if result.valid:
                 payload["time"] = df[result.time_col].astype(float).tolist()
-                payload["signals"] = {c: df[c].astype(float).fillna(0).tolist() for c in result.signal_cols}
+                payload["signals"] = {c: df[c].astype(float).to_numpy(dtype=float).tolist() for c in result.signal_cols}
             return jsonify(payload)
         native = load_electrophysiology(raw, filename)
-        native.update({"valid": True, "errors": [], "warnings": [], "format": native["source_format"].lower(), "filename": filename})
+        native.update({"valid": True, "errors": [], "warnings": [], "format": native["source_format"].lower(), "filename": filename, "time_start_s": native["time"][0] if native["time"] else None, "time_end_s": native["time"][-1] if native["time"] else None})
         return jsonify(native)
     except Exception as exc:
         return jsonify({"error": f"Could not read recording: {exc}"}), 400
@@ -171,15 +173,9 @@ def recording_upload():
     try:
         token, path = _save_upload(uploaded)
         recording = load_recording(path)
-        return jsonify({
-            "recording_id": token,
-            "filename": uploaded.filename,
-            "format": recording.source_format,
-            "sampling_rate_hz": recording.sampling_rate_hz,
-            "duration_s": float(recording.time[-1]) if len(recording.time) else 0.0,
-            "n_samples": len(recording.time),
-            "channels": list(recording.signals.keys()),
-        })
+        start = float(recording.time[0]) if len(recording.time) else 0.0
+        end = float(recording.time[-1]) if len(recording.time) else 0.0
+        return jsonify({"recording_id": token, "filename": uploaded.filename, "format": recording.source_format, "sampling_rate_hz": recording.sampling_rate_hz, "duration_s": max(0.0, end - start), "time_start_s": start, "time_end_s": end, "n_samples": len(recording.time), "channels": list(recording.signals.keys())})
     except Exception as exc:
         if path is not None and path.exists() and path.is_file():
             path.unlink(missing_ok=True)
@@ -210,7 +206,7 @@ def recording_window(recording_id: str):
         stop = min(len(recording.time), int(request.args.get("stop", min(start + 5000, len(recording.time)))))
         if stop <= start:
             raise ValueError("invalid window")
-        return jsonify({"start": start, "stop": stop, "time": recording.time[start:stop].tolist(), "signals": {c: y[start:stop].tolist() for c, y in recording.signals.items()}})
+        return jsonify({"start": start, "stop": stop, "time": recording.time[start:stop].tolist(), "time_start_s": float(recording.time[0]), "time_end_s": float(recording.time[-1]), "signals": {c: y[start:stop].tolist() for c, y in recording.signals.items()}})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 400
 
