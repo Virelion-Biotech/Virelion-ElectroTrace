@@ -1,23 +1,18 @@
 # ElectroTrace
 
-ElectroTrace is a research-oriented ECG/electrophysiology annotation tool for turning waveform recordings into structured, reviewable datasets.
+ElectroTrace is a research-oriented ECG/electrophysiology annotation and dataset-generation platform. The original Streamlit MVP has been removed; the current application is a lightweight Flask API with a browser-based Plotly interface.
 
-The original MVP used Streamlit. **Streamlit has been removed.** The current application is a lightweight Flask API plus a browser-based JavaScript/Plotly interface.
+## Core capabilities
 
-## What it does
-
-- Upload and validate ECG CSV recordings.
-- Infer sampling rate from the time axis and warn about irregular sampling.
-- Plot multiple channels with zoom, pan, and range selection.
-- Create point annotations such as R peaks and interval annotations such as QRS/P/T/artifact regions.
-- Edit, duplicate, delete, accept, and flag annotations.
-- Record annotator and study/source metadata.
-- Apply non-destructive display filtering: baseline removal, high-pass, low-pass, and notch.
-- Preserve raw signals unchanged and export the active preprocessing configuration.
-- Run an automatic R-peak candidate detector; candidates are explicitly marked for human review.
-- Import another annotator's JSON export and calculate basic point-level agreement.
-- Export JSON and CSV annotation datasets.
-- Use the Python package independently of the web UI for IO, validation, signal processing, and annotation/QC logic.
+- **Native import:** CSV, EDF/EDF+, and zipped WFDB records (`.hea` + signal files in a ZIP).
+- **Signal validation:** monotonic timestamps, missing/infinite values, sampling-rate inference, and irregular-sampling warnings.
+- **Interactive waveform review:** multi-channel Plotly visualization, zoom, range selection, point capture, and non-destructive display filters.
+- **Beat segmentation:** R-peak detection followed by configurable beat windows with RR interval and heart-rate metadata.
+- **Structured annotation:** point and interval labels, confidence, notes, annotator identity, review status, and provenance.
+- **QC/review:** accepted / unreviewed / flagged workflow plus basic multi-annotator point agreement.
+- **Model-assisted labeling:** train a Random Forest classifier from accepted point annotations and rank unlabeled beats by predictive uncertainty.
+- **Active learning:** surface the most uncertain beats first; model suggestions remain explicitly unreviewed until human confirmation.
+- **Research exports:** versioned JSON and CSV annotations including source format, preprocessing, and beat-count metadata.
 
 ## Quickstart
 
@@ -35,13 +30,11 @@ pip install -e .
 python server.py
 ```
 
-Open `http://127.0.0.1:5000` in a browser.
+Open `http://127.0.0.1:5000`.
 
-The **Load sample** button uses the repository's synthetic ECG so the interface can be tested without preparing a recording first.
+## Input formats
 
-## CSV format
-
-The minimum expected structure is a monotonic time column plus one or more numeric signal columns.
+### CSV
 
 ```csv
 time,Lead_I,Lead_II
@@ -50,128 +43,126 @@ time,Lead_I,Lead_II
 0.004,0.020,0.038
 ```
 
-Recognized time-column names include `time`, `t`, `timestamp`, `time_s`, and `seconds`. Other column names can still be loaded through the Python IO layer by explicitly specifying the time column.
+The loader recognizes `time`, `t`, `timestamp`, `time_s`, and `seconds` as time columns.
 
-Validation checks include missing time axes, non-monotonic timestamps, NaN/infinite values, empty signal channels, positive duration, and irregular sampling intervals.
+### EDF
+
+Upload an `.edf`/EDF+ recording directly. Channels must use a common sampling rate in the current implementation.
+
+### WFDB
+
+Upload a `.zip` archive containing a WFDB header (`.hea`) and its matching signal file(s). ElectroTrace reads the record into a common in-memory representation for annotation and analysis.
+
+## Beat workflow
+
+```text
+Recording
+   ↓
+Validation / import
+   ↓
+Display preprocessing (raw signal preserved)
+   ↓
+R-peak detection
+   ↓
+Beat windows + RR / HR
+   ↓
+Human annotations
+   ↓
+Accepted labels
+   ↓
+Model training
+   ↓
+Uncertainty ranking
+   ↓
+Human review of highest-value candidates
+   ↓
+Exported research dataset
+```
+
+The model-assisted stage is intentionally conservative. Training requires accepted point annotations from at least two classes. Suggestions are ranked by predictive entropy and are exported as `unreviewed` candidates with provenance notes.
 
 ## Annotation schema
 
-Exports use `electrotrace.annotation/v2` and include provenance fields alongside annotations.
+Exports use `electrotrace.annotation/v2`:
 
 ```json
 {
   "schema": "electrotrace.annotation/v2",
-  "file": "recording.csv",
+  "file": "recording.edf",
   "metadata": {
     "sampling_rate_hz": 500,
-    "duration_s": 12.4,
-    "channels": ["Lead_II"],
+    "duration_s": 120.0,
+    "channels": ["II"],
+    "source_format": "EDF",
     "annotator": "annotator_1",
-    "source": "study_A",
-    "preprocessing": {
-      "baseline": false,
-      "highpass_hz": 0.5,
-      "lowpass_hz": 40,
-      "notch_hz": null
-    }
+    "preprocessing": {},
+    "beat_count": 119
   },
-  "annotations": [
-    {
-      "id": "example-id",
-      "label": "QRS",
-      "type": "interval",
-      "channel": "Lead_II",
-      "start": 1.42,
-      "end": 1.51,
-      "time": null,
-      "confidence": 0.98,
-      "notes": "",
-      "annotator": "annotator_1",
-      "status": "accepted",
-      "reviewer": "reviewer_1",
-      "review_notes": ""
-    }
-  ]
+  "annotations": []
 }
 ```
-
-Statuses are `unreviewed`, `accepted`, and `flagged`. Automated R-peak candidates are created as `unreviewed` with a note that they require human verification.
 
 ## Architecture
 
 ```text
-CSV upload
-   |
-   v
-Flask API ---- validation / IO ----> normalized recording
-   |                                      |
-   |                                      v
-   |                                browser Plotly view
-   |                                      |
-   +---- signal processing <-------------+
-   |
-   +---- R-peak candidate detection
-
-Browser state
-   |
-   +---- annotation editor
-   +---- review / QC
-   +---- JSON / CSV export
+                 ┌───────────────┐
+CSV / EDF / WFDB │ import + QC   │
+───────────────► └───────┬───────┘
+                         │
+                  normalized signal
+                         │
+           ┌─────────────┴─────────────┐
+           │                           │
+      Plotly browser             Python analysis
+           │                           │
+     annotation/QC             filters + beats
+           │                           │
+           └─────────────┬─────────────┘
+                         │
+                 accepted labels
+                         │
+                  ML / active learning
+                         │
+                uncertainty-ranked beats
+                         │
+                  reviewed dataset
 ```
 
-### Repository layout
+## Repository layout
 
 ```text
 .
-├── server.py                  # Flask application/API
+├── server.py
 ├── web/
-│   ├── index.html             # browser UI
-│   ├── app.js                 # annotation/QC workflow
+│   ├── index.html
+│   ├── app.js
+│   ├── shortcuts.js
 │   └── styles.css
 ├── src/electrotrace/
-│   ├── __init__.py
-│   ├── annotations.py         # annotation model, review, agreement
-│   ├── io.py                  # CSV loading and validation
-│   ├── project.py             # recording provenance helpers
-│   └── signal.py              # validated non-destructive filters
+│   ├── annotations.py
+│   ├── beats.py
+│   ├── formats.py
+│   ├── io.py
+│   ├── ml.py
+│   ├── project.py
+│   └── signal.py
 ├── tests/
-│   ├── test_annotations.py
-│   ├── test_io.py
-│   ├── test_signal.py
-│   └── test_api.py
-├── sample_data/sample_ecg.csv
-├── pyproject.toml
-└── requirements.txt
+└── sample_data/
 ```
 
 ## Testing
 
-Run:
-
 ```bash
-pytest
+pytest -q
 ```
 
-The tests cover annotation validation/round-tripping, annotation CRUD, point agreement, interval IoU, CSV validation, sampling-rate inference, filtering immutability, filter parameter validation, and basic HTTP API behavior.
+CI runs the test suite on Python 3.10–3.12.
 
 ## Scientific-use notes
 
-ElectroTrace is an annotation and dataset-preparation tool, not a clinical diagnostic device. Automatic peak detection is deliberately conservative in the workflow: generated candidates remain unreviewed until a human accepts them.
+ElectroTrace is research software, not a clinical diagnostic device. Automatic R-peak detection is a candidate generator, not a validated clinical algorithm. Model-assisted suggestions are only as good as the accepted annotations used for training and must remain human-reviewed.
 
-Filtering is display-only. Raw signal arrays are copied before processing and are never overwritten. Filter settings are exported so annotation provenance can be reconstructed.
-
-For multi-annotator projects, use separate JSON exports for each annotator and compare them through the Review/QC panel. The current agreement implementation provides point-event timing agreement within a configurable tolerance in the Python library; interval IoU is also available programmatically. A future production workflow can add formal consensus rules and richer categorical agreement statistics.
-
-## Roadmap
-
-The foundation for a more serious dataset-generation platform is now in place. Logical next additions are:
-
-1. Multi-file project management with persistent `project.json` metadata.
-2. Full interval-level agreement reports and reviewer consensus tools.
-3. Keyboard-first annotation controls for high-throughput labeling.
-4. WFDB/EDF input and standardized export.
-5. Model-assisted QRS/beat classification with confidence-aware human review.
-6. Optional image ECG annotation with calibrated time/amplitude coordinates.
+Raw signal arrays are never overwritten by display preprocessing. Filter configuration, source format, and annotation/review provenance are included in exports so downstream analyses remain auditable.
 
 ## License
 
