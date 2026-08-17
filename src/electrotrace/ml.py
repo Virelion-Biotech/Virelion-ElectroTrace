@@ -77,7 +77,7 @@ def build_training_set(signal: np.ndarray, fs: float, beat_indices: np.ndarray, 
     if not X:
         raise ValueError("No detected beats fall within the annotation matching tolerance")
     if len(set(y)) < 2:
-        raise ValueError("Need accepted annotations from at least two labels for supervised training")
+        raise ValueError("Need two or more labels from accepted annotations for supervised training")
     return np.vstack(X), np.asarray(y)
 
 
