@@ -27,17 +27,9 @@ pip install -e ".[test]"
 python server.py
 ```
 
-The default local server is `http://127.0.0.1:5000`.
+Open `http://127.0.0.1:5000` in your browser.
 
-For any non-loopback bind, set a strong API key first:
-
-```bash
-export ELECTROTRACE_API_KEY='replace-with-a-strong-secret'
-export ELECTROTRACE_HOST='0.0.0.0'
-python server.py
-```
-
-API clients then send `Authorization: Bearer <key>` on `/api/*` requests. The default uploaded-recording retention is 24 hours and can be changed with `ELECTROTRACE_UPLOAD_TTL_S`.
+For shared/non-local deployment, set a strong `ELECTROTRACE_API_KEY` before binding beyond localhost. See `SECURITY.md`.
 
 ## Core Capabilities
 
@@ -49,9 +41,9 @@ API clients then send `Authorization: Bearer <key>` on `/api/*` requests. The de
 ### Large-recording architecture
 - Metadata-only registration.
 - Native lazy EDF/WFDB windows and bounded CSV windows.
-- CSV browser loading uses the same persisted/windowed path as native recordings.
+- CSV browser loading uses the persisted/windowed path.
 - Bounded browser state for long recordings.
-- Automatic cleanup of stale uploaded recordings.
+- Automatic upload retention cleanup via `ELECTROTRACE_UPLOAD_TTL_S`.
 
 ### Interactive Annotation
 - Multi-channel Plotly visualization.
@@ -71,7 +63,7 @@ API clients then send `Authorization: Bearer <key>` on `/api/*` requests. The de
 - Training safeguards and reproducibility metadata.
 - Uncertainty/diversity-based active learning.
 - Already annotated/training beats excluded from suggestions.
-- Accepted annotations are matched to detected beats one-to-one.
+- Pipeline class handling is explicit for prediction/reporting.
 
 ### Research Analysis
 - Subject/record-level leakage-safe ML benchmarking.
@@ -101,33 +93,46 @@ python scripts/benchmark_two_stage_mitdb.py \
   --output validation_reports/mitdb_two_stage_validation.json
 ```
 
-The benchmark runner supports explicit polarity and optional recovery settings. Stage-2 threshold calibration is performed on whole training records kept separate from the records used to fit the final verifier and from the held-out test records.
+The two-stage benchmark supports explicit polarity and optional recovery settings, and its current protocol supports record-level calibration records separate from model-fitting records and held-out test records.
 
-See `docs/VALIDATION.md` and `docs/TWO_STAGE_RPEAK.md` for the reproducible protocol.
+See `docs/VALIDATION.md`, `docs/TWO_STAGE_RPEAK.md`, and `docs/benchmarks/MITBIH_TWO_STAGE_2026-08-17.md`.
 
 ## Project & Recording Management
 
 - Persistent project metadata and recording inventory.
 - Subject/group/visit tracking.
-- Cross-process locking for project metadata updates.
 - Chunked access to large recordings.
 - Safe archive extraction.
+- Cross-process metadata locking.
 
-## Security
+## API Endpoints
 
-- Non-loopback deployment fails closed unless `ELECTROTRACE_API_KEY` is configured.
-- JSON signal requests are capped at 64 MB; long recordings should use persistent windowed access.
-- Uploaded recordings are automatically removed after the configured TTL.
-- Pickle-based model loading is supported only for trusted local artifacts; do not load untrusted model files.
-- CI runs `pip-audit` and Bandit in addition to the test matrix.
+### Recording
+- `POST /api/analyze`
+- `POST /api/recording`
+- `GET /api/recording/<id>/window`
 
-## Testing
+### Signal / Beats
+- `POST /api/filter`
+- `POST /api/detect/r-peaks`
+- `POST /api/beats`
+- `POST /api/segment`
+
+### ML / Analysis
+- `POST /api/ml/train`
+- `POST /api/ml/suggest`
+- `POST /api/phenotype`
+- `POST /api/statistics/compare`
+- `POST /api/statistics/fdr`
+- `POST /api/benchmark`
+
+## Testing & Security
 
 ```bash
 pytest -q
 ```
 
-CI runs on Python 3.10, 3.11, and 3.12, plus dependency/security auditing on Python 3.12.
+CI runs on Python 3.10, 3.11, and 3.12. A separate security workflow runs `pip-audit` and Bandit.
 
 ## Scientific Use Notes
 
@@ -136,6 +141,10 @@ CI runs on Python 3.10, 3.11, and 3.12, plus dependency/security auditing on Pyt
 **Reproducibility:** Raw signals are not overwritten by display preprocessing. Source format, absolute time bounds, provenance, model metadata, train/test record lists, calibration records, and threshold settings are preserved where applicable.
 
 **External validation:** Report the exact dataset version, record list, detector configuration, polarity mode, matching tolerance, recovery setting, calibration records, and model threshold.
+
+**Large-data API:** JSON signal requests are capped at 64 MB; use persistent recording registration and window access for long recordings.
+
+**Deployment:** The development server defaults to localhost. Non-local binds require `ELECTROTRACE_API_KEY`; use a TLS-capable reverse proxy for shared deployments. Trusted-model loading uses Python pickle and must never consume untrusted model files.
 
 ## Citation
 
@@ -148,4 +157,4 @@ https://github.com/Virelion-Biotech/Virelion-ElectroTrace
 
 ---
 
-**ElectroTrace v1.6.0** · annotation, adaptive-polarity R-peak detection, two-stage verification, external validation, secure deployment, and leakage-safe ML.
+**ElectroTrace v1.6.0** · annotation, adaptive-polarity R-peak detection, two-stage verification, external validation, and leakage-safe ML.
