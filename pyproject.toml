@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "electrotrace"
-version = "1.1.0"
-description = "Research-oriented ECG and electrophysiology annotation, segmentation, and ML-assisted labeling toolkit"
+version = "1.2.0"
+description = "Research-oriented ECG and electrophysiology annotation, segmentation, phenotyping, and leakage-safe ML toolkit"
 requires-python = ">=3.10"
 dependencies = [
   "flask>=3.0",
