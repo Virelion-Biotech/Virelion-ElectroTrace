@@ -44,3 +44,11 @@ def test_point_agreement():
     assert result["matches"] == 1
     assert result["agreement_rate"] == 1
     assert result["mean_absolute_error_s"] == pytest.approx(0.02)
+
+
+def test_point_agreement_does_not_cross_channels():
+    a = [Annotation(label="R Peak", type="point", channel="I", time=1.000)]
+    b = [Annotation(label="R Peak", type="point", channel="II", time=1.010)]
+    result = point_agreement(a, b, tolerance_s=0.04)
+    assert result["matches"] == 0
+    assert result["agreement_rate"] == 0
