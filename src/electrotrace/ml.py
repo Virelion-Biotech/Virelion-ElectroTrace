@@ -80,10 +80,10 @@ def build_training_set(signal: np.ndarray, fs: float, beat_indices: np.ndarray, 
             matched_times.append(float(t))
     if not X:
         raise ValueError("No detected beats fall within the annotation matching tolerance")
-    if len(X) < MIN_TRAINING_EXAMPLES:
-        raise ValueError(f"Need at least {MIN_TRAINING_EXAMPLES} matched accepted annotations for supervised training")
     if len(set(y)) < MIN_TRAINING_CLASSES:
         raise ValueError("Need accepted annotations from at least two labels for supervised training")
+    if len(X) < MIN_TRAINING_EXAMPLES:
+        raise ValueError(f"Need at least {MIN_TRAINING_EXAMPLES} matched accepted annotations for supervised training")
     return np.vstack(X), np.asarray(y), np.asarray(matched_times, dtype=float)
 
 
