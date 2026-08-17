@@ -72,7 +72,7 @@
       <div id="statsResult" class="muted" style="margin-top:10px"></div>
       <hr>
       <details><summary>Leakage-safe ML benchmark</summary>
-        <p class="muted">Paste JSON with <code>X</code>, <code>y</code>, and subject-level <code>groups</code>. The benchmark uses GroupKFold so beats from one subject cannot leak across train/test.</p>
+        <p class="muted">Paste JSON with <code>X</code>, <code>y</code>, and subject-level <code>groups</code>. The benchmark uses <b>StratifiedGroupKFold</b> so beats from one subject cannot leak across train/test while preserving class balance where the data permit.</p>
         <textarea id="benchmarkJson" rows="6" style="width:100%">{"X":[[0,0],[1,1],[0,1],[1,0]],"y":[0,1,0,1],"groups":["s1","s2","s3","s4"],"folds":2}</textarea>
         <button id="runBenchmark" class="secondary" style="margin-top:8px">Run benchmark</button>
         <div id="benchmarkResult" class="muted" style="margin-top:8px"></div>
