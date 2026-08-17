@@ -45,11 +45,11 @@ def test_training_requires_minimum_examples():
         build_training_set(x, fs, peaks, anns)
 
 
-def test_active_learning_excludes_training_beats():
+def test_active_learning_excludes_training_beats_and_spaces_candidates():
     fs = 500
-    time = np.arange(3000) / fs
+    time = np.arange(2600) / fs
     x = np.sin(2 * np.pi * 2 * time)
-    peaks = np.array([250, 750, 1250, 1750, 2250, 2750])
+    peaks = np.array([250, 750, 1250, 1750, 2000, 2050, 2100, 2150, 2200])
     anns = [
         {"type": "point", "status": "accepted", "label": "R Peak", "time": 0.5},
         {"type": "point", "status": "accepted", "label": "Abnormal Beat", "time": 1.5},
@@ -58,6 +58,7 @@ def test_active_learning_excludes_training_beats():
     ]
     model, metrics = train_classifier(x, fs, peaks, anns, time=time)
     assert metrics["n_training_examples"] == 4
-    suggestions = rank_uncertain(x, fs, peaks, model, time=time, annotations=anns, top_n=10)
-    suggested_times = {round(item["time_s"], 3) for item in suggestions}
-    assert suggested_times.isdisjoint({0.5, 1.5, 2.5, 3.5})
+    suggestions = rank_uncertain(x, fs, peaks, model, time=time, annotations=anns, top_n=10, min_spacing_s=0.25)
+    suggested_times = sorted(item["time_s"] for item in suggestions)
+    assert {round(t, 3) for t in suggested_times}.isdisjoint({0.5, 1.5, 2.5, 3.5})
+    assert all((b - a) >= 0.25 for a, b in zip(suggested_times, suggested_times[1:]))
