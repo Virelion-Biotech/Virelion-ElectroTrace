@@ -1,7 +1,7 @@
 import numpy as np
 
 from electrotrace.candidate_suppressor import CandidateSuppressor, _candidate_features
-from electrotrace.validation_detectors import detect_r_peaks_two_stage
+from electrotrace.validation_detectors import detect_r_peaks, detect_r_peaks_two_stage
 
 
 def test_two_stage_detector_returns_retained_peaks_and_probabilities():
@@ -21,6 +21,7 @@ def test_two_stage_detector_returns_retained_peaks_and_probabilities():
     model.feature_names = names
 
     retained, probabilities = detect_r_peaks_two_stage(signal, fs, model)
+    stage1_candidates = detect_r_peaks(signal, fs)
     assert retained.ndim == 1
-    assert probabilities.shape[0] == len(candidates)
+    assert probabilities.shape[0] == len(stage1_candidates)
     assert np.isfinite(probabilities).all()
