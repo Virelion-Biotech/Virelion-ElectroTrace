@@ -1,108 +1,178 @@
-# ECG Trace Annotator
+# ElectroTrace
 
-A lightweight Streamlit app for building labeled ECG datasets: **Upload → Visualize → Annotate → Review → Export**.
+ElectroTrace is a research-oriented ECG/electrophysiology annotation tool for turning waveform recordings into structured, reviewable datasets.
 
-## Features (MVP)
+The original MVP used Streamlit. **Streamlit has been removed.** The current application is a lightweight Flask API plus a browser-based JavaScript/Plotly interface.
 
-- Upload a CSV with a time column + one or more signal channels (auto-detects the time column, or pick manually)
-- Interactive Plotly waveform: zoom, pan, multi-channel
-- **Box-select on the chart** to pre-fill a new interval annotation (or enter times manually)
-- Point annotations (R peak, pacing spike, etc.) and interval annotations (QRS, P/T wave, artifact, etc.)
-- Non-destructive optional filtering for display only (baseline wander removal, low-pass, high-pass, notch) — raw data is never modified
-- Annotation table: view, duplicate, delete
-- Export to JSON and CSV; re-import a previously saved `annotations.json`
-- Built-in synthetic sample ECG so you can try it with no file of your own
+## What it does
+
+- Upload and validate ECG CSV recordings.
+- Infer sampling rate from the time axis and warn about irregular sampling.
+- Plot multiple channels with zoom, pan, and range selection.
+- Create point annotations such as R peaks and interval annotations such as QRS/P/T/artifact regions.
+- Edit, duplicate, delete, accept, and flag annotations.
+- Record annotator and study/source metadata.
+- Apply non-destructive display filtering: baseline removal, high-pass, low-pass, and notch.
+- Preserve raw signals unchanged and export the active preprocessing configuration.
+- Run an automatic R-peak candidate detector; candidates are explicitly marked for human review.
+- Import another annotator's JSON export and calculate basic point-level agreement.
+- Export JSON and CSV annotation datasets.
+- Use the Python package independently of the web UI for IO, validation, signal processing, and annotation/QC logic.
 
 ## Quickstart
 
+Python 3.10+ is recommended.
+
 ```bash
-git clone <your-repo-url>
-cd ecg-trace-annotator
-python -m venv .venv && source .venv/bin/activate   # optional but recommended
-pip install -r requirements.txt
-streamlit run app.py
+git clone https://github.com/Virelion-Biotech/Virelion-ElectroTrace.git
+cd Virelion-ElectroTrace
+python -m venv .venv
+# macOS/Linux
+source .venv/bin/activate
+# Windows PowerShell: .venv\\Scripts\\Activate.ps1
+python -m pip install -U pip
+pip install -e .
+python server.py
 ```
 
-Then open the local URL Streamlit prints (usually `http://localhost:8501`), and click **Load sample data** in the sidebar to try it immediately.
+Open `http://127.0.0.1:5000` in a browser.
+
+The **Load sample** button uses the repository's synthetic ECG so the interface can be tested without preparing a recording first.
 
 ## CSV format
+
+The minimum expected structure is a monotonic time column plus one or more numeric signal columns.
 
 ```csv
 time,Lead_I,Lead_II
 0.000,0.012,0.031
-0.004,0.015,0.034
-...
+0.002,0.015,0.034
+0.004,0.020,0.038
 ```
 
-- `time` should be in seconds.
-- Any number of additional signal columns is supported; pick which ones to display/annotate in the sidebar.
-- Sampling rate is inferred automatically from the time column.
+Recognized time-column names include `time`, `t`, `timestamp`, `time_s`, and `seconds`. Other column names can still be loaded through the Python IO layer by explicitly specifying the time column.
+
+Validation checks include missing time axes, non-monotonic timestamps, NaN/infinite values, empty signal channels, positive duration, and irregular sampling intervals.
 
 ## Annotation schema
 
-Annotations are stored as:
+Exports use `electrotrace.annotation/v2` and include provenance fields alongside annotations.
 
 ```json
 {
-  "file": "sample_ecg.csv",
-  "annotation_schema": "v1",
+  "schema": "electrotrace.annotation/v2",
+  "file": "recording.csv",
+  "metadata": {
+    "sampling_rate_hz": 500,
+    "duration_s": 12.4,
+    "channels": ["Lead_II"],
+    "annotator": "annotator_1",
+    "source": "study_A",
+    "preprocessing": {
+      "baseline": false,
+      "highpass_hz": 0.5,
+      "lowpass_hz": 40,
+      "notch_hz": null
+    }
+  },
   "annotations": [
     {
-      "id": "a1b2c3d4",
-      "type": "interval",
+      "id": "example-id",
       "label": "QRS",
+      "type": "interval",
       "channel": "Lead_II",
       "start": 1.42,
       "end": 1.51,
+      "time": null,
       "confidence": 0.98,
-      "notes": ""
-    },
-    {
-      "id": "e5f6a7b8",
-      "type": "point",
-      "label": "R_peak",
-      "channel": "Lead_II",
-      "time": 1.465,
-      "confidence": 0.99,
-      "notes": ""
+      "notes": "",
+      "annotator": "annotator_1",
+      "status": "accepted",
+      "reviewer": "reviewer_1",
+      "review_notes": ""
     }
   ]
 }
 ```
 
-CSV export flattens this into one row per annotation (`file,id,type,label,channel,start,end,time,confidence,notes`) for use in ML pipelines.
+Statuses are `unreviewed`, `accepted`, and `flagged`. Automated R-peak candidates are created as `unreviewed` with a note that they require human verification.
 
-## Project layout
+## Architecture
 
+```text
+CSV upload
+   |
+   v
+Flask API ---- validation / IO ----> normalized recording
+   |                                      |
+   |                                      v
+   |                                browser Plotly view
+   |                                      |
+   +---- signal processing <-------------+
+   |
+   +---- R-peak candidate detection
+
+Browser state
+   |
+   +---- annotation editor
+   +---- review / QC
+   +---- JSON / CSV export
 ```
-ecg-trace-annotator/
-├── app.py                     # Streamlit application (main entry point)
-├── src/
-│   ├── annotation_model.py    # Annotation + AnnotationStore data model
-│   ├── io_utils.py            # CSV loading, column/sampling-rate inference
-│   └── signal_processing.py   # Optional non-destructive filters
-├── sample_data/
-│   └── sample_ecg.csv         # Synthetic demo recording
-├── requirements.txt
-└── README.md
+
+### Repository layout
+
+```text
+.
+├── server.py                  # Flask application/API
+├── web/
+│   ├── index.html             # browser UI
+│   ├── app.js                 # annotation/QC workflow
+│   └── styles.css
+├── src/electrotrace/
+│   ├── __init__.py
+│   ├── annotations.py         # annotation model, review, agreement
+│   ├── io.py                  # CSV loading and validation
+│   ├── project.py             # recording provenance helpers
+│   └── signal.py              # validated non-destructive filters
+├── tests/
+│   ├── test_annotations.py
+│   ├── test_io.py
+│   ├── test_signal.py
+│   └── test_api.py
+├── sample_data/sample_ecg.csv
+├── pyproject.toml
+└── requirements.txt
 ```
 
-## Roadmap (not yet implemented)
+## Testing
 
-These are natural next steps if you want to extend the tool, per the original design doc:
+Run:
 
-- PDF/image ECG upload with bounding-box annotation (pixel coords, optional grid calibration to time)
-- Keyboard shortcuts for fast labeling (Q/P/T/A, arrows to move cursor, etc.)
-- Undo/redo
-- Multi-file "project" mode (`project.json` + one folder per recording)
-- Multi-annotator agreement metrics (IoU, Cohen's kappa)
-- ML-assisted pre-labeling (automatic R-peak/QRS detector + human review queue)
-- YOLO/COCO/segmentation export for image-based annotation
+```bash
+pytest
+```
 
-## Deploying
+The tests cover annotation validation/round-tripping, annotation CRUD, point agreement, interval IoU, CSV validation, sampling-rate inference, filtering immutability, filter parameter validation, and basic HTTP API behavior.
 
-Works as-is on [Streamlit Community Cloud](https://streamlit.io/cloud): push this repo to GitHub, point Streamlit Cloud at `app.py`, done.
+## Scientific-use notes
+
+ElectroTrace is an annotation and dataset-preparation tool, not a clinical diagnostic device. Automatic peak detection is deliberately conservative in the workflow: generated candidates remain unreviewed until a human accepts them.
+
+Filtering is display-only. Raw signal arrays are copied before processing and are never overwritten. Filter settings are exported so annotation provenance can be reconstructed.
+
+For multi-annotator projects, use separate JSON exports for each annotator and compare them through the Review/QC panel. The current agreement implementation provides point-event timing agreement within a configurable tolerance in the Python library; interval IoU is also available programmatically. A future production workflow can add formal consensus rules and richer categorical agreement statistics.
+
+## Roadmap
+
+The foundation for a more serious dataset-generation platform is now in place. Logical next additions are:
+
+1. Multi-file project management with persistent `project.json` metadata.
+2. Full interval-level agreement reports and reviewer consensus tools.
+3. Keyboard-first annotation controls for high-throughput labeling.
+4. WFDB/EDF input and standardized export.
+5. Model-assisted QRS/beat classification with confidence-aware human review.
+6. Optional image ECG annotation with calibrated time/amplitude coordinates.
 
 ## License
 
-MIT — adapt freely for your research.
+MIT
