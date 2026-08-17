@@ -11,6 +11,7 @@ from electrotrace.beats import segment_beats
 from electrotrace.benchmark import benchmark_models
 from electrotrace.formats import MAX_ARCHIVE_BYTES,MAX_ARCHIVE_MEMBERS,MAX_MEMBER_BYTES,load_electrophysiology
 from electrotrace.io import load_csv,load_recording,validate_dataframe
+from electrotrace.metadata import recording_metadata
 from electrotrace.ml import rank_uncertain,train_classifier
 from electrotrace.phenotype import beat_phenotypes,summary_statistics
 from electrotrace.project_store import ProjectStore,RecordingRef
@@ -88,8 +89,8 @@ def recording_upload():
     if f is None:return jsonify({"error":"No recording uploaded."}),400
     token=path=None
     try:
-        token,path=_save_upload(f); rec=load_recording(path); start=float(rec.time[0]) if len(rec.time) else 0.; end=float(rec.time[-1]) if len(rec.time) else 0.
-        return jsonify({"recording_id":token,"filename":f.filename,"format":rec.source_format,"sampling_rate_hz":rec.sampling_rate_hz,"duration_s":max(0.,end-start),"time_start_s":start,"time_end_s":end,"n_samples":len(rec.time),"channels":list(rec.signals)})
+        token,path=_save_upload(f); meta=recording_metadata(path)
+        return jsonify({"recording_id":token,"filename":f.filename,"format":meta["source_format"],"sampling_rate_hz":meta["sampling_rate_hz"],"duration_s":meta["duration_s"],"time_start_s":meta["time_start_s"],"time_end_s":meta["time_end_s"],"n_samples":meta["n_samples"],"channels":meta["channels"]})
     except Exception as e:
         if path and path.is_file(): path.unlink(missing_ok=True)
         if token and (UPLOAD_ROOT/token).is_dir():
