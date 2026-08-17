@@ -1,19 +1,25 @@
 """Reference detector adapters used by the external validation harness."""
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 from scipy import signal as sps
 
 from .candidate_suppressor import CandidateSuppressor, _candidate_features
 
 
-def detect_r_peaks(signal: np.ndarray, fs_hz: float, *, polarity: str = "positive") -> np.ndarray:
-    """Run ElectroTrace's heuristic Stage-1 R-peak candidate detector.
+@dataclass(frozen=True)
+class PolarityDecision:
+    polarity: str
+    confidence: float
+    positive_score: float
+    negative_score: float
+    positive_candidates: int
+    negative_candidates: int
 
-    ``polarity="positive"`` preserves the historical behavior. ``polarity="adaptive"``
-    detects both positive and negative deflections and merges nearby candidates,
-    allowing the second stage to decide which morphology is a true beat.
-    """
+
+def _validate_signal(signal: np.ndarray, fs_hz: float) -> tuple[np.ndarray, float]:
     signal = np.asarray(signal, dtype=float)
     fs_hz = float(fs_hz)
     if signal.ndim != 1 or signal.size < 8:
@@ -22,6 +28,74 @@ def detect_r_peaks(signal: np.ndarray, fs_hz: float, *, polarity: str = "positiv
         raise ValueError("signal must contain only finite values")
     if not np.isfinite(fs_hz) or fs_hz <= 0:
         raise ValueError("fs_hz must be positive and finite")
+    return signal, fs_hz
+
+
+def _candidate_set(z: np.ndarray, fs_hz: float, scale: float) -> tuple[np.ndarray, np.ndarray]:
+    distance = max(1, int(round(fs_hz * 0.25)))
+    peaks, properties = sps.find_peaks(z, distance=distance, prominence=scale * 0.5)
+    prominences = properties.get("prominences", np.zeros(len(peaks), dtype=float))
+    return peaks.astype(int), np.asarray(prominences, dtype=float)
+
+
+def select_signal_polarity(signal: np.ndarray, fs_hz: float) -> PolarityDecision:
+    """Choose the stronger ECG polarity without merging positive/negative candidates.
+
+    The score combines robust prominence, plausible beat-count support, and RR
+    regularity. Low-confidence decisions fall back to positive polarity so the
+    historical detector behavior remains the safe default.
+    """
+    signal, fs_hz = _validate_signal(signal, fs_hz)
+    z = signal - np.median(signal)
+    scale = float(np.std(z))
+    if not np.isfinite(scale) or scale == 0:
+        return PolarityDecision("positive", 0.0, 0.0, 0.0, 0, 0)
+
+    pos, pos_prom = _candidate_set(z, fs_hz, scale)
+    neg, neg_prom = _candidate_set(-z, fs_hz, scale)
+    duration_s = signal.size / fs_hz
+
+    def score(peaks: np.ndarray, prominences: np.ndarray) -> float:
+        if len(peaks) == 0:
+            return 0.0
+        prominence_term = float(np.median(prominences) / max(scale, 1e-8))
+        bpm = len(peaks) / max(duration_s, 1e-8) * 60.0
+        if 35.0 <= bpm <= 180.0:
+            count_term = 1.0
+        elif bpm < 35.0:
+            count_term = max(0.0, bpm / 35.0)
+        else:
+            count_term = max(0.0, 180.0 / bpm)
+        if len(peaks) >= 3:
+            rr = np.diff(peaks) / fs_hz
+            rr_median = float(np.median(rr))
+            rr_cv = float(np.std(rr) / max(rr_median, 1e-8)) if rr_median > 0 else 1.0
+            regularity_term = 1.0 / (1.0 + rr_cv)
+        else:
+            regularity_term = 0.5
+        return float(0.55 * prominence_term + 0.20 * count_term + 0.25 * regularity_term)
+
+    pos_score = score(pos, pos_prom)
+    neg_score = score(neg, neg_prom)
+    if pos_score == neg_score == 0:
+        return PolarityDecision("positive", 0.0, pos_score, neg_score, len(pos), len(neg))
+    polarity = "positive" if pos_score >= neg_score else "negative"
+    best = max(pos_score, neg_score)
+    second = min(pos_score, neg_score)
+    confidence = float((best - second) / max(best, 1e-8))
+    if confidence < 0.10:
+        polarity = "positive"
+    return PolarityDecision(polarity, confidence, pos_score, neg_score, len(pos), len(neg))
+
+
+def detect_r_peaks(signal: np.ndarray, fs_hz: float, *, polarity: str = "positive") -> np.ndarray:
+    """Run ElectroTrace's heuristic Stage-1 R-peak candidate detector.
+
+    ``polarity="positive"`` preserves historical behavior. ``negative`` detects
+    inverted deflections. ``adaptive`` selects one polarity per recording using
+    :func:`select_signal_polarity`; it does not merge both polarities.
+    """
+    signal, fs_hz = _validate_signal(signal, fs_hz)
     polarity = str(polarity).lower()
     if polarity not in {"positive", "negative", "adaptive"}:
         raise ValueError("polarity must be positive, negative, or adaptive")
@@ -29,38 +103,10 @@ def detect_r_peaks(signal: np.ndarray, fs_hz: float, *, polarity: str = "positiv
     scale = float(np.std(z))
     if not np.isfinite(scale) or scale == 0:
         return np.asarray([], dtype=int)
-    distance = max(1, int(round(fs_hz * 0.25)))
-
-    def _find(x: np.ndarray):
-        return sps.find_peaks(x, distance=distance, prominence=scale * 0.5)
-
-    if polarity == "positive":
-        peaks, _ = _find(z)
-        return peaks.astype(int)
-    if polarity == "negative":
-        peaks, _ = _find(-z)
-        return peaks.astype(int)
-
-    pos, pos_props = _find(z)
-    neg, neg_props = _find(-z)
-    all_peaks = np.concatenate([pos, neg]).astype(int)
-    all_prom = np.concatenate([pos_props.get("prominences", np.zeros(len(pos))),
-                               neg_props.get("prominences", np.zeros(len(neg)))])
-    if len(all_peaks) == 0:
-        return np.asarray([], dtype=int)
-    order = np.argsort(all_peaks)
-    all_peaks = all_peaks[order]
-    all_prom = all_prom[order]
-    selected: list[int] = []
-    selected_prom: list[float] = []
-    for peak, prom in zip(all_peaks, all_prom):
-        if not selected or int(peak) - selected[-1] >= distance:
-            selected.append(int(peak))
-            selected_prom.append(float(prom))
-        elif prom > selected_prom[-1]:
-            selected[-1] = int(peak)
-            selected_prom[-1] = float(prom)
-    return np.asarray(selected, dtype=int)
+    if polarity == "adaptive":
+        polarity = select_signal_polarity(signal, fs_hz).polarity
+    peaks, _ = _candidate_set(z if polarity == "positive" else -z, fs_hz, scale)
+    return peaks
 
 
 def detect_r_peaks_two_stage(
@@ -74,31 +120,24 @@ def detect_r_peaks_two_stage(
     """Run Stage 1 candidate detection followed by a trained suppressor.
 
     Returns ``(retained_peak_indices, candidate_probabilities)``. The probability
-    array corresponds to the complete Stage-1 candidate list, which is useful for
-    QC and audit trails.
+    array corresponds to the complete Stage-1 candidate list, useful for QC and
+    audit trails.
     """
-    signal = np.asarray(signal, dtype=float)
-    fs_hz = float(fs_hz)
-    if signal.ndim != 1 or signal.size < 8 or not np.isfinite(signal).all():
-        raise ValueError("signal must be one-dimensional, contain at least eight finite samples")
-    if not np.isfinite(fs_hz) or fs_hz <= 0:
-        raise ValueError("fs_hz must be positive and finite")
+    signal, fs_hz = _validate_signal(signal, fs_hz)
     if not suppressor.fitted:
         raise ValueError("suppressor must be fitted before two-stage detection")
-    peaks = detect_r_peaks(signal, fs_hz, polarity=polarity)
+    chosen_polarity = polarity
+    if polarity == "adaptive":
+        chosen_polarity = select_signal_polarity(signal, fs_hz).polarity
+    peaks = detect_r_peaks(signal, fs_hz, polarity=chosen_polarity)
     if len(peaks) == 0:
         return np.asarray([], dtype=int), np.asarray([], dtype=float)
-    _, properties = sps.find_peaks(
-        signal - np.median(signal),
-        distance=max(1, int(round(fs_hz * 0.25))),
-        prominence=float(np.std(signal - np.median(signal))) * 0.5,
-    )
-    # For adaptive/negative candidates, recompute candidate-specific prominence
-    # directly rather than relying on positive-only peak properties.
     z = signal - np.median(signal)
-    prom = np.zeros(len(peaks), dtype=float)
-    for i, peak in enumerate(peaks):
-        prom[i] = float(abs(z[peak]))
-    features, _ = _candidate_features(signal, fs_hz, peaks, prom)
+    scale = float(np.std(z))
+    candidate_signal = z if chosen_polarity == "positive" else -z
+    _, prominences = _candidate_set(candidate_signal, fs_hz, scale)
+    if len(prominences) != len(peaks):
+        prominences = np.abs(candidate_signal[peaks])
+    features, _ = _candidate_features(signal, fs_hz, peaks, prominences)
     retained, probabilities = suppressor.filter_candidates(peaks, features, threshold=threshold)
     return retained.astype(int), probabilities.astype(float)
