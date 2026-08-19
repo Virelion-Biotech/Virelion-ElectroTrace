@@ -1,0 +1,30 @@
+{
+  "dataset_archive_sha256": "47b26926927c11bd9174154d367c811afc1b186f650f8a205931ca8c520f0a87",
+  "decision_disagreement_count": 20,
+  "decision_disagreement_fraction": 0.4166666666666667,
+  "experimental_only": true,
+  "known_failure_records": ["207", "232", "201", "108", "231"],
+  "known_failure_signal_only_decisions": {
+    "108": {"confidence": 0.01606547438617763, "current": "positive", "negative_candidates": 3246, "negative_score": 2.3520343526412213, "positive_candidates": 3299, "positive_score": 2.293856824484018, "prominence_score": "negative"},
+    "201": {"confidence": 0.015997585270147902, "current": "positive", "negative_candidates": 3313, "negative_score": 3.7137428993073565, "positive_candidates": 3260, "positive_score": 5.19666107090578, "prominence_score": "positive"},
+    "207": {"confidence": 0.026079869600651995, "current": "positive", "negative_candidates": 2390, "negative_score": 4.5743454952362645, "positive_candidates": 2454, "positive_score": 4.539049619501417, "prominence_score": "negative"},
+    "231": {"confidence": 0.02219081349241091, "current": "positive", "negative_candidates": 3023, "negative_score": 5.643906644931873, "positive_candidates": 3092, "positive_score": 5.491741643193037, "prominence_score": "negative"},
+    "232": {"confidence": 0.013651533706172223, "current": "positive", "negative_candidates": 3757, "negative_score": 2.726103668799139, "positive_candidates": 3809, "positive_score": 2.726103668799139, "prominence_score": "positive"}
+  },
+  "interpretation": [
+    "The candidate-count rule is not a stable proxy for dominant QRS polarity: it disagrees with the median-prominence rule on 20/48 records.",
+    "Record 207, the known catastrophic polarity failure, is selected positive by the current rule but negative by the signal-only prominence rule.",
+    "Record 108 is also selected negative by the signal-only prominence rule despite the current rule selecting positive.",
+    "Record 232 remains positive under both rules, indicating polarity selection is not the sole explanation for that failure.",
+    "No annotation information was used to choose any experimental polarity decision.",
+    "This report is diagnostic only; it must not replace or revise the locked 75-ms benchmark."
+  ],
+  "low_confidence_records": ["117", "100", "210", "123", "234", "232", "219", "201", "108", "118"],
+  "n_records": 48,
+  "next_experiment": "Run the prominence-based selector as a preregistered secondary detector on the same full MIT-BIH set and compare against the frozen baseline; do not select the winner using the same test set.",
+  "primary_baseline_unchanged": true,
+  "schema_version": "electrotrace-polarity-investigation-v1",
+  "score_rule_distribution": {"negative": 20, "positive": 28},
+  "source_commit": "615833eb1c13e9af531a9829fa32433f16fba40f",
+  "status": "experimental_only"
+}
