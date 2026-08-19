@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
+import pytest
 
-from electrotrace.window import read_recording_window
+from electrotrace.window import MAX_WINDOW_SAMPLES, read_recording_window
 
 
 def test_csv_window_returns_only_requested_rows(tmp_path):
@@ -23,3 +24,10 @@ def test_window_rejects_invalid_bounds(tmp_path):
         assert "beyond" in str(exc)
     else:
         raise AssertionError("expected an out-of-range window to fail")
+
+
+def test_window_rejects_unbounded_requests(tmp_path):
+    path = tmp_path / "trace.csv"
+    pd.DataFrame({"time": np.arange(10) / 500, "II": np.arange(10, dtype=float)}).to_csv(path, index=False)
+    with pytest.raises(ValueError, match="window exceeds"):
+        read_recording_window(path, 0, MAX_WINDOW_SAMPLES + 1)
