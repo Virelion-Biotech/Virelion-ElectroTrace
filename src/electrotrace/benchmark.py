@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 
 import numpy as np
+from scipy.stats import t as student_t
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, balanced_accuracy_score, f1_score, roc_auc_score, confusion_matrix
@@ -52,16 +53,22 @@ def _auc(y_true: np.ndarray, proba: np.ndarray, classes: np.ndarray) -> float | 
 def _summary(values: list[float | None]) -> dict[str, float | None]:
     x = np.asarray([v for v in values if v is not None and np.isfinite(v)], dtype=float)
     if x.size == 0:
-        return {"mean": None, "std": None, "ci95_low": None, "ci95_high": None}
+        return {"n": 0, "mean": None, "std": None, "ci95_low": None, "ci95_high": None}
     mean = float(np.mean(x))
     if x.size == 1:
-        return {"mean": mean, "std": None, "ci95_low": None, "ci95_high": None}
-    se = float(np.std(x, ddof=1) / np.sqrt(x.size))
-    margin = 1.96 * se
-    return {"mean": mean, "std": float(np.std(x, ddof=1)), "ci95_low": mean - margin, "ci95_high": mean + margin}
+        return {"n": 1, "mean": mean, "std": None, "ci95_low": None, "ci95_high": None}
+    sd = float(np.std(x, ddof=1))
+    critical = float(student_t.ppf(0.975, df=x.size - 1))
+    margin = critical * sd / np.sqrt(x.size)
+    return {"n": int(x.size), "mean": mean, "std": sd, "ci95_low": mean - margin, "ci95_high": mean + margin}
 
 
 def benchmark_models(X: np.ndarray, y: np.ndarray, groups: np.ndarray, folds: int = 5, seed: int = 42) -> dict:
+    """Benchmark baseline classifiers using leakage-safe group-stratified folds.
+
+    ``groups`` are the experimental units for splitting. Samples from one group
+    never occur in both train and test within a fold.
+    """
     X = np.asarray(X, dtype=float)
     y = np.asarray(y)
     groups = np.asarray(groups)
@@ -91,14 +98,26 @@ def benchmark_models(X: np.ndarray, y: np.ndarray, groups: np.ndarray, folds: in
         "random_forest": RandomForestClassifier(n_estimators=300, class_weight="balanced", random_state=seed, n_jobs=-1),
     }
     splitter = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=seed)
-    result: dict[str, object] = {"n_samples": int(len(y)), "n_subjects": int(len(unique_groups)), "folds": n_splits, "splitter": "StratifiedGroupKFold", "groups_per_class": groups_per_class, "models": {}}
+    result: dict[str, object] = {
+        "n_samples": int(len(y)),
+        "n_subjects": int(len(unique_groups)),
+        "experimental_unit": "group",
+        "folds": n_splits,
+        "splitter": "StratifiedGroupKFold",
+        "seed": int(seed),
+        "groups_per_class": groups_per_class,
+        "models": {},
+    }
     metric_names = ("accuracy", "balanced_accuracy", "macro_f1", "weighted_f1", "roc_auc")
     for name, model in models.items():
         metrics: list[FoldMetrics] = []
         confusion = None
+        test_groups_per_fold: list[int] = []
         for fold, (train_idx, test_idx) in enumerate(splitter.split(X, y, groups), start=1):
             if len(np.unique(y[train_idx])) < 2:
                 raise ValueError(f"Fold {fold} training set contains fewer than two outcome classes")
+            if set(groups[train_idx]).intersection(set(groups[test_idx])):
+                raise ValueError(f"Fold {fold} leaks experimental units between train and test")
             model.fit(X[train_idx], y[train_idx])
             pred = model.predict(X[test_idx])
             proba = model.predict_proba(X[test_idx])
@@ -112,6 +131,7 @@ def benchmark_models(X: np.ndarray, y: np.ndarray, groups: np.ndarray, folds: in
                 weighted_f1=float(f1_score(y[test_idx], pred, average="weighted", zero_division=0)),
                 roc_auc=_auc(y[test_idx], proba, classes),
             ))
+            test_groups_per_fold.append(int(len(np.unique(groups[test_idx]))))
             cm = confusion_matrix(y[test_idx], pred, labels=labels)
             confusion = cm if confusion is None else confusion + cm
         fold_values = {k: [getattr(m, k) for m in metrics] for k in metric_names}
@@ -122,5 +142,6 @@ def benchmark_models(X: np.ndarray, y: np.ndarray, groups: np.ndarray, folds: in
             "mean": {k: s["mean"] for k, s in summaries.items()},
             "confusion_matrix": confusion.tolist() if confusion is not None else [],
             "labels": [str(x) for x in labels],
+            "test_groups_per_fold": test_groups_per_fold,
         }
     return result
