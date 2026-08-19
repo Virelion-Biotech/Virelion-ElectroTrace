@@ -34,12 +34,14 @@ def _result(record: str, sensitivity: float, ppv: float) -> RecordValidation:
     return RecordValidation(record=record, fs_hz=360.0, metrics=metrics)
 
 
-def test_manifest_is_deterministic_and_validates_partition():
+def test_manifest_is_deterministic_and_validates_partition_and_file_hashes():
     manifest = DatasetManifest(
         dataset_id="MIT-BIH",
         dataset_version="1.0.0",
         source="PhysioNet",
         records=("100", "101", "102"),
+        record_subject_map={"100": "subject-a", "101": "subject-b", "102": "subject-c"},
+        input_files={"100.atr": "a" * 64, "100.dat": "b" * 64},
         annotation_policy="accepted beat symbols",
         detector_config={"polarity": "adaptive", "tolerance_ms": 75},
         split_manifest={"train": ("100",), "calibration": ("101",), "test": ("102",)},
@@ -52,6 +54,7 @@ def test_manifest_is_deterministic_and_validates_partition():
     assert first == second
     rebuilt = manifest_from_dict(manifest.to_dict())
     assert rebuilt.sha256() == first
+    assert rebuilt.record_subject_map["101"] == "subject-b"
 
 
 def test_manifest_rejects_overlap():
@@ -64,6 +67,24 @@ def test_manifest_rejects_overlap():
         manifest.validate()
 
 
+def test_manifest_rejects_misaligned_subject_ids():
+    manifest = DatasetManifest(
+        dataset_id="x", dataset_version="1", source="y", records=("a", "b"), subject_ids=("only-a",),
+        software_version="1", software_commit="c",
+    )
+    with pytest.raises(ValueError, match="subject_ids"):
+        manifest.validate()
+
+
+def test_manifest_rejects_bad_input_hash():
+    manifest = DatasetManifest(
+        dataset_id="x", dataset_version="1", source="y", records=("a",), input_files={"a.dat": "not-a-sha"},
+        software_version="1", software_commit="c",
+    )
+    with pytest.raises(ValueError, match="SHA-256"):
+        manifest.validate()
+
+
 def test_mean_ci95_uses_t_interval_for_small_samples():
     result = mean_ci95([1.0, 2.0, 3.0])
     assert result["n"] == 3
@@ -73,12 +94,13 @@ def test_mean_ci95_uses_t_interval_for_small_samples():
 def test_rigorous_summary_reports_pooled_macro_and_bootstrap():
     results = [_result("100", 0.90, 0.80), _result("101", 0.80, 0.90), _result("102", 0.85, 0.85)]
     summary = summarize_records_rigorous(results, n_bootstrap=500, seed=7)
-    assert set(summary) == {"records", "pooled", "macro_record", "bootstrap_record", "per_record"}
+    assert set(summary) == {"records", "pooled", "macro_record", "bootstrap_macro_record_mean", "per_record"}
     assert summary["records"] == 3
     assert summary["pooled"]["reference_count"] > 0
     assert summary["macro_record"]["f1"]["n"] == 3
     assert summary["macro_record"]["mean_absolute_timing_error_ms"]["n"] == 3
-    assert summary["bootstrap_record"]["f1"]["n_bootstrap"] == 500
+    assert summary["bootstrap_macro_record_mean"]["f1"]["n_bootstrap"] == 500
+    assert summary["bootstrap_macro_record_mean"]["f1"]["estimand"] == "macro_record_mean"
 
 
 def test_validation_report_is_self_contained_and_json_serializable(tmp_path):
