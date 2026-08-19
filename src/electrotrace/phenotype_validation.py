@@ -27,6 +27,7 @@ def quality_report(
         raise ValueError("consistency_tolerance must be finite and non-negative")
     missing = {field: 0 for field in required_fields}
     nonfinite = {field: 0 for field in required_fields}
+    invalid_r_indices = 0
     duplicate_r_indices = 0
     inconsistent_hr = 0
     invalid_rr = 0
@@ -45,9 +46,14 @@ def quality_report(
                     nonfinite[field] += 1
         if row.get("r_index") is not None:
             try:
-                r_indices.append(int(row["r_index"]))
-            except (TypeError, ValueError):
-                pass
+                numeric_index = float(row["r_index"])
+                integer_index = int(numeric_index)
+                if not np.isfinite(numeric_index) or numeric_index != integer_index or integer_index < 0:
+                    invalid_r_indices += 1
+                else:
+                    r_indices.append(integer_index)
+            except (TypeError, ValueError, OverflowError):
+                invalid_r_indices += 1
         if row.get("r_time_s") is not None:
             try:
                 times.append(float(row["r_time_s"]))
@@ -76,11 +82,12 @@ def quality_report(
         "missing_total": missing_total,
         "nonfinite": nonfinite,
         "nonfinite_total": nonfinite_total,
+        "invalid_r_indices": invalid_r_indices,
         "duplicate_r_indices": duplicate_r_indices,
         "time_nonmonotonic": time_nonmonotonic,
         "invalid_rr": invalid_rr,
         "inconsistent_heart_rate": inconsistent_hr,
-        "valid": not any((missing_total, nonfinite_total, duplicate_r_indices, time_nonmonotonic, invalid_rr, inconsistent_hr)),
+        "valid": not any((missing_total, nonfinite_total, invalid_r_indices, duplicate_r_indices, time_nonmonotonic, invalid_rr, inconsistent_hr)),
     }
 
 
@@ -95,6 +102,8 @@ def aggregate_by_unit(
     units = [str(x) for x in unit_ids]
     if len(rows) != len(units):
         raise ValueError("phenotypes and unit_ids must have equal length")
+    if any(not unit.strip() for unit in units):
+        raise ValueError("unit_ids must be non-empty")
     grouped: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
     for row, unit in zip(rows, units):
         grouped[unit].append(row)
