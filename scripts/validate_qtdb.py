@@ -1,14 +1,15 @@
 """Confirmatory QT Database waveform-boundary validation.
 
-This runner deliberately requires the official wfdb package. It does not
-fall back to an internal WFDB-compatible parser for confirmatory results.
+The confirmatory path requires the official ``wfdb`` package and refuses to
+fall back to an internal parser. Manual annotations are used only after the
+signal detector has produced candidate QRS centers.
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
 from pathlib import Path
 import argparse
 import hashlib
+import importlib
 import json
 import subprocess
 
@@ -47,10 +48,18 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def load_detector(spec: str):
+    module_name, function_name = spec.split(":", 1)
+    detector = getattr(importlib.import_module(module_name), function_name)
+    if not callable(detector):
+        raise TypeError(f"Detector {spec!r} is not callable")
+    return detector
+
+
 def qrs_reference(wfdb, record_path: Path, extension: str = "q1c") -> tuple[np.ndarray, np.ndarray]:
     ann = wfdb.rdann(str(record_path), extension=extension)
-    onset = []
-    offset = []
+    onset: list[int] = []
+    offset: list[int] = []
     for sample, symbol, num in zip(ann.sample, ann.symbol, ann.num):
         if int(num) != 1:
             continue
@@ -78,15 +87,17 @@ def record_hashes(record_path: Path) -> dict[str, str]:
     return files
 
 
-def match_centers(detected: np.ndarray, reference: np.ndarray, fs_hz: float, tolerance_ms: float):
-    # Reuse ElectroTrace's locked one-to-one matcher for center-event alignment.
-    metrics = match_peaks(detected.tolist(), reference.tolist(), fs_hz, tolerance_ms=tolerance_ms)
-    pairs = []
+def pair_matches(detected: np.ndarray, reference: np.ndarray, fs_hz: float, tolerance_ms: float):
+    if len(detected):
+        detected = np.asarray(detected, dtype=int)
+    reference = np.asarray(reference, dtype=int)
+    match_peaks(detected.tolist(), reference.tolist(), fs_hz, tolerance_ms=tolerance_ms)
+    tolerance_samples = tolerance_ms * fs_hz / 1000.0
     i = j = 0
-    tol = tolerance_ms * fs_hz / 1000.0
+    pairs: list[tuple[int, int]] = []
     while i < len(detected) and j < len(reference):
         delta = int(detected[i]) - int(reference[j])
-        if abs(delta) <= tol:
+        if abs(delta) <= tolerance_samples:
             pairs.append((int(detected[i]), int(reference[j])))
             i += 1
             j += 1
@@ -94,17 +105,20 @@ def match_centers(detected: np.ndarray, reference: np.ndarray, fs_hz: float, tol
             i += 1
         else:
             j += 1
-    return metrics, pairs
+    return pairs
 
 
 def boundary_errors(signal, fs_hz, detected_centers, ref_onset, ref_offset, tolerance_ms):
     ref_centers = ((ref_onset + ref_offset) // 2).astype(int)
-    _, pairs = match_centers(detected_centers, ref_centers, fs_hz, tolerance_ms)
+    pairs = pair_matches(detected_centers, ref_centers, fs_hz, tolerance_ms)
     by_center = {int(c): delineate_qrs(signal, fs_hz, int(c)) for c in detected_centers}
-    onset_err = []
-    offset_err = []
+    onset_err: list[float] = []
+    offset_err: list[float] = []
     for det_center, ref_center in pairs:
-        idx = int(np.argmin(np.abs(ref_centers - ref_center)))
+        candidates = np.flatnonzero(ref_centers == ref_center)
+        if candidates.size != 1:
+            raise ValueError("Reference QRS centers must be unique")
+        idx = int(candidates[0])
         boundary = by_center[det_center]
         onset_err.append((boundary.onset - int(ref_onset[idx])) * 1000.0 / fs_hz)
         offset_err.append((boundary.offset - int(ref_offset[idx])) * 1000.0 / fs_hz)
@@ -129,6 +143,7 @@ def summarize(errors: list[float]) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("dataset_dir", type=Path)
+    parser.add_argument("--detector", required=True, help="module:function returning detector sample indices")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--channel", type=int, default=0)
     parser.add_argument("--tolerance-ms", type=float, default=PRIMARY_EVENT_TOLERANCE_MS)
@@ -138,31 +153,37 @@ def main() -> int:
         parser.error("--tolerance-ms must be positive")
     wfdb = require_wfdb()
     head = git_head()
+    detector = load_detector(args.detector)
     records = sorted(args.dataset_dir.glob("*.hea"))
     if not records:
         raise RuntimeError("No QTDB WFDB headers found")
 
     per_record = []
-    all_onset = []
-    all_offset = []
-    all_hashes = {}
+    all_onset: list[float] = []
+    all_offset: list[float] = []
+    all_hashes: dict[str, str] = {}
     for header in records:
         base = header.with_suffix("")
         record = wfdb.rdrecord(str(base), channels=[args.channel], physical=True)
         signal = np.asarray(record.p_signal[:, 0], dtype=float)
+        if not np.isfinite(signal).all():
+            raise ValueError(f"{base.name}: non-finite signal returned by wfdb")
         ref_on, ref_off = qrs_reference(wfdb, base)
-        centers = ((ref_on + ref_off) // 2).astype(int)
+        raw_detected = detector(signal, float(record.fs))
+        detected = np.asarray(raw_detected, dtype=int)
+        if detected.ndim != 1 or (detected.size and np.any(np.diff(detected) <= 0)):
+            raise ValueError(f"{base.name}: detector output must be strictly increasing")
         onset_err, offset_err, pairs = boundary_errors(
-            signal, float(record.fs), centers, ref_on, ref_off, args.tolerance_ms
+            signal, float(record.fs), detected, ref_on, ref_off, args.tolerance_ms
         )
         all_onset.extend(onset_err)
         all_offset.extend(offset_err)
-        hashes = record_hashes(base)
-        all_hashes.update(hashes)
+        all_hashes.update(record_hashes(base))
         per_record.append({
             "record": base.name,
             "fs_hz": float(record.fs),
             "reference_qrs": int(len(ref_on)),
+            "detected_qrs": int(len(detected)),
             "matched_qrs": int(len(pairs)),
             "onset": summarize(onset_err),
             "offset": summarize(offset_err),
@@ -173,6 +194,7 @@ def main() -> int:
         "dataset": DATASET_VERSION,
         "records": len(per_record),
         "channel": args.channel,
+        "detector": args.detector,
         "event_tolerance_ms": args.tolerance_ms,
         "delineator_version": DELINEATOR_VERSION,
         "wfdb_version": getattr(wfdb, "__version__", "unknown"),
@@ -180,6 +202,7 @@ def main() -> int:
         "input_file_sha256": dict(sorted(all_hashes.items())),
         "summary": {
             "reference_qrs": int(sum(r["reference_qrs"] for r in per_record)),
+            "detected_qrs": int(sum(r["detected_qrs"] for r in per_record)),
             "matched_qrs": int(sum(r["matched_qrs"] for r in per_record)),
             "onset": summarize(all_onset),
             "offset": summarize(all_offset),
