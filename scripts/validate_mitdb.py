@@ -18,9 +18,9 @@ import wfdb
 
 from electrotrace import __version__
 from electrotrace.provenance import DatasetManifest
-from electrotrace.research_validation import build_validation_report, write_validation_report
+from electrotrace.research_validation import build_validation_report, summarize_records_rigorous, write_validation_report
 from electrotrace.validation import DEFAULT_BEAT_SYMBOLS, validate_record
-from electrotrace.validation_detectors import detect_r_peaks
+from electrotrace.validation_detectors import detect_r_peaks, select_signal_polarity
 
 PRIMARY_TOLERANCE_MS = 75.0
 SENSITIVITY_TOLERANCES_MS = (50.0, 75.0, 100.0, 150.0)
@@ -52,6 +52,26 @@ def _run(records, record_paths, detector, channel, tolerance_ms):
     return results, errors
 
 
+def _polarity_audit(records, record_paths, channel):
+    audit: dict[str, dict] = {}
+    for record, path in zip(records, record_paths):
+        try:
+            wf_record = wfdb.rdrecord(str(path), channels=[int(channel)], physical=False)
+            signal = wf_record.p_signal[:, 0] if wf_record.p_signal is not None else wf_record.d_signal[:, 0]
+            decision = select_signal_polarity(signal, float(wf_record.fs))
+            audit[record] = {
+                "polarity": decision.polarity,
+                "confidence": decision.confidence,
+                "positive_score": decision.positive_score,
+                "negative_score": decision.negative_score,
+                "positive_candidates": decision.positive_candidates,
+                "negative_candidates": decision.negative_candidates,
+            }
+        except Exception as exc:
+            audit[record] = {"error": f"{type(exc).__name__}: {exc}"}
+    return audit
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cache-dir", default=".cache/physionet/mitdb")
@@ -67,12 +87,12 @@ def main() -> int:
 
     if args.bootstrap < 100:
         parser.error("--bootstrap must be at least 100")
-    if args.tolerance_ms <= 0:
-        parser.error("--tolerance-ms must be positive")
-    if args.channel < 0:
-        parser.error("--channel must be non-negative")
     if args.tolerance_ms != PRIMARY_TOLERANCE_MS:
         parser.error(f"Definitive runs require the locked primary tolerance of {PRIMARY_TOLERANCE_MS:g} ms")
+    if args.channel != 0:
+        parser.error("Definitive runs require the locked primary channel index 0")
+    if args.channel < 0:
+        parser.error("--channel must be non-negative")
 
     software_commit = _resolve_software_commit(args.software_commit)
     cache = Path(args.cache_dir)
@@ -91,10 +111,7 @@ def main() -> int:
         dataset_version=args.dataset_version,
         source="PhysioNet/WFDB",
         records=tuple(records),
-        annotation_policy=(
-            "ElectroTrace primary validation beat-symbol whitelist: "
-            + ",".join(sorted(DEFAULT_BEAT_SYMBOLS))
-        ),
+        annotation_policy="ElectroTrace primary validation beat-symbol whitelist: " + ",".join(sorted(DEFAULT_BEAT_SYMBOLS)),
         detector_config={
             "detector": "electrotrace.validation_detectors:detect_r_peaks",
             "polarity": args.polarity,
@@ -110,17 +127,27 @@ def main() -> int:
         manifest,
         results,
         detector_name="electrotrace.validation_detectors:detect_r_peaks",
-        detector_parameters={
-            "polarity": args.polarity,
-            "channel": args.channel,
-            "minimum_peak_distance_ms": 250.0,
-        },
+        detector_parameters={"polarity": args.polarity, "channel": args.channel, "minimum_peak_distance_ms": 250.0},
         annotation_extension="atr",
         beat_symbols=sorted(DEFAULT_BEAT_SYMBOLS),
         tolerance_ms=args.tolerance_ms,
         n_bootstrap=args.bootstrap,
         seed=args.seed,
     )
+
+    tolerance_sensitivity = {}
+    for tolerance_ms in SENSITIVITY_TOLERANCES_MS:
+        if tolerance_ms == PRIMARY_TOLERANCE_MS:
+            tol_results = results
+            tol_errors = record_errors
+        else:
+            tol_results, tol_errors = _run(records, record_paths, detector, args.channel, tolerance_ms)
+        tolerance_sensitivity[str(tolerance_ms)] = {
+            "status": "complete" if not tol_errors and len(tol_results) == len(records) else "incomplete",
+            "summary": summarize_records_rigorous(tol_results, n_bootstrap=args.bootstrap, seed=args.seed) if tol_results else None,
+            "record_failures": tol_errors,
+        }
+
     report["created_at_utc"] = datetime.now(timezone.utc).isoformat()
     report["record_count_requested"] = len(records)
     report["record_count_successful"] = len(results)
@@ -129,14 +156,16 @@ def main() -> int:
     report["validation_status"] = "complete" if not record_errors and len(results) == len(records) else "incomplete"
     report["primary_tolerance_ms"] = PRIMARY_TOLERANCE_MS
     report["preplanned_tolerance_sensitivity_ms"] = list(SENSITIVITY_TOLERANCES_MS)
+    report["tolerance_sensitivity"] = tolerance_sensitivity
     report["full_record_evaluation"] = True
-    report["test_period_analysis"] = "not_run_in_this_command; execute only with a separately frozen AAMI test-period protocol"
-    report["channel_policy"] = "prespecified channel index 0; no annotation-informed channel selection"
-    report["polarity_policy"] = "prespecified adaptive/positive/negative option; record decision is unsupervised"
+    report["test_period_analysis"] = "not run; requires a separately frozen standardized test-period manifest/protocol"
+    report["channel_policy"] = "locked primary channel index 0; no annotation-informed channel selection"
+    report["polarity_policy"] = "locked adaptive polarity option; polarity selection is unsupervised and record-local"
+    report["polarity_audit"] = _polarity_audit(records, record_paths, args.channel)
     report["streaming_claim"] = "none; retrospective full-record normalization is permitted"
     report["minimum_peak_distance_policy"] = "250 ms; true events below this separation are unresolved by design"
+    report["reference_scope"] = "all annotations matching the frozen beat-symbol whitelist"
 
-    # Pre-create the report before deciding success so incomplete runs retain diagnostics.
     output = write_validation_report(report, args.output)
     print(json.dumps(report["summary"], indent=2, sort_keys=True))
     print(f"Report written to {output}")
