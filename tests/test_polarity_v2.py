@@ -1,6 +1,10 @@
 import numpy as np
 
-from electrotrace.polarity_v2 import PolarityV2Decision, select_signal_polarity_v2
+from electrotrace.polarity_v2 import (
+    PolarityV2Decision,
+    select_signal_polarity_hybrid_v2,
+    select_signal_polarity_v2,
+)
 
 
 def test_polarity_v2_is_deterministic_for_positive_signal():
@@ -28,6 +32,34 @@ def test_polarity_v2_handles_inverted_signal_consistently():
     assert decision.qrs_events > 0
     assert decision.polarity in {"positive", "negative"}
     assert decision.negative_events >= decision.positive_events or decision.negative_score > decision.positive_score
+
+
+def test_hybrid_preserves_confident_existing_decision():
+    fs = 360.0
+    signal = np.sin(2 * np.pi * 1.0 * np.arange(0, 10, 1 / fs))
+    decision = select_signal_polarity_hybrid_v2(
+        signal,
+        fs,
+        existing_polarity="negative",
+        existing_confidence=0.5,
+        ambiguity_confidence=0.1,
+    )
+    assert decision.polarity == "negative"
+    assert decision.fallback_used is True
+
+
+def test_hybrid_invokes_qrs_vote_when_ambiguous():
+    fs = 360.0
+    signal = np.sin(2 * np.pi * 1.0 * np.arange(0, 10, 1 / fs))
+    decision = select_signal_polarity_hybrid_v2(
+        signal,
+        fs,
+        existing_polarity="positive",
+        existing_confidence=0.0,
+        ambiguity_confidence=0.1,
+    )
+    assert decision.fallback_used is False
+    assert decision.qrs_events > 0
 
 
 def test_polarity_v2_rejects_nonfinite_signal():
