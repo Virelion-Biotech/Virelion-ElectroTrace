@@ -32,8 +32,8 @@ def mean_ci95(values: Sequence[float | int | None]) -> dict[str, float | int | N
     return {"n": int(x.size), "mean": mean, "sd": sd, "ci95_low": mean - margin, "ci95_high": mean + margin}
 
 
-def bootstrap_record_ci(results: Sequence[RecordValidation], metric: str, n_bootstrap: int = 2000, seed: int = 42) -> dict[str, Any]:
-    """Bootstrap a record-level metric to preserve the experimental unit."""
+def bootstrap_macro_record_mean_ci(results: Sequence[RecordValidation], metric: str, n_bootstrap: int = 2000, seed: int = 42) -> dict[str, Any]:
+    """Bootstrap the macro mean of a per-record metric; the record is the unit."""
     if not results:
         raise ValueError("At least one record result is required")
     if n_bootstrap < 100:
@@ -45,6 +45,7 @@ def bootstrap_record_ci(results: Sequence[RecordValidation], metric: str, n_boot
     samples = rng.integers(0, len(values), size=(n_bootstrap, len(values)))
     boot = np.mean(values[samples], axis=1)
     return {
+        "estimand": "macro_record_mean",
         "unit": "record",
         "n_records": len(results),
         "n_bootstrap": int(n_bootstrap),
@@ -80,9 +81,9 @@ def summarize_records_rigorous(results: Sequence[RecordValidation], n_bootstrap:
         "max_absolute_timing_error_ms": mean_ci95([r.metrics.max_absolute_timing_error_ms for r in results]),
     }
     bootstrap = {
-        "sensitivity": bootstrap_record_ci(results, "sensitivity", n_bootstrap=n_bootstrap, seed=seed),
-        "positive_predictive_value": bootstrap_record_ci(results, "positive_predictive_value", n_bootstrap=n_bootstrap, seed=seed + 1),
-        "f1": bootstrap_record_ci(results, "f1", n_bootstrap=n_bootstrap, seed=seed + 2),
+        "sensitivity": bootstrap_macro_record_mean_ci(results, "sensitivity", n_bootstrap=n_bootstrap, seed=seed),
+        "positive_predictive_value": bootstrap_macro_record_mean_ci(results, "positive_predictive_value", n_bootstrap=n_bootstrap, seed=seed + 1),
+        "f1": bootstrap_macro_record_mean_ci(results, "f1", n_bootstrap=n_bootstrap, seed=seed + 2),
     }
     return {
         "records": len(results),
@@ -97,7 +98,7 @@ def summarize_records_rigorous(results: Sequence[RecordValidation], n_bootstrap:
             "f1": float(pooled_f1),
         },
         "macro_record": macro,
-        "bootstrap_record": bootstrap,
+        "bootstrap_macro_record_mean": bootstrap,
         "per_record": [r.to_dict() for r in results],
     }
 
