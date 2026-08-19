@@ -2,7 +2,7 @@
 
 Research-grade ECG and electrophysiology annotation, segmentation, phenotyping, external validation, and leakage-safe machine-learning toolkit. ElectroTrace provides an interactive web interface backed by a Python REST API for building curated research datasets with machine-assisted labeling and subject-stratified validation.
 
-**Version:** 1.6.1  
+**Version:** 1.7.0  
 **License:** MIT  
 **Status:** Active research software
 
@@ -169,4 +169,4 @@ https://github.com/Virelion-Biotech/Virelion-ElectroTrace
 
 ---
 
-**ElectroTrace v1.6.1** · annotation, adaptive-polarity R-peak detection, two-stage verification, external validation, rigorous provenance, and leakage-safe ML.
+**ElectroTrace v1.7.0** · annotation, adaptive-polarity R-peak detection, two-stage verification, external validation, rigorous provenance, and leakage-safe ML.
