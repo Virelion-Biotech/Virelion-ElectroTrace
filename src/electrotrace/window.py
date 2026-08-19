@@ -6,11 +6,15 @@ from typing import Any
 
 import numpy as np
 
+MAX_WINDOW_SAMPLES = 100_000
+
 
 def _validate_window(start: int, stop: int) -> tuple[int, int]:
     start, stop = int(start), int(stop)
     if start < 0 or stop <= start:
         raise ValueError("window must satisfy 0 <= start < stop")
+    if stop - start > MAX_WINDOW_SAMPLES:
+        raise ValueError(f"window exceeds the {MAX_WINDOW_SAMPLES}-sample limit")
     return start, stop
 
 
