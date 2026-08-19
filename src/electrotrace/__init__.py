@@ -1,6 +1,6 @@
 """ElectroTrace: research-grade ECG and electrophysiology software."""
 
-__version__ = "1.6.1"
+__version__ = "1.7.0"
 
 from .provenance import DatasetManifest, manifest_from_dict
 from .research_validation import build_validation_report, summarize_records_rigorous, write_validation_report
