@@ -41,6 +41,14 @@ python scripts/validate_mitdb.py \
 
 The script downloads MIT-BIH into the local cache, runs the exact detector adapter used for ElectroTrace external validation, compares it against `.atr` beat annotations, writes a self-contained JSON report, and returns non-zero if any requested record fails. ECG files are never committed to Git.
 
+## Cryptographic provenance
+
+The definitive report fingerprints the **actual downloaded input files**, not merely the logical dataset name/version. Each record-associated input file is SHA-256 hashed and stored in the manifest; the complete input-file hash map participates in the deterministic manifest SHA-256.
+
+The report also records the **executed Git `HEAD`**. A supplied `--software-commit`, `GITHUB_SHA`, or `ELECTROTRACE_GIT_COMMIT` value is accepted only when it exactly matches the checked-out `HEAD`. Definitive validation therefore cannot intentionally report a different code revision from the code that actually ran.
+
+For cohort/ML studies, `DatasetManifest` additionally supports an explicit record→subject mapping and validates that it covers the record set exactly when supplied. Do not represent subject identity as an unvalidated parallel array.
+
 ## Detector-output integrity
 
 Validation never coerces malformed detector outputs into valid predictions. Detector outputs must be finite, integer-valued, non-negative sample indices in strictly increasing order with no duplicates. Reference annotation indices are subjected to the same structural checks.
@@ -67,7 +75,7 @@ For every record and for the aggregate dataset:
 - 95th-percentile absolute timing error
 - maximum absolute timing error
 
-The report additionally contains pooled metrics, macro record-level metrics, Student-t confidence intervals for record-level means, record-bootstrap uncertainty intervals, tolerance sensitivity, and the adaptive-polarity audit. Matching is one-to-one and only pairs detections within the locked primary timing tolerance.
+The report additionally contains pooled metrics, macro record-level metrics, Student-t confidence intervals for record-level means, **record-bootstrap confidence intervals for the macro record mean**, tolerance sensitivity, and the adaptive-polarity audit. Matching is one-to-one and only pairs detections within the locked primary timing tolerance.
 
 ## Retrospective scope
 
@@ -83,26 +91,27 @@ The primary engineering analysis evaluates the complete records. Conventional be
 
 External R-peak validation treats the **record** as the independent experimental unit for uncertainty estimation. Never bootstrap or report confidence intervals by resampling individual beats as though they were independent records.
 
-For downstream phenotype and cohort analyses, declare the subject/record experimental unit and aggregate repeated beat-level observations before inferential testing unless the study design explicitly supports a different model.
+For downstream phenotype and cohort analyses, declare the subject/record experimental unit and aggregate repeated beat-level observations before inferential testing unless the study design explicitly supports a different model. When subjects have multiple records, preserve an explicit record→subject mapping and perform subject-level separation where subject independence is required.
 
 ## Required reporting
 
 Every external-validation report should state:
 
-1. ElectroTrace version/commit.
+1. ElectroTrace version and executed Git `HEAD`.
 2. Dataset name and exact dataset version or release identifier.
 3. Complete record list and a complete record-failure list.
-4. Annotation extension and exact beat-symbol policy.
-5. Detector parameters, polarity mode, and polarity decisions.
-6. Channel-selection policy.
-7. Minimum candidate spacing.
-8. Matching tolerance in milliseconds.
-9. Per-record metrics.
-10. Pooled and macro record-level metrics.
-11. Confidence/bootstrapping method, random seed, and number of replicates.
-12. Tolerance sensitivity analysis.
-13. Full-record versus any separately defined test-period analysis.
-14. Deterministic manifest hash linking the run to its dataset/configuration state.
+4. Exact SHA-256 for every input file used and the resulting deterministic manifest hash.
+5. Annotation extension and exact beat-symbol policy.
+6. Detector parameters, polarity mode, and polarity decisions.
+7. Channel-selection policy.
+8. Minimum candidate spacing.
+9. Matching tolerance in milliseconds.
+10. Per-record metrics.
+11. Pooled and macro record-level metrics.
+12. Confidence/bootstrapping method, random seed, and number of replicates.
+13. Explicit bootstrap estimand (macro record mean versus pooled metric).
+14. Tolerance sensitivity analysis.
+15. Full-record versus any separately defined test-period analysis.
 
 Do not report only pooled sensitivity/PPV. Pooled values can hide record-level heterogeneity.
 
@@ -111,7 +120,7 @@ Do not report only pooled sensitivity/PPV. Pooled values can hide record-level h
 1. Freeze the detector configuration, dataset record list, channel, symbol policy, tolerance, and report schema.
 2. Run the definitive full-record benchmark.
 3. Inspect record-level heterogeneity and polarity decisions without changing the locked detector.
-4. Archive the JSON validation report and manifest hash as the primary study artifact.
+4. Archive the JSON validation report, input-file hash map, and manifest hash as the primary study artifacts.
 5. Separately evaluate any standardized test-period protocol with its own frozen manifest.
 6. Separately evaluate waveform-boundary algorithms on the QT Database with an explicit boundary-event protocol.
 7. Separately evaluate long-duration robustness on an appropriate long-term ECG database.
