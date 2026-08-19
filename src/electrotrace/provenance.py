@@ -1,9 +1,4 @@
-"""Deterministic study and dataset provenance manifests.
-
-The manifest model is intentionally dependency-light so it can be used by
-validation, phenotype, and machine-learning workflows without coupling those
-workflows to the web application.
-"""
+"""Deterministic study and dataset provenance manifests."""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
@@ -12,7 +7,7 @@ import hashlib
 import json
 from typing import Any, Mapping, Sequence
 
-MANIFEST_SCHEMA_VERSION = "electrotrace-study-manifest-v1"
+MANIFEST_SCHEMA_VERSION = "electrotrace-study-manifest-v2"
 
 
 def _clean(value: Any) -> Any:
@@ -34,6 +29,8 @@ class DatasetManifest:
     source: str
     records: tuple[str, ...]
     subject_ids: tuple[str, ...] = ()
+    record_subject_map: Mapping[str, str] = field(default_factory=dict)
+    input_files: Mapping[str, str] = field(default_factory=dict)
     annotation_policy: str = ""
     preprocessing: Mapping[str, Any] = field(default_factory=dict)
     detector_config: Mapping[str, Any] = field(default_factory=dict)
@@ -60,6 +57,33 @@ class DatasetManifest:
             raise ValueError("Manifest records must be non-empty")
         if len(set(records)) != len(records):
             raise ValueError("Manifest records must be unique")
+
+        mapping = {str(k).strip(): str(v).strip() for k, v in self.record_subject_map.items()}
+        if mapping:
+            if set(mapping) != set(records):
+                raise ValueError("record_subject_map must contain exactly one entry for every record")
+            if any(not record or not subject for record, subject in mapping.items()):
+                raise ValueError("record_subject_map identifiers must be non-empty")
+        elif self.subject_ids:
+            if len(self.subject_ids) != len(records):
+                raise ValueError("subject_ids must align one-to-one with records")
+            if any(not str(x).strip() for x in self.subject_ids):
+                raise ValueError("subject_ids must be non-empty")
+            mapping = dict(zip(records, (str(x).strip() for x in self.subject_ids)))
+        elif self.subject_ids == ():
+            mapping = {}
+
+        declared_subjects = {str(x).strip() for x in self.subject_ids if str(x).strip()}
+        if declared_subjects and declared_subjects != set(mapping.values()):
+            raise ValueError("subject_ids must match record_subject_map values")
+
+        for relative_path, sha256 in self.input_files.items():
+            if not str(relative_path).strip():
+                raise ValueError("input_files paths must be non-empty")
+            digest = str(sha256).strip().lower()
+            if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+                raise ValueError(f"Invalid SHA-256 for input file '{relative_path}'")
+
         calibration = {str(x) for x in self.calibration_records}
         if not calibration.issubset(set(records)):
             raise ValueError("Calibration records must be a subset of records")
@@ -86,7 +110,9 @@ class DatasetManifest:
         self.validate()
         data = asdict(self)
         data["records"] = [str(x).strip() for x in self.records]
-        data["subject_ids"] = list(self.subject_ids)
+        data["subject_ids"] = [str(x).strip() for x in self.subject_ids]
+        data["record_subject_map"] = _clean(self.record_subject_map)
+        data["input_files"] = _clean(self.input_files)
         data["calibration_records"] = [str(x).strip() for x in self.calibration_records]
         data["preprocessing"] = _clean(self.preprocessing)
         data["detector_config"] = _clean(self.detector_config)
@@ -94,28 +120,13 @@ class DatasetManifest:
         return _clean(data)
 
     def canonical_json(self) -> str:
-        """Canonical identity/configuration payload used for provenance hashing.
-
-        Generation time is intentionally excluded so rerunning the same frozen
-        dataset/configuration produces the same provenance hash.
-        """
+        """Canonical identity/configuration payload used for provenance hashing."""
         data = self.to_dict()
         data.pop("generated_at_utc", None)
         return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
     def sha256(self) -> str:
         return hashlib.sha256(self.canonical_json().encode("utf-8")).hexdigest()
-
-    def with_generated_timestamp(self, timestamp: str) -> "DatasetManifest":
-        return DatasetManifest(
-            **{
-                **self.to_dict(),
-                "generated_at_utc": timestamp,
-                "records": tuple(self.records),
-                "subject_ids": tuple(self.subject_ids),
-                "calibration_records": tuple(self.calibration_records),
-            }
-        )
 
 
 def manifest_from_dict(data: Mapping[str, Any]) -> DatasetManifest:
@@ -126,6 +137,8 @@ def manifest_from_dict(data: Mapping[str, Any]) -> DatasetManifest:
         source=str(data["source"]),
         records=tuple(str(x) for x in data["records"]),
         subject_ids=tuple(str(x) for x in data.get("subject_ids", ())),
+        record_subject_map={str(k): str(v) for k, v in data.get("record_subject_map", {}).items()},
+        input_files={str(k): str(v) for k, v in data.get("input_files", {}).items()},
         annotation_policy=str(data.get("annotation_policy", "")),
         preprocessing=dict(data.get("preprocessing", {})),
         detector_config=dict(data.get("detector_config", {})),
