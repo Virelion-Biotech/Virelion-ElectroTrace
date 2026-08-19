@@ -51,6 +51,12 @@ def _auc(y_true: np.ndarray, proba: np.ndarray, classes: np.ndarray) -> float | 
 
 
 def _summary(values: list[float | None]) -> dict[str, float | None]:
+    """Describe cross-validation fold variability.
+
+    The t-based interval is explicitly descriptive across CV folds. Because CV
+    training sets overlap, it must not be interpreted as an independent-sample
+    confidence interval for future-subject performance.
+    """
     x = np.asarray([v for v in values if v is not None and np.isfinite(v)], dtype=float)
     if x.size == 0:
         return {"n": 0, "mean": None, "std": None, "ci95_low": None, "ci95_high": None}
@@ -139,6 +145,7 @@ def benchmark_models(X: np.ndarray, y: np.ndarray, groups: np.ndarray, folds: in
         result["models"][name] = {
             "folds": [m.to_dict() for m in metrics],
             "summary": summaries,
+            "summary_interval_interpretation": "descriptive_t_interval_across_CV_folds; not an independent-subject generalization CI",
             "mean": {k: s["mean"] for k, s in summaries.items()},
             "confusion_matrix": confusion.tolist() if confusion is not None else [],
             "labels": [str(x) for x in labels],
