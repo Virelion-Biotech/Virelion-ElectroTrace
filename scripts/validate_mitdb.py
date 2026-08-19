@@ -3,11 +3,12 @@
 
 The dataset is downloaded to a local cache and is never committed to the repository.
 A definitive run is fail-closed: every requested record must validate successfully.
-Diagnostic reports are still written before an incomplete run exits non-zero.
+The report fingerprints the exact input files and the exact executed Git HEAD.
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -26,19 +27,49 @@ PRIMARY_TOLERANCE_MS = 75.0
 SENSITIVITY_TOLERANCES_MS = (50.0, 75.0, 100.0, 150.0)
 
 
-def _resolve_software_commit(explicit: str | None) -> str:
-    candidates = [explicit, os.environ.get("GITHUB_SHA"), os.environ.get("ELECTROTRACE_GIT_COMMIT")]
-    for value in candidates:
-        if value and value.strip():
-            return value.strip()
+def _git_head() -> str:
     try:
         result = subprocess.run(["git", "rev-parse", "HEAD"], check=True, capture_output=True, text=True, timeout=5)
-        value = result.stdout.strip()
-        if value:
-            return value
-    except (OSError, subprocess.SubprocessError):
-        pass
-    raise RuntimeError("Unable to resolve the software commit. Run inside Git or set --software-commit / ELECTROTRACE_GIT_COMMIT / GITHUB_SHA.")
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise RuntimeError("Definitive validation requires a Git checkout so the executed HEAD can be proven") from exc
+    value = result.stdout.strip()
+    if not value:
+        raise RuntimeError("Git HEAD resolved to an empty commit")
+    return value
+
+
+def _resolve_software_commit(explicit: str | None) -> str:
+    actual = _git_head()
+    declared = [explicit, os.environ.get("GITHUB_SHA"), os.environ.get("ELECTROTRACE_GIT_COMMIT")]
+    for value in declared:
+        if value and value.strip() and value.strip() != actual:
+            raise RuntimeError(f"Declared software commit {value.strip()} does not match executed Git HEAD {actual}")
+    return actual
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _input_file_hashes(cache: Path, records: list[str]) -> dict[str, str]:
+    hashes: dict[str, str] = {}
+    for record in records:
+        matches = sorted(cache.parent.glob(f"{cache.name}/{record}.*")) if cache.parent.exists() else []
+        if not matches:
+            matches = sorted(cache.glob(f"{record}.*"))
+        files = [path for path in matches if path.is_file()]
+        if not files:
+            raise RuntimeError(f"No downloaded files found for MIT-BIH record {record}")
+        for path in files:
+            relative = str(path.relative_to(cache)).replace(os.sep, "/")
+            hashes[relative] = _sha256_file(path)
+    if not hashes:
+        raise RuntimeError("No dataset input files were fingerprinted")
+    return dict(sorted(hashes.items()))
 
 
 def _run(records, record_paths, detector, channel, tolerance_ms):
@@ -91,15 +122,14 @@ def main() -> int:
         parser.error(f"Definitive runs require the locked primary tolerance of {PRIMARY_TOLERANCE_MS:g} ms")
     if args.channel != 0:
         parser.error("Definitive runs require the locked primary channel index 0")
-    if args.channel < 0:
-        parser.error("--channel must be non-negative")
 
     software_commit = _resolve_software_commit(args.software_commit)
-    cache = Path(args.cache_dir)
+    cache = Path(args.cache_dir).resolve()
     cache.mkdir(parents=True, exist_ok=True)
     wfdb.dl_database("mitdb", dl_dir=str(cache), keep_subdirs=False)
     records = list(wfdb.get_record_list("mitdb"))
     record_paths = [cache / record for record in records]
+    input_files = _input_file_hashes(cache, records)
 
     def detector(signal, fs_hz):
         return detect_r_peaks(signal, fs_hz, polarity=args.polarity)
@@ -111,6 +141,7 @@ def main() -> int:
         dataset_version=args.dataset_version,
         source="PhysioNet/WFDB",
         records=tuple(records),
+        input_files=input_files,
         annotation_policy="ElectroTrace primary validation beat-symbol whitelist: " + ",".join(sorted(DEFAULT_BEAT_SYMBOLS)),
         detector_config={
             "detector": "electrotrace.validation_detectors:detect_r_peaks",
@@ -165,12 +196,14 @@ def main() -> int:
     report["streaming_claim"] = "none; retrospective full-record normalization is permitted"
     report["minimum_peak_distance_policy"] = "250 ms; true events below this separation are unresolved by design"
     report["reference_scope"] = "all annotations matching the frozen beat-symbol whitelist"
+    report["executed_git_head"] = software_commit
+    report["input_file_sha256"] = input_files
 
     output = write_validation_report(report, args.output)
     print(json.dumps(report["summary"], indent=2, sort_keys=True))
     print(f"Report written to {output}")
     print(f"Manifest SHA-256: {report['manifest_sha256']}")
-    print(f"Software commit: {software_commit}")
+    print(f"Executed Git HEAD: {software_commit}")
     print(f"Validation status: {report['validation_status']}")
     if record_errors:
         print(f"Record failures: {len(record_errors)}")
