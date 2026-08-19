@@ -23,8 +23,13 @@ def _result(record: str, sensitivity: float, ppv: float) -> RecordValidation:
         sensitivity=sensitivity,
         positive_predictive_value=ppv,
         f1=f1,
-        median_timing_error_ms=5.0,
-        p95_timing_error_ms=12.0,
+        mean_timing_error_ms=0.5,
+        median_timing_error_ms=0.5,
+        timing_sd_ms=2.0,
+        median_absolute_timing_error_ms=5.0,
+        mean_absolute_timing_error_ms=6.0,
+        p95_absolute_timing_error_ms=12.0,
+        max_absolute_timing_error_ms=20.0,
     )
     return RecordValidation(record=record, fs_hz=360.0, metrics=metrics)
 
@@ -72,6 +77,7 @@ def test_rigorous_summary_reports_pooled_macro_and_bootstrap():
     assert summary["records"] == 3
     assert summary["pooled"]["reference_count"] > 0
     assert summary["macro_record"]["f1"]["n"] == 3
+    assert summary["macro_record"]["mean_absolute_timing_error_ms"]["n"] == 3
     assert summary["bootstrap_record"]["f1"]["n_bootstrap"] == 500
 
 
