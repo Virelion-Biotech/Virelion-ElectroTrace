@@ -1,9 +1,10 @@
 """Signal-only QRS-specific polarity selection (experimental v2).
 
 The selector is deliberately separate from the locked primary detector.
-It follows a QRS-first strategy: identify QRS-like events from steepness/
-energy, then infer the dominant signed R-wave direction inside those events.
-No reference annotations are used.
+It follows a QRS-first strategy inspired by established open ECG detectors:
+identify QRS-like events from steepness/energy, then infer signed R-wave
+direction inside those events. A guarded hybrid only invokes this selector
+when the existing count-based polarity decision is genuinely ambiguous.
 """
 from __future__ import annotations
 
@@ -19,6 +20,7 @@ DEFAULT_QRS_HIGH_HZ = 20.0
 DEFAULT_WINDOW_S = 0.20
 DEFAULT_MIN_DISTANCE_S = 0.25
 DEFAULT_MIN_QRS_EVENTS = 8
+DEFAULT_AMBIGUITY_CONFIDENCE = 0.10
 
 
 @dataclass(frozen=True)
@@ -33,6 +35,7 @@ class PolarityV2Decision:
     ambiguous_events: int
     rr_regularity: float
     qrs_band_energy_ratio: float
+    fallback_used: bool = False
 
 
 def _validate_signal(signal: np.ndarray, fs_hz: float) -> tuple[np.ndarray, float]:
@@ -81,10 +84,9 @@ def _qrs_events(x: np.ndarray, fs_hz: float) -> tuple[np.ndarray, np.ndarray, np
     return peaks.astype(int), prom, band
 
 
-def select_signal_polarity_v2(signal: np.ndarray, fs_hz: float) -> PolarityV2Decision:
-    """Choose polarity using QRS-like steepness events and local signed morphology."""
+def _qrs_vote(signal: np.ndarray, fs_hz: float) -> PolarityV2Decision:
     x, fs = _validate_signal(signal, fs_hz)
-    qrs_peaks, qrs_prom, band = _qrs_events(x, fs)
+    qrs_peaks, _, band = _qrs_events(x, fs)
     if len(qrs_peaks) == 0:
         return PolarityV2Decision("positive", 0.0, 0.0, 0.0, 0, 0, 0, 0, 0.0, 0.0)
 
@@ -96,14 +98,13 @@ def select_signal_polarity_v2(signal: np.ndarray, fs_hz: float) -> PolarityV2Dec
         lo = max(0, int(idx) - radius)
         hi = min(len(x), int(idx) + radius + 1)
         local = x[lo:hi]
-        local_center = float(np.median(local))
-        centered = local - local_center
-        pos_amp = float(np.max(centered)) if centered.size else 0.0
-        neg_amp = float(np.max(-centered)) if centered.size else 0.0
-        pos_score = pos_amp / max(_robust_scale(local), 1e-8)
-        neg_score = neg_amp / max(_robust_scale(local), 1e-8)
-        denom = max(pos_score + neg_score, 1e-8)
-        directional = (pos_score - neg_score) / denom
+        centered = local - float(np.median(local))
+        scale = _robust_scale(centered)
+        pos_amp = max(float(np.max(centered)), 0.0)
+        neg_amp = max(float(np.max(-centered)), 0.0)
+        pos_score = pos_amp / scale
+        neg_score = neg_amp / scale
+        directional = (pos_score - neg_score) / max(pos_score + neg_score, 1e-8)
         signed_scores.append(directional)
         if directional > 0.12:
             event_signs.append(1)
@@ -118,8 +119,8 @@ def select_signal_polarity_v2(signal: np.ndarray, fs_hz: float) -> PolarityV2Dec
     neg = int(np.sum(signs == -1))
     ambiguous = int(np.sum(signs == 0))
     decisive = max(pos + neg, 1)
-    pos_weight = float(np.mean([max(v, 0.0) for v in signed_scores]))
-    neg_weight = float(np.mean([max(-v, 0.0) for v in signed_scores]))
+    pos_weight = float(np.mean(np.maximum(signed_scores, 0.0)))
+    neg_weight = float(np.mean(np.maximum(-np.asarray(signed_scores), 0.0)))
 
     intervals = np.diff(qrs_peaks) / fs if len(qrs_peaks) > 1 else np.asarray([], dtype=float)
     if intervals.size:
@@ -134,13 +135,8 @@ def select_signal_polarity_v2(signal: np.ndarray, fs_hz: float) -> PolarityV2Dec
     positive_score = (pos / decisive) * (0.5 + 0.5 * rr_regularity) + 0.5 * pos_weight
     negative_score = (neg / decisive) * (0.5 + 0.5 * rr_regularity) + 0.5 * neg_weight
     margin = abs(positive_score - negative_score) / max(positive_score + negative_score, 1e-8)
-
-    if margin < 0.08 or pos == neg:
-        polarity = "positive" if positive_score >= negative_score else "negative"
-        confidence = margin * 0.5
-    else:
-        polarity = "positive" if positive_score > negative_score else "negative"
-        confidence = margin
+    polarity = "positive" if positive_score >= negative_score else "negative"
+    confidence = margin if margin >= 0.08 and pos != neg else margin * 0.5
 
     positive_energy = float(np.mean([e for e, s in zip(band_energy, signs) if s == 1])) if pos else 0.0
     negative_energy = float(np.mean([e for e, s in zip(band_energy, signs) if s == -1])) if neg else 0.0
@@ -157,4 +153,49 @@ def select_signal_polarity_v2(signal: np.ndarray, fs_hz: float) -> PolarityV2Dec
         ambiguous,
         float(rr_regularity),
         float(qrs_ratio),
+    )
+
+
+def select_signal_polarity_v2(signal: np.ndarray, fs_hz: float) -> PolarityV2Decision:
+    """Run the standalone QRS-first polarity vote without reference annotations."""
+    return _qrs_vote(signal, fs_hz)
+
+
+def select_signal_polarity_hybrid_v2(
+    signal: np.ndarray,
+    fs_hz: float,
+    *,
+    existing_polarity: str,
+    existing_confidence: float,
+    ambiguity_confidence: float = DEFAULT_AMBIGUITY_CONFIDENCE,
+) -> PolarityV2Decision:
+    """Guarded hybrid: preserve established polarity unless it is ambiguous."""
+    existing = str(existing_polarity).lower()
+    confidence = float(existing_confidence)
+    threshold = float(ambiguity_confidence)
+    if existing not in {"positive", "negative"}:
+        raise ValueError("existing_polarity must be positive or negative")
+    if not np.isfinite(confidence) or not 0 <= confidence <= 1:
+        raise ValueError("existing_confidence must be in [0, 1]")
+    if not np.isfinite(threshold) or not 0 <= threshold <= 1:
+        raise ValueError("ambiguity_confidence must be in [0, 1]")
+
+    if confidence >= threshold:
+        return PolarityV2Decision(
+            existing, confidence, 0.0, 0.0, 0, 0, 0, 0, 0.0, 0.0, fallback_used=True
+        )
+
+    vote = _qrs_vote(signal, fs_hz)
+    return PolarityV2Decision(
+        vote.polarity,
+        vote.confidence,
+        vote.positive_score,
+        vote.negative_score,
+        vote.qrs_events,
+        vote.positive_events,
+        vote.negative_events,
+        vote.ambiguous_events,
+        vote.rr_regularity,
+        vote.qrs_band_energy_ratio,
+        fallback_used=False,
     )
