@@ -55,19 +55,21 @@ class DatasetManifest:
         missing = [key for key, value in required.items() if not str(value).strip()]
         if missing:
             raise ValueError(f"Manifest fields must be non-empty: {', '.join(missing)}")
-        records = tuple(str(x) for x in self.records)
-        if not records:
-            raise ValueError("Manifest must contain at least one record")
+        records = tuple(str(x).strip() for x in self.records)
+        if not records or any(not x for x in records):
+            raise ValueError("Manifest records must be non-empty")
         if len(set(records)) != len(records):
             raise ValueError("Manifest records must be unique")
-        calibration = set(self.calibration_records)
+        calibration = {str(x) for x in self.calibration_records}
         if not calibration.issubset(set(records)):
             raise ValueError("Calibration records must be a subset of records")
         split_records: list[str] = []
         for split_name, split in self.split_manifest.items():
             if not str(split_name).strip():
                 raise ValueError("Split names must be non-empty")
-            values = [str(x) for x in split]
+            values = [str(x).strip() for x in split]
+            if any(not x for x in values):
+                raise ValueError(f"Split '{split_name}' contains an empty record identifier")
             if len(values) != len(set(values)):
                 raise ValueError(f"Split '{split_name}' contains duplicate records")
             split_records.extend(values)
@@ -77,28 +79,43 @@ class DatasetManifest:
             raise ValueError("A record may occur in only one split")
         try:
             datetime.fromisoformat(self.generated_at_utc.replace("Z", "+00:00"))
-        except ValueError as exc:
+        except (TypeError, ValueError) as exc:
             raise ValueError("generated_at_utc must be ISO-8601") from exc
 
     def to_dict(self) -> dict[str, Any]:
         self.validate()
         data = asdict(self)
-        data["records"] = list(self.records)
+        data["records"] = [str(x).strip() for x in self.records]
         data["subject_ids"] = list(self.subject_ids)
-        data["calibration_records"] = list(self.calibration_records)
+        data["calibration_records"] = [str(x).strip() for x in self.calibration_records]
         data["preprocessing"] = _clean(self.preprocessing)
         data["detector_config"] = _clean(self.detector_config)
         data["split_manifest"] = _clean(self.split_manifest)
         return _clean(data)
 
     def canonical_json(self) -> str:
-        return json.dumps(self.to_dict(), sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        """Canonical identity/configuration payload used for provenance hashing.
+
+        Generation time is intentionally excluded so rerunning the same frozen
+        dataset/configuration produces the same provenance hash.
+        """
+        data = self.to_dict()
+        data.pop("generated_at_utc", None)
+        return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
     def sha256(self) -> str:
         return hashlib.sha256(self.canonical_json().encode("utf-8")).hexdigest()
 
     def with_generated_timestamp(self, timestamp: str) -> "DatasetManifest":
-        return DatasetManifest(**{**self.to_dict(), "generated_at_utc": timestamp, "records": tuple(self.records), "subject_ids": tuple(self.subject_ids), "calibration_records": tuple(self.calibration_records)})
+        return DatasetManifest(
+            **{
+                **self.to_dict(),
+                "generated_at_utc": timestamp,
+                "records": tuple(self.records),
+                "subject_ids": tuple(self.subject_ids),
+                "calibration_records": tuple(self.calibration_records),
+            }
+        )
 
 
 def manifest_from_dict(data: Mapping[str, Any]) -> DatasetManifest:
