@@ -22,8 +22,13 @@ class DetectionMetrics:
     sensitivity: float
     positive_predictive_value: float
     f1: float
+    mean_timing_error_ms: float | None
     median_timing_error_ms: float | None
-    p95_timing_error_ms: float | None
+    timing_sd_ms: float | None
+    median_absolute_timing_error_ms: float | None
+    mean_absolute_timing_error_ms: float | None
+    p95_absolute_timing_error_ms: float | None
+    max_absolute_timing_error_ms: float | None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -48,13 +53,32 @@ def _validate_times(values: Iterable[float], name: str) -> np.ndarray:
     return values
 
 
+def _validate_integer_samples(values: Sequence[int], name: str) -> np.ndarray:
+    raw = np.asarray(values)
+    if raw.ndim != 1:
+        raise ValueError(f"{name} must be one-dimensional")
+    if raw.size == 0:
+        return np.asarray([], dtype=int)
+    numeric = np.asarray(raw, dtype=float)
+    if not np.isfinite(numeric).all():
+        raise ValueError(f"{name} must contain only finite sample indices")
+    if not np.equal(numeric, np.floor(numeric)).all():
+        raise ValueError(f"{name} must contain integer-valued sample indices")
+    integer = numeric.astype(np.int64)
+    if np.any(integer < 0):
+        raise ValueError(f"{name} must contain non-negative sample indices")
+    if np.any(integer[1:] <= integer[:-1]):
+        raise ValueError(f"{name} must be strictly increasing with no duplicates")
+    return integer
+
+
 def match_peaks(
     detected_samples: Sequence[int],
     reference_samples: Sequence[int],
     fs_hz: float,
     tolerance_ms: float = 75.0,
 ) -> DetectionMetrics:
-    """Match detected and reference beats one-to-one within a timing tolerance."""
+    """Match validated detector and reference beats one-to-one within a timing tolerance."""
     fs_hz = float(fs_hz)
     tolerance_ms = float(tolerance_ms)
     if not np.isfinite(fs_hz) or fs_hz <= 0:
@@ -62,21 +86,17 @@ def match_peaks(
     if not np.isfinite(tolerance_ms) or tolerance_ms <= 0:
         raise ValueError("tolerance_ms must be positive and finite")
 
-    detected = np.asarray(detected_samples, dtype=int)
-    reference = np.asarray(reference_samples, dtype=int)
-    if detected.ndim != 1 or reference.ndim != 1:
-        raise ValueError("detected_samples and reference_samples must be one-dimensional")
-    detected = np.unique(detected[detected >= 0])
-    reference = np.unique(reference[reference >= 0])
+    detected = _validate_integer_samples(detected_samples, "detected_samples")
+    reference = _validate_integer_samples(reference_samples, "reference_samples")
     tolerance_samples = tolerance_ms * fs_hz / 1000.0
 
     i = j = tp = 0
-    errors: list[float] = []
+    signed_errors_ms: list[float] = []
     while i < len(detected) and j < len(reference):
         delta = int(detected[i]) - int(reference[j])
         if abs(delta) <= tolerance_samples:
             tp += 1
-            errors.append(abs(delta) * 1000.0 / fs_hz)
+            signed_errors_ms.append(delta * 1000.0 / fs_hz)
             i += 1
             j += 1
         elif detected[i] < reference[j]:
@@ -89,8 +109,8 @@ def match_peaks(
     sensitivity = tp / len(reference) if reference.size else 0.0
     ppv = tp / len(detected) if detected.size else 0.0
     f1 = (2 * sensitivity * ppv / (sensitivity + ppv)) if sensitivity + ppv else 0.0
-    median = float(np.median(errors)) if errors else None
-    p95 = float(np.percentile(errors, 95)) if errors else None
+    signed = np.asarray(signed_errors_ms, dtype=float)
+    absolute = np.abs(signed)
     return DetectionMetrics(
         reference_count=int(len(reference)),
         detected_count=int(len(detected)),
@@ -100,8 +120,13 @@ def match_peaks(
         sensitivity=float(sensitivity),
         positive_predictive_value=float(ppv),
         f1=float(f1),
-        median_timing_error_ms=median,
-        p95_timing_error_ms=p95,
+        mean_timing_error_ms=float(np.mean(signed)) if signed.size else None,
+        median_timing_error_ms=float(np.median(signed)) if signed.size else None,
+        timing_sd_ms=float(np.std(signed, ddof=1)) if signed.size > 1 else None,
+        median_absolute_timing_error_ms=float(np.median(absolute)) if absolute.size else None,
+        mean_absolute_timing_error_ms=float(np.mean(absolute)) if absolute.size else None,
+        p95_absolute_timing_error_ms=float(np.percentile(absolute, 95)) if absolute.size else None,
+        max_absolute_timing_error_ms=float(np.max(absolute)) if absolute.size else None,
     )
 
 
@@ -123,7 +148,8 @@ def load_reference_annotations(record_path: str | Path, extension: str = "atr", 
     ann = wfdb.rdann(str(record_path), extension=extension)
     allowed = set(symbols) if symbols is not None else DEFAULT_BEAT_SYMBOLS
     samples = [int(s) for s, symbol in zip(ann.sample, ann.symbol) if symbol in allowed]
-    return np.asarray(samples, dtype=int)
+    result = np.asarray(samples, dtype=int)
+    return _validate_integer_samples(result, "reference_samples")
 
 
 def validate_record(
@@ -134,13 +160,11 @@ def validate_record(
     beat_symbols: Iterable[str] | None = None,
     tolerance_ms: float = 75.0,
 ) -> RecordValidation:
-    """Run a detector on one WFDB record and compare with reference annotations.
-
-    ``detector`` receives ``(signal, fs_hz)`` and must return sample indices.
-    """
+    """Run a detector on one WFDB record and compare with reference annotations."""
     signal, fs_hz = _record_signal(record_path, channel=channel)
     reference = load_reference_annotations(record_path, extension=annotation_extension, symbols=beat_symbols)
-    detected = np.asarray(detector(signal, fs_hz), dtype=int)
+    raw_detected = detector(signal, fs_hz)
+    detected = _validate_integer_samples(raw_detected, "detector output")
     metrics = match_peaks(detected, reference, fs_hz, tolerance_ms=tolerance_ms)
     return RecordValidation(record=Path(record_path).stem, fs_hz=fs_hz, metrics=metrics)
 
@@ -156,10 +180,13 @@ def summarize_records(results: Sequence[RecordValidation]) -> dict:
     sensitivity = tp / reference_count if reference_count else 0.0
     ppv = tp / detected_count if detected_count else 0.0
     f1 = (2 * sensitivity * ppv / (sensitivity + ppv)) if sensitivity + ppv else 0.0
-    timing = [
-        r.metrics.median_timing_error_ms
+    signed_values = [
+        r.metrics.mean_timing_error_ms for r in results if r.metrics.mean_timing_error_ms is not None
+    ]
+    absolute_values = [
+        r.metrics.median_absolute_timing_error_ms
         for r in results
-        if r.metrics.median_timing_error_ms is not None
+        if r.metrics.median_absolute_timing_error_ms is not None
     ]
     return {
         "records": len(results),
@@ -171,7 +198,8 @@ def summarize_records(results: Sequence[RecordValidation]) -> dict:
         "sensitivity": float(sensitivity),
         "positive_predictive_value": float(ppv),
         "f1": float(f1),
-        "median_record_timing_error_ms": float(np.median(timing)) if timing else None,
+        "mean_record_signed_timing_error_ms": float(np.mean(signed_values)) if signed_values else None,
+        "median_record_absolute_timing_error_ms": float(np.median(absolute_values)) if absolute_values else None,
     }
 
 
@@ -188,6 +216,8 @@ def _main() -> int:
     parser.add_argument("--tolerance-ms", type=float, default=75.0)
     parser.add_argument("--symbols", help="Comma-separated reference beat symbols")
     args = parser.parse_args()
+    if args.tolerance_ms <= 0:
+        parser.error("--tolerance-ms must be positive")
 
     module_name, function_name = args.detector.split(":", 1)
     detector = getattr(importlib.import_module(module_name), function_name)
