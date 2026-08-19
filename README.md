@@ -70,20 +70,28 @@ For shared/non-local deployment, set a strong `ELECTROTRACE_API_KEY` before bind
 - Fold-level metrics plus mean, SD, and empirical 95% CI.
 - Experimental-unit-aware statistics and pseudoreplication warnings.
 - Welch t-test, Mann-Whitney U, Cohen's d, and Benjamini-Hochberg FDR.
+- Deterministic dataset/study manifests with SHA-256 provenance hashes.
+- Rigorous validation reports with pooled metrics, macro record-level metrics, and record-bootstrap uncertainty intervals.
+- Phenotype integrity checks and experimental-unit aggregation helpers.
 
 ### External Scientific Validation
-ElectroTrace includes a reproducible PhysioNet/WFDB validation harness reporting sensitivity, PPV, F1, false positives/negatives, timing error, and per-record performance.
+ElectroTrace includes a reproducible PhysioNet/WFDB validation harness reporting sensitivity, PPV, F1, false positives/negatives, timing error, per-record performance, pooled estimates, macro record-level estimates, and record-level bootstrap confidence intervals.
 
 No external dataset is bundled with the repository.
 
-For MIT-BIH:
+For the rigorous MIT-BIH protocol:
 
 ```bash
 python scripts/validate_mitdb.py \
   --cache-dir .cache/physionet/mitdb \
   --output validation_reports/mitdb_rpeak_validation.json \
-  --tolerance-ms 75
+  --tolerance-ms 75 \
+  --polarity adaptive \
+  --bootstrap 2000 \
+  --seed 42
 ```
+
+The report preserves the complete record list, dataset/version metadata, detector configuration, software version/commit when supplied by the runtime, exact matching tolerance, per-record results, pooled metrics, macro record-level statistics, record-bootstrap uncertainty, and failures. The associated manifest is canonicalized and SHA-256 hashed.
 
 For the two-stage verifier:
 
@@ -95,7 +103,7 @@ python scripts/benchmark_two_stage_mitdb.py \
 
 The two-stage benchmark supports explicit polarity and optional recovery settings, and its current protocol supports record-level calibration records separate from model-fitting records and held-out test records.
 
-See `docs/VALIDATION.md`, `docs/TWO_STAGE_RPEAK.md`, and `docs/benchmarks/MITBIH_TWO_STAGE_2026-08-17.md`.
+See `docs/VALIDATION.md`, `docs/TWO_STAGE_RPEAK.md`, `docs/RESEARCH_VALIDATION.md`, and `docs/benchmarks/MITBIH_TWO_STAGE_2026-08-17.md`.
 
 ## Project & Recording Management
 
@@ -146,6 +154,10 @@ CI runs on Python 3.10, 3.11, and 3.12. A separate security workflow runs `pip-a
 
 **Deployment:** The development server defaults to localhost. Non-local binds require `ELECTROTRACE_API_KEY`; use a TLS-capable reverse proxy for shared deployments. Trusted-model loading uses Python pickle and must never consume untrusted model files.
 
+**Research statistics:** Prefer subject/record-level aggregation before inferential statistics. Do not treat individual ECG beats as independent experimental units unless the study design explicitly justifies that assumption.
+
+**Phenotype QC:** `electrotrace.phenotype_validation.quality_report` checks structural and mathematical consistency without imposing clinical cutoffs; use study-specific clinical thresholds separately.
+
 ## Citation
 
 ```text
@@ -157,4 +169,4 @@ https://github.com/Virelion-Biotech/Virelion-ElectroTrace
 
 ---
 
-**ElectroTrace v1.6.1** · annotation, adaptive-polarity R-peak detection, two-stage verification, external validation, and leakage-safe ML.
+**ElectroTrace v1.6.1** · annotation, adaptive-polarity R-peak detection, two-stage verification, external validation, rigorous provenance, and leakage-safe ML.
