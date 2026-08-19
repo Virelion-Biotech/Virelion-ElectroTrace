@@ -1,7 +1,6 @@
 """Publication-oriented validation summaries built on the core detector metrics."""
 from __future__ import annotations
 
-from dataclasses import asdict
 import json
 from pathlib import Path
 from typing import Any, Sequence
@@ -73,8 +72,12 @@ def summarize_records_rigorous(results: Sequence[RecordValidation], n_bootstrap:
         "sensitivity": mean_ci95([r.metrics.sensitivity for r in results]),
         "positive_predictive_value": mean_ci95([r.metrics.positive_predictive_value for r in results]),
         "f1": mean_ci95([r.metrics.f1 for r in results]),
+        "mean_timing_error_ms": mean_ci95([r.metrics.mean_timing_error_ms for r in results]),
         "median_timing_error_ms": mean_ci95([r.metrics.median_timing_error_ms for r in results]),
-        "p95_timing_error_ms": mean_ci95([r.metrics.p95_timing_error_ms for r in results]),
+        "mean_absolute_timing_error_ms": mean_ci95([r.metrics.mean_absolute_timing_error_ms for r in results]),
+        "median_absolute_timing_error_ms": mean_ci95([r.metrics.median_absolute_timing_error_ms for r in results]),
+        "p95_absolute_timing_error_ms": mean_ci95([r.metrics.p95_absolute_timing_error_ms for r in results]),
+        "max_absolute_timing_error_ms": mean_ci95([r.metrics.max_absolute_timing_error_ms for r in results]),
     }
     bootstrap = {
         "sensitivity": bootstrap_record_ci(results, "sensitivity", n_bootstrap=n_bootstrap, seed=seed),
@@ -122,10 +125,7 @@ def build_validation_report(
         "schema_version": VALIDATION_SCHEMA_VERSION,
         "manifest": manifest.to_dict(),
         "manifest_sha256": manifest.sha256(),
-        "detector": {
-            "name": detector_name,
-            "parameters": detector_parameters,
-        },
+        "detector": {"name": detector_name, "parameters": detector_parameters},
         "reference": {
             "annotation_extension": annotation_extension,
             "beat_symbols": list(beat_symbols) if beat_symbols is not None else None,
