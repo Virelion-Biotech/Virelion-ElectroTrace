@@ -1,0 +1,87 @@
+{
+  "schema_version": "electrotrace-mitdb-corrected-benchmark-v2",
+  "status": "corrected_official_style_local_reproduction",
+  "dataset": {
+    "name": "MIT-BIH Arrhythmia Database",
+    "version": "1.0.0",
+    "records": 48,
+    "archive_sha256": "47b26926927c11bd9174154d367c811afc1b186f650f8a205931ca8c520f0a87"
+  },
+  "protocol": {
+    "channel": 0,
+    "primary_tolerance_ms": 75,
+    "tolerance_sensitivity_ms": [50, 75, 100, 150],
+    "bootstrap": 2000,
+    "seed": 42,
+    "beat_symbols": ["/", "A", "E", "F", "J", "L", "N", "Q", "R", "S", "V", "a", "e", "f", "j"],
+    "matcher": "ElectroTrace match_peaks one-to-one"
+  },
+  "locked_old_selector": {
+    "records": 48,
+    "reference_count": 109494,
+    "detected_count": 157348,
+    "true_positive": 105727,
+    "false_positive": 51621,
+    "false_negative": 3767,
+    "sensitivity": 0.9655962883810985,
+    "positive_predictive_value": 0.6719310064316039,
+    "f1": 0.79243147630433,
+    "macro_record_sensitivity": 0.9639832799383834,
+    "macro_record_positive_predictive_value": 0.6895138505524538,
+    "macro_record_f1": 0.7913764652972685,
+    "macro_bootstrap_f1_ci95": [0.7427969491287565, 0.8338881841233584]
+  },
+  "guarded_v2_selector": {
+    "records": 48,
+    "reference_count": 109494,
+    "detected_count": 157284,
+    "true_positive": 107169,
+    "false_positive": 50115,
+    "false_negative": 2325,
+    "sensitivity": 0.978765959778618,
+    "positive_predictive_value": 0.6813725490196079,
+    "f1": 0.8034320671119808,
+    "macro_record_sensitivity": 0.9801347136301396,
+    "macro_record_positive_predictive_value": 0.7021456480106214,
+    "macro_record_f1": 0.805553426763357,
+    "macro_bootstrap_f1_ci95": [0.7692201100507456, 0.8395784797154958]
+  },
+  "delta_v2_minus_old": {
+    "sensitivity": 0.01316967139751953,
+    "positive_predictive_value": 0.00944154258800402,
+    "f1": 0.0110005908076508,
+    "macro_record_sensitivity": 0.016151433691756224,
+    "macro_record_positive_predictive_value": 0.0126326414181676,
+    "macro_record_f1": 0.0141769608260885
+  },
+  "tolerance_sensitivity": {
+    "old": {
+      "50": {"sensitivity": 0.9593620640446024, "positive_predictive_value": 0.6671142323061011, "f1": 0.7872437008196721},
+      "75": {"sensitivity": 0.9655962883810985, "positive_predictive_value": 0.6719310064316039, "f1": 0.79243147630433},
+      "100": {"sensitivity": 0.9688073364759713, "positive_predictive_value": 0.6742079363917074, "f1": 0.7953379009939033},
+      "150": {"sensitivity": 0.9743174055158292, "positive_predictive_value": 0.6781357437859852, "f1": 0.7993532548699476}
+    },
+    "guarded_v2": {
+      "50": {"sensitivity": 0.972555851001881, "positive_predictive_value": 0.6765532326076846, "f1": 0.8034679827276236},
+      "75": {"sensitivity": 0.978765959778618, "positive_predictive_value": 0.6813725490196079, "f1": 0.8034320671119808},
+      "100": {"sensitivity": 0.9810351270845763, "positive_predictive_value": 0.6830045145228216, "f1": 0.8029468910846446},
+      "150": {"sensitivity": 0.9851023873459916, "positive_predictive_value": 0.6865944770837632, "f1": 0.8041770882401217}
+    }
+  },
+  "polarity_change": {
+    "records_changed": 1,
+    "record": "207",
+    "old_polarity": "positive",
+    "old_confidence": 0.026079869600651995,
+    "v2_polarity": "negative",
+    "v2_confidence": 0.5925100637416835,
+    "old_f1": 0.1265646731571627,
+    "v2_f1": 0.8070588235294118
+  },
+  "correction": {
+    "superseded_report": "validation_reports/mitdb_rpeak_validation_local_reproduction_2026-08-19.json",
+    "reason": "The earlier archived report preserved correct record, detector, and reference counts but contained incorrect TP/FN matching on a subset of records. The corrected run uses an exact WFDB-compatible annotation decode and the ElectroTrace one-to-one matcher.",
+    "source_detector_commit": "615833eb1c13e9af531a9829fa32433f16fba40f",
+    "note": "This is an official-style local reproduction using the uploaded archive; fresh network execution of wfdb-python was unavailable in the runtime."
+  }
+}
