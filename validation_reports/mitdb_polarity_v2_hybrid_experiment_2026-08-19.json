@@ -1,0 +1,63 @@
+{
+  "schema_version": "electrotrace-polarity-v2-experiment-v1",
+  "status": "exploratory_not_primary",
+  "source_commit": "615833eb1c13e9af531a9829fa32433f16fba40f",
+  "dataset": "MIT-BIH Arrhythmia Database 1.0.0",
+  "archive_sha256": "47b26926927c11bd9174154d367c811afc1b186f650f8a205931ca8c520f0a87",
+  "records": 48,
+  "primary_baseline_75ms": {
+    "reference_count": 109494,
+    "detected_count": 157348,
+    "tp": 103194,
+    "fp": 54154,
+    "fn": 6300,
+    "sensitivity": 0.9424626006904487,
+    "ppv": 0.655832930828482,
+    "f1": 0.773446458953238,
+    "macro_sensitivity": 0.9355849771132724,
+    "macro_ppv": 0.6746058737501222,
+    "macro_f1": 0.7718950030338108
+  },
+  "standalone_qrs_v2_75ms": {
+    "reference_count": 109494,
+    "detected_count": 165535,
+    "tp": 104671,
+    "fp": 60864,
+    "fn": 4823,
+    "sensitivity": 0.9559519243063547,
+    "ppv": 0.6323194490591114,
+    "f1": 0.7611633682266233,
+    "macro_sensitivity": 0.9504080338874271,
+    "macro_ppv": 0.6536259158934887,
+    "macro_f1": 0.762480647817288
+  },
+  "guarded_hybrid_v2_75ms": {
+    "reference_count": 109494,
+    "detected_count": 157284,
+    "tp": 104636,
+    "fp": 52648,
+    "fn": 4858,
+    "sensitivity": 0.9556322720879683,
+    "ppv": 0.6652679229928028,
+    "f1": 0.7844424952582297,
+    "macro_sensitivity": 0.9517364108050286,
+    "macro_ppv": 0.6872376712082896,
+    "macro_f1": 0.7860719644998992
+  },
+  "hybrid_rule": "existing count-based polarity is preserved unless existing confidence < 0.10; then QRS-first selector is used",
+  "hybrid_flips": [
+    {
+      "record": "207",
+      "from": "positive",
+      "to": "negative",
+      "existing_confidence": 0.026079869600651995,
+      "delta_f1": 0.6804941503722491
+    }
+  ],
+  "external_model_influences": [
+    "NeuroKit's documented default detector identifies QRS complexes using steepness of the absolute ECG gradient and then finds the R peak within the QRS region.",
+    "NeuroKit also exposes multiple established QRS detectors, including Pan-Tompkins, Hamilton, Christov, Elgendi, and others, reinforcing QRS-specific preprocessing rather than raw prominence alone.",
+    "SleepECG is an open Python ECG heartbeat-detection project used as a second implementation reference."
+  ],
+  "note": "No selector was promoted based on this MIT-BIH result. The primary locked benchmark remains unchanged. This experiment uses an independent local WFDB-format decoder for the uploaded archive; formal promotion requires rerunning with official wfdb-python."
+}
