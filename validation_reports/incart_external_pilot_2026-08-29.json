@@ -1,0 +1,26 @@
+{
+  "schema": "electrotrace.external_incart_validation/v1",
+  "software_version": "1.8.1",
+  "dataset": "PhysioNet INCART subset",
+  "records": ["I01", "I02", "I03", "I05", "I06", "I07", "I08"],
+  "note": "Independent of MIT-BIH. Two-stage model trained only on MIT-BIH. Pilot n=7 usable records (I04 skipped: negative annotation samples). Not a full 75-record study.",
+  "tolerance_ms": 75,
+  "comparisons": [
+    {
+      "detector": "hamilton",
+      "summary": {"sensitivity": 0.9749, "positive_predictive_value": 0.9124, "f1": 0.9426}
+    },
+    {
+      "detector": "pan_tompkins",
+      "summary": {"sensitivity": 0.8174, "positive_predictive_value": 0.9825, "f1": 0.8923}
+    },
+    {
+      "detector": "electrotrace_stage1_adaptive",
+      "summary": {"sensitivity": 0.6379, "positive_predictive_value": 0.8832, "f1": 0.7408}
+    },
+    {
+      "detector": "electrotrace_two_stage_mitbih_model",
+      "summary": {"sensitivity": 0.3334, "positive_predictive_value": 0.9904, "f1": 0.4989}
+    }
+  ]
+}
