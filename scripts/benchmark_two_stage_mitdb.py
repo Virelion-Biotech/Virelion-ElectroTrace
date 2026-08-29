@@ -14,6 +14,7 @@ from sklearn.model_selection import StratifiedShuffleSplit
 
 from electrotrace import __version__
 from electrotrace.candidate_suppressor import CandidateSuppressor, _candidate_features, label_candidates, select_threshold_for_recall
+from electrotrace.threshold_selection import select_threshold_for_f1
 from electrotrace.validation import DEFAULT_BEAT_SYMBOLS, DetectionMetrics, RecordValidation, summarize_records, validate_record
 from electrotrace.validation_detectors import detect_r_peaks_two_stage
 
@@ -54,13 +55,11 @@ def _candidate_stream(signal: np.ndarray, fs_hz: float, polarity: str, recovery:
 
 
 def _record_level_calibration_indices(labels: np.ndarray, groups: np.ndarray, seed: int) -> tuple[np.ndarray, np.ndarray, list[str], list[str]]:
-    """Choose whole records for calibration using record-level label-rate strata."""
     labels = np.asarray(labels, dtype=int)
     groups = np.asarray(groups)
     unique_groups = np.unique(groups)
     if len(unique_groups) < 3:
         raise ValueError("record-level calibration requires at least three training records")
-
     rates = []
     for group in unique_groups:
         group_labels = labels[groups == group]
@@ -68,17 +67,14 @@ def _record_level_calibration_indices(labels: np.ndarray, groups: np.ndarray, se
             raise ValueError(f"record '{group}' has no candidate labels")
         rates.append(float(np.mean(group_labels)))
     rates = np.asarray(rates, dtype=float)
-
     order = np.argsort(rates, kind="stable")
     strata = np.zeros(len(unique_groups), dtype=int)
     n_strata = min(3, len(unique_groups))
     for rank, idx in enumerate(order):
         strata[idx] = min(n_strata - 1, (rank * n_strata) // len(unique_groups))
-
     calibration_count = max(1, int(round(len(unique_groups) * 0.20)))
     if len(unique_groups) - calibration_count < 2:
         calibration_count = 1
-
     rng = np.random.default_rng(seed)
     calibration_group_idx: np.ndarray | None = None
     if len(unique_groups) >= 6 and np.bincount(strata, minlength=n_strata).min() >= 2:
@@ -95,7 +91,6 @@ def _record_level_calibration_indices(labels: np.ndarray, groups: np.ndarray, se
                 break
     if calibration_group_idx is None:
         raise ValueError("unable to construct a record-level calibration split with both classes")
-
     fit_group_idx = np.setdiff1d(np.arange(len(unique_groups)), calibration_group_idx)
     fit_groups = unique_groups[fit_group_idx]
     calibration_groups = unique_groups[calibration_group_idx]
@@ -105,61 +100,41 @@ def _record_level_calibration_indices(labels: np.ndarray, groups: np.ndarray, se
         raise RuntimeError("calibration records overlap model-fitting records")
     if len(np.unique(labels[fit_idx])) < 2 or len(np.unique(labels[calibration_idx])) < 2:
         raise ValueError("record-level calibration split must contain both positive and negative candidates")
-    return (
-        fit_idx,
-        calibration_idx,
-        sorted(str(value) for value in fit_groups),
-        sorted(str(value) for value in calibration_groups),
-    )
+    return (fit_idx, calibration_idx, sorted(str(value) for value in fit_groups), sorted(str(value) for value in calibration_groups))
 
 
 def _fit_group_calibrated(features: np.ndarray, labels: np.ndarray, groups: np.ndarray, target_recall: float, seed: int) -> tuple[CandidateSuppressor, list[str], list[str]]:
-    """Fit only on non-calibration records and select the threshold on held-out records."""
     labels = np.asarray(labels, dtype=int)
     groups = np.asarray(groups)
     fit_idx, calibration_idx, fit_records, calibration_records = _record_level_calibration_indices(labels, groups, seed)
-
     model = CandidateSuppressor().fit(
-        features[fit_idx],
-        labels[fit_idx],
-        target_recall=target_recall,
-        random_seed=seed,
-        calibration_fraction=0,
+        features[fit_idx], labels[fit_idx], target_recall=target_recall, random_seed=seed,
+        calibration_fraction=0, n_estimators=200,
     )
     calibration_probabilities = model.predict_proba(features[calibration_idx])
-    threshold = select_threshold_for_recall(
-        labels[calibration_idx],
-        calibration_probabilities,
-        target_recall=target_recall,
+    threshold = select_threshold_for_f1(
+        labels[calibration_idx], calibration_probabilities, min_recall=min(0.97, float(target_recall)),
     )
     model.metadata = replace(
-        model.metadata,
-        threshold=float(threshold),
+        model.metadata, threshold=float(threshold),
         calibration_fraction=float(len(calibration_idx) / len(labels)),
         calibration_candidates=int(len(calibration_idx)),
-        calibration_method="held_out_record_group_stratified",
+        calibration_method="held_out_record_group_stratified_f1",
     )
     return model, fit_records, calibration_records
 
 
 def _train_records(records: list[str], data_dir: Path, polarity: str, recovery: bool, seed: int) -> tuple[CandidateSuppressor, list[str], list[str]]:
-    features: list[np.ndarray] = []
-    labels: list[np.ndarray] = []
-    groups: list[np.ndarray] = []
+    features: list[np.ndarray] = []; labels: list[np.ndarray] = []; groups: list[np.ndarray] = []
     feature_names: list[str] | None = None
     for record in records:
         _, rec, signal, refs = _load_record(record, data_dir)
         candidates, prominences, _ = _candidate_stream(signal, float(rec.fs), polarity, recovery)
         X, names = _candidate_features(signal, float(rec.fs), candidates, prominences)
         y = label_candidates(candidates, refs, float(rec.fs))
-        features.append(X)
-        labels.append(y)
-        groups.append(np.full(len(y), record, dtype=object))
-        feature_names = names
-    matrix = np.vstack(features)
-    target = np.concatenate(labels)
-    group_ids = np.concatenate(groups)
-    model, fit_records, calibration_records = _fit_group_calibrated(matrix, target, group_ids, target_recall=0.995, seed=seed)
+        features.append(X); labels.append(y); groups.append(np.full(len(y), record, dtype=object)); feature_names = names
+    model, fit_records, calibration_records = _fit_group_calibrated(
+        np.vstack(features), np.concatenate(labels), np.concatenate(groups), target_recall=0.995, seed=seed)
     model.feature_names = feature_names
     return model, fit_records, calibration_records
 
@@ -168,11 +143,9 @@ def _evaluate(model: CandidateSuppressor, records: list[str], data_dir: Path, po
     results: list[dict] = []
     for record in records:
         base, rec, signal, _ = _load_record(record, data_dir)
-
         def detector(test_signal: np.ndarray, fs_hz: float) -> np.ndarray:
             retained, _ = detect_r_peaks_two_stage(test_signal, fs_hz, model, polarity=polarity, recovery=recovery)
             return retained
-
         result = validate_record(base, detector, channel=0, annotation_extension="atr", beat_symbols=sorted(ALLOWED_BEAT_SYMBOLS), tolerance_ms=75)
         payload = result.to_dict()
         candidates, _, _ = _candidate_stream(signal, float(rec.fs), polarity, recovery)
@@ -188,18 +161,12 @@ def _summary_from_payloads(payloads: list[dict]) -> dict:
     results = []
     for p in payloads:
         metrics = DetectionMetrics(
-            reference_count=int(p["reference_count"]),
-            detected_count=int(p["detected_count"]),
-            true_positive=int(p["true_positive"]),
-            false_positive=int(p["false_positive"]),
-            false_negative=int(p["false_negative"]),
-            sensitivity=float(p["sensitivity"]),
-            positive_predictive_value=float(p["positive_predictive_value"]),
-            f1=float(p["f1"]),
-            mean_timing_error_ms=p.get("mean_timing_error_ms"),
-            median_timing_error_ms=p.get("median_timing_error_ms"),
-            timing_sd_ms=p.get("timing_sd_ms"),
-            median_absolute_timing_error_ms=p.get("median_absolute_timing_error_ms"),
+            reference_count=int(p["reference_count"]), detected_count=int(p["detected_count"]),
+            true_positive=int(p["true_positive"]), false_positive=int(p["false_positive"]),
+            false_negative=int(p["false_negative"]), sensitivity=float(p["sensitivity"]),
+            positive_predictive_value=float(p["positive_predictive_value"]), f1=float(p["f1"]),
+            mean_timing_error_ms=p.get("mean_timing_error_ms"), median_timing_error_ms=p.get("median_timing_error_ms"),
+            timing_sd_ms=p.get("timing_sd_ms"), median_absolute_timing_error_ms=p.get("median_absolute_timing_error_ms"),
             mean_absolute_timing_error_ms=p.get("mean_absolute_timing_error_ms"),
             p95_absolute_timing_error_ms=p.get("p95_absolute_timing_error_ms"),
             max_absolute_timing_error_ms=p.get("max_absolute_timing_error_ms"),
@@ -219,31 +186,23 @@ def main() -> int:
     args = parser.parse_args()
     if not 0 < args.test_fraction < 1:
         raise SystemExit("--test-fraction must be between 0 and 1")
-
     data_dir = Path(args.data_dir)
     records = list(wfdb.get_record_list("mitdb"))
     rng = np.random.default_rng(args.seed)
     shuffled = records.copy(); rng.shuffle(shuffled)
     n_test = max(1, int(round(len(shuffled) * args.test_fraction)))
     test_records = sorted(shuffled[:n_test]); train_records = sorted(shuffled[n_test:])
-
     model, fit_records, calibration_records = _train_records(train_records, data_dir, args.polarity, args.recovery, args.seed)
     record_results = _evaluate(model, test_records, data_dir, args.polarity, args.recovery)
     report = {
-        "schema": "electrotrace.two_stage_validation/v6",
-        "software_version": __version__,
-        "train_records": train_records,
-        "model_fit_records": fit_records,
-        "calibration_records": calibration_records,
-        "test_records": test_records,
-        "polarity": args.polarity,
-        "recovery": bool(args.recovery),
-        "target_recall": model.metadata.target_recall,
-        "threshold": model.metadata.threshold,
+        "schema": "electrotrace.two_stage_validation/v6", "software_version": __version__,
+        "train_records": train_records, "model_fit_records": fit_records,
+        "calibration_records": calibration_records, "test_records": test_records,
+        "polarity": args.polarity, "recovery": bool(args.recovery),
+        "target_recall": model.metadata.target_recall, "threshold": model.metadata.threshold,
         "model_metadata": model.metadata.to_dict(),
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
-        "record_results": record_results,
-        "summary": _summary_from_payloads(record_results),
+        "record_results": record_results, "summary": _summary_from_payloads(record_results),
     }
     output = Path(args.output); output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
