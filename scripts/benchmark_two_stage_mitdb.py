@@ -185,7 +185,26 @@ def _evaluate(model: CandidateSuppressor, records: list[str], data_dir: Path, po
 
 
 def _summary_from_payloads(payloads: list[dict]) -> dict:
-    results = [RecordValidation(record=p["record"], fs_hz=float(p["fs_hz"]), metrics=DetectionMetrics(reference_count=int(p["reference_count"]), detected_count=int(p["detected_count"]), true_positive=int(p["true_positive"]), false_positive=int(p["false_positive"]), false_negative=int(p["false_negative"]), sensitivity=float(p["sensitivity"]), positive_predictive_value=float(p["positive_predictive_value"]), f1=float(p["f1"]), median_timing_error_ms=p["median_timing_error_ms"], p95_timing_error_ms=p["p95_timing_error_ms"])) for p in payloads]
+    results = []
+    for p in payloads:
+        metrics = DetectionMetrics(
+            reference_count=int(p["reference_count"]),
+            detected_count=int(p["detected_count"]),
+            true_positive=int(p["true_positive"]),
+            false_positive=int(p["false_positive"]),
+            false_negative=int(p["false_negative"]),
+            sensitivity=float(p["sensitivity"]),
+            positive_predictive_value=float(p["positive_predictive_value"]),
+            f1=float(p["f1"]),
+            mean_timing_error_ms=p.get("mean_timing_error_ms"),
+            median_timing_error_ms=p.get("median_timing_error_ms"),
+            timing_sd_ms=p.get("timing_sd_ms"),
+            median_absolute_timing_error_ms=p.get("median_absolute_timing_error_ms"),
+            mean_absolute_timing_error_ms=p.get("mean_absolute_timing_error_ms"),
+            p95_absolute_timing_error_ms=p.get("p95_absolute_timing_error_ms"),
+            max_absolute_timing_error_ms=p.get("max_absolute_timing_error_ms"),
+        )
+        results.append(RecordValidation(record=p["record"], fs_hz=float(p["fs_hz"]), metrics=metrics))
     return summarize_records(results)
 
 
