@@ -2,7 +2,7 @@
 
 Research-grade ECG and electrophysiology annotation, segmentation, phenotyping, external validation, and leakage-safe machine-learning toolkit. ElectroTrace provides an interactive web interface backed by a Python REST API for building curated research datasets with machine-assisted labeling and subject-stratified validation.
 
-**Version:** 1.7.0  
+**Version:** 1.8.0  
 **License:** MIT  
 **Status:** Active research software
 
@@ -75,9 +75,22 @@ For shared/non-local deployment, set a strong `ELECTROTRACE_API_KEY` before bind
 - Phenotype integrity checks and experimental-unit aggregation helpers.
 
 ### External Scientific Validation
+
+Live scoreboard: [`validation_reports/VALIDATION_STATUS.md`](validation_reports/VALIDATION_STATUS.md).
 ElectroTrace includes a reproducible PhysioNet/WFDB validation harness reporting sensitivity, PPV, F1, false positives/negatives, timing error, per-record performance, pooled estimates, macro record-level estimates, and record-level bootstrap confidence intervals.
 
 No external dataset is bundled with the repository.
+
+For long QTDB runs that may be interrupted, prefer the checkpointed harness:
+
+```bash
+python scripts/validate_qtdb_resumable.py .cache/physionet/qtdb \
+  --output validation_reports/qtdb_validation.json \
+  --checkpoint validation_reports/qtdb_checkpoint.json \
+  --tolerance-ms 75
+```
+
+Stage-1 default polarity is `adaptive` (`detect_r_peaks(..., polarity="adaptive")`). Known inverted-lead edge case: MIT-BIH **207** — pass `polarity="negative"` explicitly (adaptive count rule selects positive and sensitivity collapses).
 
 For the rigorous MIT-BIH protocol:
 
@@ -92,6 +105,8 @@ python scripts/validate_mitdb.py \
 ```
 
 The report preserves the complete record list, dataset/version metadata, detector configuration, software version/commit when supplied by the runtime, exact matching tolerance, per-record results, pooled metrics, macro record-level statistics, record-bootstrap uncertainty, and failures. The associated manifest is canonicalized and SHA-256 hashed.
+
+**Deployment recommendation:** use the two-stage pipeline (`detect_r_peaks_two_stage` with a trained `CandidateSuppressor`) when false positives matter. Single-stage adaptive detection remains the candidate generator.
 
 For the two-stage verifier:
 
@@ -169,4 +184,4 @@ https://github.com/Virelion-Biotech/Virelion-ElectroTrace
 
 ---
 
-**ElectroTrace v1.7.0** · annotation, adaptive-polarity R-peak detection, two-stage verification, external validation, rigorous provenance, and leakage-safe ML.
+**ElectroTrace v1.8.0** · annotation, adaptive-polarity R-peak detection, two-stage verification, external validation, rigorous provenance, and leakage-safe ML.
