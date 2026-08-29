@@ -1,6 +1,6 @@
 # External Validation Status
 
-**Generated:** 2026-08-29 15:57 UTC  
+**Generated:** 2026-08-29  
 **Software:** electrotrace 1.8.0  
 **Protocol date:** 2026-08-29  
 
@@ -12,101 +12,75 @@ This document records live PhysioNet validation runs executed against the public
 |-------|--------|
 | `pytest` | **101 passed** |
 
-## 1. Official MIT-BIH R-peak protocol
-
-Command (README):
-
-```bash
-python scripts/validate_mitdb.py \
-  --cache-dir .cache/physionet/mitdb \
-  --output validation_reports/mitdb_rpeak_validation_official_2026-08-29.json \
-  --tolerance-ms 75 --polarity adaptive --bootstrap 2000 --seed 42
-```
-
-| Field | Value |
-|-------|-------|
-| Status | `complete` |
-| Records | 48/48 |
-| Tolerance | 75.0 ms |
-| Polarity | adaptive |
-| Bootstrap | 2000 |
-| Manifest SHA-256 | `234da9f6384775e6319bdcd00fe06df8750db5f7472a0a69d7cff59827f9d798` |
-| Git HEAD (at run) | `9578678ecea3fe8bbb12ea4296ace3d75f746354` |
-
-### Pooled metrics
+## 1. Official MIT-BIH R-peak protocol (single-stage adaptive)
 
 | Metric | Value |
 |--------|-------|
+| Records | 48/48 |
 | Sensitivity | 0.9656 |
 | PPV | 0.6719 |
 | F1 | 0.7924 |
-| TP / FP / FN | 105727 / 51621 / 3767 |
+| Bootstrap | 2000 |
 
-### Macro record-level (bootstrap 95% CI)
-
-| Metric | Mean | 95% CI |
-|--------|------|--------|
-| Sensitivity | 0.9640 | [0.9239, 0.9901] |
-| PPV | 0.6895 | [0.6358, 0.7431] |
-| F1 | 0.7914 | [0.7428, 0.8339] |
-
-**Artifact:** `validation_reports/mitdb_rpeak_validation_official_2026-08-29.json`
-
-## 2. Two-stage MIT-BIH (Stage-2 FP suppressor)
-
-Held-out test split (seed=42, polarity=adaptive, recovery=off):
+## 2. Two-stage MIT-BIH held-out (seed=42, adaptive, recovery off)
 
 | Metric | Value |
 |--------|-------|
 | Test records | 12 |
 | Sensitivity | 0.9377 |
-| PPV | 0.9932 |
+| PPV | **0.9932** |
 | F1 | 0.9646 |
-| TP / FP / FN | 25252 / 173 / 1678 |
 
-Stage-2 recovers PPV (0.67 → 0.99) relative to single-stage pooled MIT-BIH.
-
-**Artifact:** `validation_reports/mitdb_two_stage_validation_2026-08-29.json`
-
-## 3. QT Database QRS-boundary confirmation
+## 3. QTDB single-stage boundary
 
 | Field | Value |
 |-------|-------|
-| Status | `complete` |
 | Records | 105/105 |
-| Detector | adaptive R-peak + delineator |
-| Event tolerance | 75.0 ms |
-| Failures | 0 |
+| Matched | 3351 / 3623 (92.5%) |
+| Onset / offset median abs | 8.0 / 12.0 ms |
+
+## 4. Remaining gates (completed)
+
+### MIT-BIH record 207 polarity lock
+
+| Mode | Sens | PPV | F1 |
+|------|------|-----|-----|
+| single adaptive/positive | 0.147 | 0.111 | 0.127 |
+| **single negative** | **0.922** | **0.718** | **0.807** |
+| two-stage adaptive | 0.133 | 0.751 | 0.226 |
+| **two-stage negative** | **0.907** | **0.951** | **0.929** |
+
+**Policy:** set `polarity="negative"` for record 207. Do not change global adaptive rule.
+
+### Two-stage full pool (adaptive, train 36 / held-out 12)
+
+| Scope | Sens | PPV | F1 |
+|-------|------|-----|-----|
+| Held-out 12 | 0.938 | 0.993 | 0.965 |
+| All 48 (incl. train) | 0.964 | 0.997 | 0.981 |
+
+### Recovery A/B (held-out)
+
+| Setting | Sens | PPV | F1 |
+|---------|------|-----|-----|
+| off | 0.9377 | 0.9932 | 0.9646 |
+| on | 0.9368 | 0.9953 | 0.9651 |
+
+**Keep recovery off by default** (ΔF1 ≈ +0.0005).
+
+### QTDB two-stage (MIT-BIH-trained Stage-2 model)
 
 | Aggregate | Value |
 |-----------|-------|
-| Reference QRS | 3623 |
-| Matched QRS | 3351 (92.5% of reference) |
-| Detected centers | 167264 |
+| Records | 105/105 |
+| Matched | 3319 / 3623 (91.6%) |
+| Detected centers | 101710 |
+| Onset / offset median abs | 8.0 / 12.0 ms |
 
-| Boundary | Median abs (ms) | Mean abs (ms) | p95 abs (ms) |
-|----------|-----------------|---------------|--------------|
-| Onset | 8.0 | 14.8 | 46.0 |
-| Offset | 12.0 | 19.0 | 64.0 |
+Domain shift remains; study-specific calibration recommended before production claims on QTDB.
 
-Single-stage over-detection is expected; prefer the two-stage pipeline for deployment.
-
-**Artifact:** `validation_reports/qtdb_validation_2026-08-29.json`
+**Artifacts:** `mitdb_remaining_validation_2026-08-29.json`, `qtdb_two_stage_validation_2026-08-29.json`
 
 ## Notes
 
-- PhysioNet data were downloaded locally via `wfdb` and are **not** committed.
-- The two-stage `.pkl` model artifact is **not** committed (regenerate with `scripts/benchmark_two_stage_mitdb.py`).
-- Intermediate QTDB checkpoint files are not committed.
-
-## Hard case: MIT-BIH 207
-
-Record 207 is an inverted-lead edge case under the validated adaptive count rule:
-
-| Setting | Sensitivity | PPV |
-|---------|-------------|-----|
-| adaptive / positive (default rule) | ~0.15 | ~0.11 |
-| **negative (explicit)** | **~0.92** | **~0.72** |
-| two-stage + negative | ~0.91 | ~0.94 |
-
-**Guidance:** pass `polarity="negative"` for this recording. Global morphology-score polarity overrides were evaluated on all 48 MIT-BIH records and rejected due to pooled regression.
+- PhysioNet signals and Stage-2 `.pkl` models are **not** redistributed.
