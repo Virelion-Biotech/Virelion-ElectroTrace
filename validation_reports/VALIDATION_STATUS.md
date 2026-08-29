@@ -1,7 +1,7 @@
 # External Validation Status
 
 **Generated:** 2026-08-29 15:57 UTC  
-**Software:** electrotrace 1.7.0  
+**Software:** electrotrace 1.8.0  
 **Protocol date:** 2026-08-29  
 
 This document records live PhysioNet validation runs executed against the public MIT-BIH Arrhythmia and QT Databases. No PhysioNet signal files are redistributed.
@@ -98,3 +98,15 @@ Single-stage over-detection is expected; prefer the two-stage pipeline for deplo
 - PhysioNet data were downloaded locally via `wfdb` and are **not** committed.
 - The two-stage `.pkl` model artifact is **not** committed (regenerate with `scripts/benchmark_two_stage_mitdb.py`).
 - Intermediate QTDB checkpoint files are not committed.
+
+## Hard case: MIT-BIH 207
+
+Record 207 is an inverted-lead edge case under the validated adaptive count rule:
+
+| Setting | Sensitivity | PPV |
+|---------|-------------|-----|
+| adaptive / positive (default rule) | ~0.15 | ~0.11 |
+| **negative (explicit)** | **~0.92** | **~0.72** |
+| two-stage + negative | ~0.91 | ~0.94 |
+
+**Guidance:** pass `polarity="negative"` for this recording. Global morphology-score polarity overrides were evaluated on all 48 MIT-BIH records and rejected due to pooled regression.

@@ -1,0 +1,46 @@
+name: validation-smoke
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1'
+
+jobs:
+  mitdb-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+      - name: Download two MIT-BIH records
+        run: |
+          python - <<'PY'
+          import wfdb
+          from pathlib import Path
+          p = Path('.cache/physionet/mitdb')
+          p.mkdir(parents=True, exist_ok=True)
+          wfdb.dl_database('mitdb', dl_dir=str(p), records=['100', '101'], keep_subdirs=False)
+          print('ok', sorted(x.name for x in p.glob('*'))[:8])
+          PY
+      - name: Smoke validate (2 records)
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from electrotrace.validation_detectors import detect_r_peaks
+          from electrotrace.validation import validate_record, DEFAULT_BEAT_SYMBOLS
+          data = Path('.cache/physionet/mitdb')
+          results = []
+          for rec in ('100', '101'):
+              def detector(sig, fs, _rec=rec):
+                  return detect_r_peaks(sig, fs, polarity='adaptive')
+              r = validate_record(str(data / rec), detector, channel=0, annotation_extension='atr', beat_symbols=sorted(DEFAULT_BEAT_SYMBOLS), tolerance_ms=75)
+              results.append(r.to_dict())
+              print(rec, r.metrics.sensitivity, r.metrics.positive_predictive_value)
+          assert all(x['sensitivity'] > 0.9 for x in results), results
+          print('smoke ok')
+          PY
