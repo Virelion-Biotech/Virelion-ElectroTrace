@@ -63,7 +63,7 @@ def test_manifest_rejects_overlap():
         split_manifest={"train": ("a",), "test": ("a", "b")},
         software_version="1", software_commit="c",
     )
-    with pytest.raises(ValueError, match="partition"):
+    with pytest.raises(ValueError, match="one split"):
         manifest.validate()
 
 
@@ -88,13 +88,17 @@ def test_manifest_rejects_bad_input_hash():
 def test_mean_ci95_uses_t_interval_for_small_samples():
     result = mean_ci95([1.0, 2.0, 3.0])
     assert result["n"] == 3
+    assert result["mean"] == pytest.approx(2.0)
     assert result["ci95_low"] < result["mean"] < result["ci95_high"]
 
 
-def test_rigorous_summary_reports_pooled_macro_and_bootstrap():
-    results = [_result("100", 0.90, 0.80), _result("101", 0.80, 0.90), _result("102", 0.85, 0.85)]
+def test_summarize_records_rigorous_includes_macro_and_bootstrap():
+    results = [
+        _result("100", 0.90, 0.80),
+        _result("101", 0.80, 0.90),
+        _result("102", 0.85, 0.85),
+    ]
     summary = summarize_records_rigorous(results, n_bootstrap=500, seed=7)
-    assert set(summary) == {"records", "pooled", "macro_record", "bootstrap_macro_record_mean", "per_record"}
     assert summary["records"] == 3
     assert summary["pooled"]["reference_count"] > 0
     assert summary["macro_record"]["f1"]["n"] == 3

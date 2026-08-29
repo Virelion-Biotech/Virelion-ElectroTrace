@@ -11,10 +11,12 @@ def test_group_calibration_requires_multiple_records_and_two_classes():
     ])
     y = np.array([1, 1, 0, 1, 0, 0, 1, 0] * 2)
     groups = np.repeat(["a", "b", "c", "d"], 4).astype(object)
-    model, calibration_records = _fit_group_calibrated(X, y, groups, target_recall=0.95, seed=42)
+    model, fit_records, calibration_records = _fit_group_calibrated(X, y, groups, target_recall=0.95, seed=42)
     assert model.metadata.calibration_method == "held_out_record_group_stratified"
     assert model.metadata.calibration_candidates > 0
     assert calibration_records
+    assert fit_records
+    assert set(fit_records).isdisjoint(set(calibration_records))
     assert len(set(calibration_records)) == len(calibration_records)
 
 
