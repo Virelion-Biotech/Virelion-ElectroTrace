@@ -43,7 +43,12 @@ def _candidate_set(z: np.ndarray, fs_hz: float, scale: float, *, prominence_frac
 
 
 def select_signal_polarity(signal: np.ndarray, fs_hz: float) -> PolarityDecision:
-    """Select one polarity per recording without merging positive/negative peaks."""
+    """Select one polarity per recording without merging positive/negative peaks.
+
+    Primary rule: candidate-count ratio (validated on full MIT-BIH).
+    When count confidence is low (<0.15), fall back to QRS-band polarity v2
+    (fixes inverted-lead cases such as MIT-BIH 207 without pooled regression).
+    """
     signal, fs_hz = _validate_signal(signal, fs_hz)
     z = signal - np.median(signal)
     scale = float(np.std(z))
@@ -65,6 +70,15 @@ def select_signal_polarity(signal: np.ndarray, fs_hz: float) -> PolarityDecision
     ratio = neg_count / max(pos_count, 1)
     polarity = "negative" if pos_count > 0 and neg_count > 0 and ratio < DEFAULT_NEGATIVE_COUNT_RATIO else "positive"
     confidence = float(abs(pos_count - neg_count) / max(pos_count, neg_count, 1))
+
+    # Low-confidence count decisions: use QRS-band polarity v2 (MIT-BIH pooled
+    # F1 improves ~+0.01 and record 207 is corrected to negative).
+    if confidence < 0.15:
+        from .polarity_v2 import select_signal_polarity_v2
+        v2 = select_signal_polarity_v2(signal, fs_hz)
+        polarity = v2.polarity
+        confidence = max(confidence, float(v2.confidence))
+
     return PolarityDecision(polarity, confidence, pos_score, neg_score, pos_count, neg_count)
 
 

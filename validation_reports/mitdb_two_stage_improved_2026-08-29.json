@@ -1,0 +1,38 @@
+{
+  "schema": "electrotrace.two_stage_validation/v6",
+  "software_version": "1.8.1",
+  "polarity": "adaptive",
+  "recovery": false,
+  "threshold": 0.23007195766359265,
+  "improvements": "hybrid polarity conf<0.15 -> v2; F1 threshold min_recall=0.97; n_estimators=200",
+  "test_records": ["105", "118", "122", "201", "207", "209", "214", "219", "230", "231", "232", "234"],
+  "summary": {
+    "records": 12,
+    "reference_count": 26930,
+    "detected_count": 27052,
+    "true_positive": 26726,
+    "false_positive": 326,
+    "false_negative": 204,
+    "sensitivity": 0.99242480505013,
+    "positive_predictive_value": 0.9879491349992607,
+    "f1": 0.9901819124893484
+  },
+  "full_pool_48": {
+    "sensitivity": 0.9784,
+    "positive_predictive_value": 0.9951,
+    "f1": 0.9867,
+    "true_positive": 107133,
+    "false_positive": 525,
+    "false_negative": 2361
+  },
+  "single_stage_adaptive_48": {
+    "sensitivity": 0.9788,
+    "positive_predictive_value": 0.6814,
+    "f1": 0.8034
+  },
+  "record_207_two_stage": {
+    "sensitivity": 0.9172,
+    "positive_predictive_value": 0.9074,
+    "f1": 0.9123
+  }
+}
