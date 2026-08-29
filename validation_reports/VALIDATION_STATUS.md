@@ -3,69 +3,52 @@
 **Software:** electrotrace 1.8.1  
 **Primary scientific endpoint:** held-out MIT-BIH test records only (not full-pool)
 
-PhysioNet signals are **not** redistributed. Full-pool metrics include training
-records and are **optimistic**—do not use them as abstract headlines.
-
 ## Unit tests
 
 | Suite | Result |
 |-------|--------|
-| `pytest` | **101 passed** |
+| `pytest` | **103 passed** (incl. baseline detectors) |
 
 ## Protocol freeze (two-stage)
 
 | Field | Value |
 |-------|--------|
 | Split | seed=42, test_fraction=0.25 → 12 held-out / 36 train |
-| Calibration | record-level groups disjoint from model-fit |
 | Tolerance | 75 ms |
 | Polarity | adaptive count; v2 if confidence < 0.15 |
 | Stage-2 RF | n_estimators=200 |
 | Threshold | F1-max on calibration, min_recall=0.97 |
-| Recovery | **off** by default |
 | Evaluation mode | retrospective full-record (not streaming) |
 
-## 1. Primary: two-stage held-out (seed=42, adaptive)
+## 1. Primary: two-stage held-out
 
-| Metric | Value (locked 1.8.1) |
-|--------|----------------------|
-| Test records | 12 |
+| Metric | Value |
+|--------|-------|
 | Sensitivity | **0.9924** |
 | PPV | **0.9879** |
 | F1 | **0.9902** |
-| TP / FP / FN | 26726 / 326 / 204 |
-| Git HEAD | `c50b37a` |
-| Schema | v7 (provenance embedded) |
 
-Record **207** (inverted lead): two-stage adaptive 1.8.1 → sens ≈ 0.92 / PPV ≈ 0.91.
-Always report per-record tables in manuscripts.
+Artifact: `mitdb_two_stage_locked_1.8.1.json`
 
-**Artifact:** `validation_reports/mitdb_two_stage_locked_1.8.1.json`
+## 7. Locked baseline comparison (held-out 12, seed=42)
 
-## 2. Single-stage adaptive (baseline only)
+| Detector | Sens | PPV | F1 |
+|----------|------|-----|-----|
+| **Pan–Tompkins** (research reimpl.) | 0.9908 | **0.9954** | **0.9931** |
+| **ElectroTrace two-stage** | 0.9924 | 0.9879 | 0.9902 |
+| Hamilton (research reimpl.) | 0.9990 | 0.9303 | 0.9634 |
+| ElectroTrace Stage-1 adaptive | 0.9931 | 0.7553 | 0.8580 |
 
-| Metric | 1.8.1 |
-|--------|-------|
-| Sensitivity | 0.9788 |
-| PPV | 0.6814 |
-| F1 | 0.8034 |
+Record 207: Pan–Tompkins F1≈0.96; two-stage≈0.91; Stage-1≈0.81.
 
-Deploy **two-stage** when PPV matters.
+Classical detectors are research reimplementations, not certified reference binaries. Two-stage is competitive with Pan–Tompkins on this split (ΔF1 ≈ 0.003).
 
-## 3. Secondary / optimistic: full-pool 48
-
-Sens 0.978 / PPV 0.995 / F1 0.987 — **not a primary endpoint.**
-
-## 4. QTDB (confirmatory only)
-
-105/105 records; matched ~92%; onset/offset median abs ~8/12 ms. Not a full
-delineation claim.
+**Artifact:** `validation_reports/mitdb_baseline_comparison_locked.json`
 
 ## Explicit non-claims
 
-- Not a clinical device.
-- Not a streaming detector.
+- Not clinical-grade; not streaming.
+- Full-pool is optimistic.
 - MIT-BIH + QTDB do not prove population generalization.
-- Full-pool F1 is not the headline result.
 
 See `docs/PEER_REVIEW_RESPONSE.md`.
