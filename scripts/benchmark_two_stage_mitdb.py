@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import platform
+import subprocess
+import sys
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,6 +22,27 @@ from electrotrace.validation import DEFAULT_BEAT_SYMBOLS, DetectionMetrics, Reco
 from electrotrace.validation_detectors import detect_r_peaks_two_stage
 
 ALLOWED_BEAT_SYMBOLS = DEFAULT_BEAT_SYMBOLS
+
+
+def _run_provenance() -> dict:
+    try:
+        git_head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+    except Exception:
+        git_head = "unknown"
+    pkgs = {}
+    for name in ("numpy", "scipy", "sklearn", "wfdb", "pandas"):
+        try:
+            mod = __import__(name if name != "sklearn" else "sklearn")
+            pkgs[name] = getattr(mod, "__version__", "unknown")
+        except Exception:
+            pkgs[name] = "missing"
+    return {
+        "git_head": git_head,
+        "python": sys.version.split()[0],
+        "platform": platform.platform(),
+        "package_versions": pkgs,
+        "electrotrace_version": __version__,
+    }
 
 
 def _load_record(record: str, data_dir: Path):
@@ -54,7 +78,7 @@ def _candidate_stream(signal: np.ndarray, fs_hz: float, polarity: str, recovery:
     return all_peaks, all_prom, chosen
 
 
-def _record_level_calibration_indices(labels: np.ndarray, groups: np.ndarray, seed: int) -> tuple[np.ndarray, np.ndarray, list[str], list[str]]:
+def _record_level_calibration_indices(labels: np.ndarray, groups: np.ndarray, seed: int):
     labels = np.asarray(labels, dtype=int)
     groups = np.asarray(groups)
     unique_groups = np.unique(groups)
@@ -76,7 +100,7 @@ def _record_level_calibration_indices(labels: np.ndarray, groups: np.ndarray, se
     if len(unique_groups) - calibration_count < 2:
         calibration_count = 1
     rng = np.random.default_rng(seed)
-    calibration_group_idx: np.ndarray | None = None
+    calibration_group_idx = None
     if len(unique_groups) >= 6 and np.bincount(strata, minlength=n_strata).min() >= 2:
         splitter = StratifiedShuffleSplit(n_splits=1, test_size=calibration_count, random_state=seed)
         _, calibration_group_idx = next(splitter.split(unique_groups, strata))
@@ -100,10 +124,10 @@ def _record_level_calibration_indices(labels: np.ndarray, groups: np.ndarray, se
         raise RuntimeError("calibration records overlap model-fitting records")
     if len(np.unique(labels[fit_idx])) < 2 or len(np.unique(labels[calibration_idx])) < 2:
         raise ValueError("record-level calibration split must contain both positive and negative candidates")
-    return (fit_idx, calibration_idx, sorted(str(value) for value in fit_groups), sorted(str(value) for value in calibration_groups))
+    return (fit_idx, calibration_idx, sorted(str(v) for v in fit_groups), sorted(str(v) for v in calibration_groups))
 
 
-def _fit_group_calibrated(features: np.ndarray, labels: np.ndarray, groups: np.ndarray, target_recall: float, seed: int) -> tuple[CandidateSuppressor, list[str], list[str]]:
+def _fit_group_calibrated(features, labels, groups, target_recall, seed):
     labels = np.asarray(labels, dtype=int)
     groups = np.asarray(groups)
     fit_idx, calibration_idx, fit_records, calibration_records = _record_level_calibration_indices(labels, groups, seed)
@@ -124,9 +148,9 @@ def _fit_group_calibrated(features: np.ndarray, labels: np.ndarray, groups: np.n
     return model, fit_records, calibration_records
 
 
-def _train_records(records: list[str], data_dir: Path, polarity: str, recovery: bool, seed: int) -> tuple[CandidateSuppressor, list[str], list[str]]:
-    features: list[np.ndarray] = []; labels: list[np.ndarray] = []; groups: list[np.ndarray] = []
-    feature_names: list[str] | None = None
+def _train_records(records, data_dir, polarity, recovery, seed):
+    features, labels, groups = [], [], []
+    feature_names = None
     for record in records:
         _, rec, signal, refs = _load_record(record, data_dir)
         candidates, prominences, _ = _candidate_stream(signal, float(rec.fs), polarity, recovery)
@@ -139,11 +163,11 @@ def _train_records(records: list[str], data_dir: Path, polarity: str, recovery: 
     return model, fit_records, calibration_records
 
 
-def _evaluate(model: CandidateSuppressor, records: list[str], data_dir: Path, polarity: str, recovery: bool) -> list[dict]:
-    results: list[dict] = []
+def _evaluate(model, records, data_dir, polarity, recovery):
+    results = []
     for record in records:
         base, rec, signal, _ = _load_record(record, data_dir)
-        def detector(test_signal: np.ndarray, fs_hz: float) -> np.ndarray:
+        def detector(test_signal, fs_hz):
             retained, _ = detect_r_peaks_two_stage(test_signal, fs_hz, model, polarity=polarity, recovery=recovery)
             return retained
         result = validate_record(base, detector, channel=0, annotation_extension="atr", beat_symbols=sorted(ALLOWED_BEAT_SYMBOLS), tolerance_ms=75)
@@ -157,7 +181,7 @@ def _evaluate(model: CandidateSuppressor, records: list[str], data_dir: Path, po
     return results
 
 
-def _summary_from_payloads(payloads: list[dict]) -> dict:
+def _summary_from_payloads(payloads):
     results = []
     for p in payloads:
         metrics = DetectionMetrics(
@@ -195,14 +219,34 @@ def main() -> int:
     model, fit_records, calibration_records = _train_records(train_records, data_dir, args.polarity, args.recovery, args.seed)
     record_results = _evaluate(model, test_records, data_dir, args.polarity, args.recovery)
     report = {
-        "schema": "electrotrace.two_stage_validation/v6", "software_version": __version__,
-        "train_records": train_records, "model_fit_records": fit_records,
-        "calibration_records": calibration_records, "test_records": test_records,
-        "polarity": args.polarity, "recovery": bool(args.recovery),
-        "target_recall": model.metadata.target_recall, "threshold": model.metadata.threshold,
+        "schema": "electrotrace.two_stage_validation/v7",
+        "software_version": __version__,
+        "provenance": _run_provenance(),
+        "protocol": {
+            "primary_endpoint": "held_out_test_records_only",
+            "full_pool_is_optimistic": True,
+            "evaluation_mode": "retrospective_full_record",
+            "streaming_claim": False,
+            "tolerance_ms": 75,
+            "seed": args.seed,
+            "test_fraction": args.test_fraction,
+            "n_estimators": 200,
+            "threshold_method": "held_out_record_group_stratified_f1",
+            "min_recall_floor": 0.97,
+            "polarity_rule": "adaptive_count_with_v2_fallback_conf_lt_0.15",
+        },
+        "train_records": train_records,
+        "model_fit_records": fit_records,
+        "calibration_records": calibration_records,
+        "test_records": test_records,
+        "polarity": args.polarity,
+        "recovery": bool(args.recovery),
+        "target_recall": model.metadata.target_recall,
+        "threshold": model.metadata.threshold,
         "model_metadata": model.metadata.to_dict(),
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
-        "record_results": record_results, "summary": _summary_from_payloads(record_results),
+        "record_results": record_results,
+        "summary": _summary_from_payloads(record_results),
     }
     output = Path(args.output); output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
