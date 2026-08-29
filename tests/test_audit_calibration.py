@@ -14,5 +14,5 @@ def test_group_calibration_excludes_calibration_records_from_model_fit():
 
     assert set(fit_records).isdisjoint(calibration_records)
     assert set(fit_records) | set(calibration_records) == set(groups)
-    assert model.metadata.calibration_method == "held_out_record_group_stratified"
+    assert model.metadata.calibration_method == "held_out_record_group_stratified_f1"
     assert model.metadata.n_training_candidates == int(np.sum(np.isin(groups, fit_records)))
