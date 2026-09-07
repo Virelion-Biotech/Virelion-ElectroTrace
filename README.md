@@ -2,17 +2,17 @@
 
 ElectroTrace is a Python/REST research toolkit for ECG and electrophysiology signal import, annotation, beat segmentation, R-peak detection, phenotype extraction, and leakage-aware evaluation.
 
-## Scope
+## What it contains
 
-- CSV, EDF/EDF+, and WFDB ZIP import;
-- signal validation and non-destructive preprocessing;
-- interactive multi-channel annotation;
-- adaptive-polarity R-peak candidate generation;
-- two-stage Random Forest false-positive suppression;
-- beat-level feature and phenotype extraction;
-- subject/record-level validation and experimental-unit-aware statistics;
-- reproducible dataset/software provenance;
+- CSV, EDF/EDF+, and WFDB ZIP import.
+- Signal validation and non-destructive preprocessing.
+- Interactive multi-channel annotation.
+- Adaptive-polarity R-peak candidate generation.
+- Two-stage Random Forest false-positive suppression.
+- Beat-level feature and phenotype extraction.
+- Subject/record-level validation and experimental-unit-aware statistics.
 - REST endpoints and a local web interface.
+- Reproducible dataset/software provenance.
 
 ## Installation
 
@@ -27,60 +27,46 @@ python -m pip install -U pip
 pip install -e '.[test]'
 ```
 
-## Run
+## Usage
+
+Start the local server:
 
 ```bash
 python server.py
 ```
 
-The development server listens on `127.0.0.1:5000`. For non-local deployment, configure `ELECTROTRACE_API_KEY` and use an appropriate TLS-capable reverse proxy.
+The development server listens on `127.0.0.1:5000`.
 
-## R-peak detection
+Python:
 
 ```python
-from electrotrace import detect_r_peaks, detect_r_peaks_two_stage
+from electrotrace import detect_r_peaks
 
 peaks = detect_r_peaks(signal, fs=250, polarity="adaptive")
 ```
 
-For the two-stage research pipeline, use `detect_r_peaks_two_stage` with a trained `CandidateSuppressor` and validate it on the target recording domain before use.
+The REST API exposes recording, filtering, R-peak detection, beat segmentation, ML, phenotype, statistics, and benchmark operations under `/api/`.
 
-## API endpoints
+## Inputs and outputs
 
-- `POST /api/analyze`
-- `POST /api/recording`
-- `GET /api/recording/<id>/window`
-- `POST /api/filter`
-- `POST /api/detect/r-peaks`
-- `POST /api/beats`
-- `POST /api/segment`
-- `POST /api/ml/train`
-- `POST /api/ml/suggest`
-- `POST /api/phenotype`
-- `POST /api/statistics/compare`
-- `POST /api/statistics/fdr`
-- `POST /api/benchmark`
+**Inputs:** ECG/electrophysiology recordings in supported formats, sampling rate and channel metadata, optional annotations, preprocessing parameters, and optional trained detection models.
 
-## Validation status
+**Outputs:** validated recordings, annotations, R-peak locations, beat segments, extracted features/phenotypes, statistical comparisons, benchmark reports, and provenance records.
 
-The repository contains a locked MIT-BIH held-out validation protocol and an INCART external pilot. The current INCART result documents domain shift and is not population-level external validation. Remaining validation work includes full INCART evaluation, certified WFDB baseline comparison, QTDB delineation analysis, and additional independent datasets.
+## Validation
 
-Validation commands and exact protocols are documented under `docs/` and `validation_reports/`.
+The repository contains a locked MIT-BIH held-out validation protocol and an INCART external pilot. Validation documentation and reports are under `docs/` and `validation_reports/`. The current INCART work is an external pilot, not population-level external validation.
 
-## Scientific limitations
-
-ElectroTrace is research software, not a clinical device or validated clinical algorithm. MIT-BIH/QTDB results do not establish population generalization. ECG beats are not automatically independent biological replicates. The current two-stage benchmark is retrospective full-record evaluation and should not be interpreted as real-time performance.
-
-## Testing
+Run software tests with:
 
 ```bash
 pytest -q
 ```
 
+## Limitations
+
+ElectroTrace is research software, not a clinical device or validated clinical algorithm. MIT-BIH/QTDB results do not establish population generalization. ECG beats are not automatically independent biological replicates. The current two-stage benchmark is retrospective full-record evaluation and should not be interpreted as real-time performance.
+
 ## License
 
 GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later). See `LICENSE`.
-
-## Citation
-
-Cite the repository release and the exact validation protocol/dataset versions used in a study.
