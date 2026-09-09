@@ -57,6 +57,8 @@ The REST API exposes recording, filtering, R-peak detection, beat segmentation, 
 
 The repository contains a locked MIT-BIH held-out validation protocol and an INCART external pilot. Validation documentation and reports are under `docs/` and `validation_reports/`. The current INCART work is an external pilot, not population-level external validation.
 
+The two-stage Random Forest suppressor is currently validated primarily in-distribution on MIT-BIH. The existing INCART pilot shows substantial domain shift, so MIT-BIH performance must not be interpreted as evidence that the trained suppressor generalizes to unseen ECG databases. External deployment or cross-database benchmarking should be treated as unsupported until the full external validation protocol and an appropriate calibration/domain-adaptation strategy have been evaluated.
+
 Run software tests with:
 
 ```bash
@@ -65,7 +67,7 @@ pytest -q
 
 ## Limitations
 
-ElectroTrace is research software, not a clinical device or validated clinical algorithm. MIT-BIH/QTDB results do not establish population generalization. ECG beats are not automatically independent biological replicates. The current two-stage benchmark is retrospective full-record evaluation and should not be interpreted as real-time performance.
+ElectroTrace is research software, not a clinical device or validated clinical algorithm. MIT-BIH/QTDB results do not establish population generalization. ECG beats are not automatically independent biological replicates. The current two-stage benchmark is retrospective full-record evaluation and should not be interpreted as real-time performance. The ML false-positive suppression stage may be sensitive to database/domain shift and currently should not be assumed to transfer across datasets without external validation.
 
 ## License
 
