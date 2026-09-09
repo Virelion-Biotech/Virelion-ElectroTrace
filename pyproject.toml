@@ -20,6 +20,11 @@ dependencies = [
 [project.optional-dependencies]
 test = ["pytest>=8.0"]
 
+dev = ["pytest>=8.0", "ruff>=0.6", "build>=1.2"]
+
+[project.scripts]
+electrotrace-hearttwin = "electrotrace.hearttwin_adapter:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
