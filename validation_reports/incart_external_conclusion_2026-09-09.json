@@ -1,0 +1,39 @@
+{
+  "study": "INCART external validation",
+  "n_usable_records": 68,
+  "sensitivity": 0.3239276224218651,
+  "positive_predictive_value": 0.9679370840895342,
+  "f1": 0.4854092796602135,
+  "skipped_records": [
+    {
+      "record": "I04",
+      "reason": "ValueError: I04: negative annotation sample index encountered."
+    },
+    {
+      "record": "I17",
+      "reason": "ValueError: I17: negative annotation sample index encountered."
+    },
+    {
+      "record": "I35",
+      "reason": "ValueError: I35: negative annotation sample index encountered."
+    },
+    {
+      "record": "I44",
+      "reason": "ValueError: I44: negative annotation sample index encountered."
+    },
+    {
+      "record": "I57",
+      "reason": "ValueError: I57: negative annotation sample index encountered."
+    },
+    {
+      "record": "I72",
+      "reason": "ValueError: I72: negative annotation sample index encountered."
+    },
+    {
+      "record": "I74",
+      "reason": "ValueError: I74: negative annotation sample index encountered."
+    }
+  ],
+  "interpretation": "External performance must be interpreted as evidence of cross-database generalization or domain shift, not as evidence of clinical performance.",
+  "next_step": "Benchmark against certified WFDB gqrs/sqrs and perform feature/threshold domain-shift analysis before changing the ML architecture."
+}
