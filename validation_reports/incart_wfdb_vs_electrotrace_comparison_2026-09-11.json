@@ -1,0 +1,52 @@
+{
+  "study": "INCART certified WFDB vs ElectroTrace two-stage",
+  "created_at_utc": "2026-09-11T21:45:13.211409+00:00",
+  "protocol": {
+    "tolerance_ms": 75,
+    "channel": 0,
+    "skip_negative_annotation_indices": true
+  },
+  "certified_wfdb": {
+    "gqrs": {
+      "detected_count": 159068,
+      "f1": 0.929441739613027,
+      "false_negative": 10684,
+      "false_positive": 11692,
+      "mean_record_signed_timing_error_ms": -34.16931953045103,
+      "median_record_absolute_timing_error_ms": 35.01945525291829,
+      "positive_predictive_value": 0.9264968441169814,
+      "records": 68,
+      "reference_count": 158060,
+      "sensitivity": 0.9324054156649374,
+      "true_positive": 147376
+    },
+    "sqrs": {
+      "detected_count": 124420,
+      "f1": 0.8380133106768621,
+      "false_negative": 39699,
+      "false_positive": 6059,
+      "mean_record_signed_timing_error_ms": -23.734137616829283,
+      "median_record_absolute_timing_error_ms": 23.346303501945524,
+      "positive_predictive_value": 0.9513020414724321,
+      "records": 68,
+      "reference_count": 158060,
+      "sensitivity": 0.7488358851069215,
+      "true_positive": 118361
+    }
+  },
+  "electrotrace_two_stage": {
+    "records": 68,
+    "reference_count": 158060,
+    "detected_count": 52896,
+    "true_positive": 51200,
+    "false_positive": 1696,
+    "false_negative": 106860,
+    "sensitivity": 0.3239276224218651,
+    "positive_predictive_value": 0.9679370840895342,
+    "f1": 0.4854092796602135,
+    "mean_record_signed_timing_error_ms": -0.9905436580197159,
+    "median_record_absolute_timing_error_ms": 3.8910505836575875
+  },
+  "interpretation": "Compare aggregate Sens/PPV/F1 under identical matching rules. If gqrs also drops on INCART, the issue is partly domain/signal. If gqrs stays high while ElectroTrace does not, prioritize feature/threshold domain-shift analysis before architecture changes.",
+  "next_step": "Record-level error analysis on worst ElectroTrace INCART records versus gqrs detections; inspect stage-1 candidates and score distributions under the locked MIT-BIH threshold."
+}
