@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import json
 import platform
 import subprocess
@@ -114,22 +115,26 @@ def load_record(record, data_dir):
     return base, rec, signal, refs
 
 
-def candidate_stream(signal, fs_hz, polarity="adaptive"):
+def candidate_stream(signal, fs_hz, polarity="adaptive", scale_method=None):
     from electrotrace.validation_detectors import (
+        DEFAULT_SCALE_METHOD,
         _candidate_set,
         detect_r_peaks,
+        estimate_stage1_scale,
         select_signal_polarity,
     )
 
+    scale_method = scale_method or DEFAULT_SCALE_METHOD
     chosen = polarity
 
     if chosen == "adaptive":
-        chosen = select_signal_polarity(signal, fs_hz).polarity
+        chosen = select_signal_polarity(signal, fs_hz, scale_method=scale_method).polarity
 
     primary = detect_r_peaks(
         signal,
         fs_hz,
         polarity=chosen,
+        scale_method=scale_method,
     )
 
     if len(primary) == 0:
@@ -140,7 +145,7 @@ def candidate_stream(signal, fs_hz, polarity="adaptive"):
         )
 
     z = signal - np.median(signal)
-    scale = float(np.std(z))
+    scale = estimate_stage1_scale(z, fs_hz, method=scale_method)
 
     candidate_signal = (
         z if chosen != "negative" else -z
@@ -155,7 +160,7 @@ def candidate_stream(signal, fs_hz, polarity="adaptive"):
     return primary, prominences, chosen
 
 
-def train_mitdb_model(data_dir, seed=42):
+def train_mitdb_model(data_dir, seed=42, scale_method=None):
     all_features = []
     all_labels = []
     all_groups = []
@@ -171,6 +176,7 @@ def train_mitdb_model(data_dir, seed=42):
             signal,
             float(rec.fs),
             polarity="adaptive",
+            scale_method=scale_method,
         )
 
         features, names = _candidate_features(
@@ -223,6 +229,7 @@ def train_mitdb_model(data_dir, seed=42):
             signal,
             float(rec.fs),
             polarity="adaptive",
+            scale_method=scale_method,
         )
 
         features, _ = _candidate_features(
@@ -269,6 +276,7 @@ def validate_model_on_incart(
     model,
     incart_dir,
     tolerance_ms=75.0,
+    scale_method=None,
 ):
     raw_records = wfdb.get_record_list("incartdb")
 
@@ -303,6 +311,7 @@ def validate_model_on_incart(
                     model,
                     polarity="adaptive",
                     recovery=False,
+                    scale_method=scale_method,
                 )
 
                 return retained
@@ -322,6 +331,7 @@ def validate_model_on_incart(
                 signal,
                 float(rec.fs),
                 polarity="adaptive",
+                scale_method=scale_method,
             )
 
             retained = detector(
@@ -415,6 +425,23 @@ def payload_to_validation(payload):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--scale-method",
+        default=None,
+        choices=["std", "mad", "windowed_mad", "windowed_std", "adaptive"],
+        help=(
+            "Stage-1 amplitude-scale estimator. Default (None) uses "
+            "electrotrace.validation_detectors.DEFAULT_SCALE_METHOD "
+            "('windowed_mad', the Priority-1 fix). Pass 'std' to reproduce "
+            "the pre-fix behavior for an A/B comparison run."
+        ),
+    )
+    args = parser.parse_args()
+
+    from electrotrace.validation_detectors import DEFAULT_SCALE_METHOD
+    scale_method = args.scale_method or DEFAULT_SCALE_METHOD
+
     data_dir = Path(".cache/physionet/mitdb")
     incart_dir = Path(".cache/physionet/incartdb")
 
@@ -429,15 +456,16 @@ def main():
             f"Missing INCART directory: {incart_dir}"
         )
 
-    print("Training locked MIT-BIH model...")
+    print(f"Training locked MIT-BIH model... (scale_method={scale_method})")
     model = train_mitdb_model(
         data_dir,
         seed=42,
+        scale_method=scale_method,
     )
 
     model_path = (
         output_dir /
-        "incart_mitbih_model_2026-09-09.pkl"
+        f"incart_mitbih_model_{scale_method}_2026-09-09.pkl"
     )
 
     model.save(model_path)
@@ -448,6 +476,7 @@ def main():
         model,
         incart_dir,
         tolerance_ms=75.0,
+        scale_method=scale_method,
     )
 
     validation_objects = [
@@ -487,6 +516,7 @@ def main():
             "n_estimators": 150,
             "polarity": "adaptive",
             "recovery": False,
+            "stage1_scale_method": scale_method,
             "evaluation": "external_record_level",
             "incart_annotations_used_for_model_selection": False,
         },
@@ -504,7 +534,7 @@ def main():
 
     output = (
         output_dir /
-        "incart_two_stage_external_full_2026-09-09.json"
+        f"incart_two_stage_external_full_{scale_method}_2026-09-09.json"
     )
 
     output.write_text(

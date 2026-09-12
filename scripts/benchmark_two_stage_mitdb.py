@@ -54,21 +54,31 @@ def _load_record(record: str, data_dir: Path):
     return base, rec, signal, refs
 
 
-def _candidate_stream(signal: np.ndarray, fs_hz: float, polarity: str, recovery: bool):
-    from electrotrace.validation_detectors import _candidate_set, detect_r_peaks, recover_stage1_candidates, select_signal_polarity
+def _candidate_stream(signal: np.ndarray, fs_hz: float, polarity: str, recovery: bool, scale_method: str | None = None):
+    from electrotrace.validation_detectors import (
+        DEFAULT_SCALE_METHOD,
+        _candidate_set,
+        detect_r_peaks,
+        estimate_stage1_scale,
+        recover_stage1_candidates,
+        select_signal_polarity,
+    )
+    scale_method = scale_method or DEFAULT_SCALE_METHOD
     chosen = polarity
     if chosen == "adaptive":
-        chosen = select_signal_polarity(signal, fs_hz).polarity
-    primary = detect_r_peaks(signal, fs_hz, polarity=chosen)
+        chosen = select_signal_polarity(signal, fs_hz, scale_method=scale_method).polarity
+    primary = detect_r_peaks(signal, fs_hz, polarity=chosen, scale_method=scale_method)
     if len(primary) == 0:
         return np.asarray([], dtype=int), np.asarray([], dtype=float), chosen
     z = signal - np.median(signal)
-    scale = float(np.std(z))
+    scale = estimate_stage1_scale(z, fs_hz, method=scale_method)
     candidate_signal = z if chosen != "negative" else -z
     primary, prominences = _candidate_set(candidate_signal, fs_hz, scale)
     if not recovery:
         return primary, prominences, chosen
-    extra, extra_prom = recover_stage1_candidates(signal, fs_hz, primary, polarity=chosen)
+    extra, extra_prom = recover_stage1_candidates(
+        signal, fs_hz, primary, polarity=chosen, scale_method=scale_method
+    )
     if len(extra) == 0:
         return primary, prominences, chosen
     all_peaks = np.sort(np.concatenate([primary, extra]))
@@ -148,12 +158,12 @@ def _fit_group_calibrated(features, labels, groups, target_recall, seed):
     return model, fit_records, calibration_records
 
 
-def _train_records(records, data_dir, polarity, recovery, seed):
+def _train_records(records, data_dir, polarity, recovery, seed, scale_method=None):
     features, labels, groups = [], [], []
     feature_names = None
     for record in records:
         _, rec, signal, refs = _load_record(record, data_dir)
-        candidates, prominences, _ = _candidate_stream(signal, float(rec.fs), polarity, recovery)
+        candidates, prominences, _ = _candidate_stream(signal, float(rec.fs), polarity, recovery, scale_method)
         X, names = _candidate_features(signal, float(rec.fs), candidates, prominences)
         y = label_candidates(candidates, refs, float(rec.fs))
         features.append(X); labels.append(y); groups.append(np.full(len(y), record, dtype=object)); feature_names = names
@@ -163,16 +173,20 @@ def _train_records(records, data_dir, polarity, recovery, seed):
     return model, fit_records, calibration_records
 
 
-def _evaluate(model, records, data_dir, polarity, recovery):
+def _evaluate(model, records, data_dir, polarity, recovery, scale_method=None):
+    from electrotrace.validation_detectors import DEFAULT_SCALE_METHOD
+    scale_method = scale_method or DEFAULT_SCALE_METHOD
     results = []
     for record in records:
         base, rec, signal, _ = _load_record(record, data_dir)
         def detector(test_signal, fs_hz):
-            retained, _ = detect_r_peaks_two_stage(test_signal, fs_hz, model, polarity=polarity, recovery=recovery)
+            retained, _ = detect_r_peaks_two_stage(
+                test_signal, fs_hz, model, polarity=polarity, recovery=recovery, scale_method=scale_method,
+            )
             return retained
         result = validate_record(base, detector, channel=0, annotation_extension="atr", beat_symbols=sorted(ALLOWED_BEAT_SYMBOLS), tolerance_ms=75)
         payload = result.to_dict()
-        candidates, _, _ = _candidate_stream(signal, float(rec.fs), polarity, recovery)
+        candidates, _, _ = _candidate_stream(signal, float(rec.fs), polarity, recovery, scale_method)
         retained = detector(signal, float(rec.fs))
         payload["stage1_detected"] = int(len(candidates))
         payload["stage2_retained"] = int(len(retained))
@@ -207,17 +221,34 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--polarity", choices=["positive", "negative", "adaptive"], default="positive")
     parser.add_argument("--recovery", action="store_true")
+    parser.add_argument(
+        "--scale-method",
+        default=None,
+        choices=["std", "mad", "windowed_mad", "windowed_std", "adaptive"],
+        help=(
+            "Stage-1 amplitude-scale estimator. Default (None) uses "
+            "electrotrace.validation_detectors.DEFAULT_SCALE_METHOD "
+            "('windowed_mad', the Priority-1 fix). Pass 'std' to reproduce "
+            "the pre-fix behavior for a non-regression A/B run, e.g.:\n"
+            "  python scripts/benchmark_two_stage_mitdb.py --data-dir .cache/physionet/mitdb "
+            "--scale-method std --output validation_reports/mitdb_std_baseline.json\n"
+            "  python scripts/benchmark_two_stage_mitdb.py --data-dir .cache/physionet/mitdb "
+            "--scale-method windowed_mad --output validation_reports/mitdb_windowed_mad.json"
+        ),
+    )
     args = parser.parse_args()
     if not 0 < args.test_fraction < 1:
         raise SystemExit("--test-fraction must be between 0 and 1")
+    from electrotrace.validation_detectors import DEFAULT_SCALE_METHOD
+    scale_method = args.scale_method or DEFAULT_SCALE_METHOD
     data_dir = Path(args.data_dir)
     records = list(wfdb.get_record_list("mitdb"))
     rng = np.random.default_rng(args.seed)
     shuffled = records.copy(); rng.shuffle(shuffled)
     n_test = max(1, int(round(len(shuffled) * args.test_fraction)))
     test_records = sorted(shuffled[:n_test]); train_records = sorted(shuffled[n_test:])
-    model, fit_records, calibration_records = _train_records(train_records, data_dir, args.polarity, args.recovery, args.seed)
-    record_results = _evaluate(model, test_records, data_dir, args.polarity, args.recovery)
+    model, fit_records, calibration_records = _train_records(train_records, data_dir, args.polarity, args.recovery, args.seed, scale_method)
+    record_results = _evaluate(model, test_records, data_dir, args.polarity, args.recovery, scale_method)
     report = {
         "schema": "electrotrace.two_stage_validation/v7",
         "software_version": __version__,
@@ -234,6 +265,7 @@ def main() -> int:
             "threshold_method": "held_out_record_group_stratified_f1",
             "min_recall_floor": 0.97,
             "polarity_rule": "adaptive_count_with_v2_fallback_conf_lt_0.15",
+            "stage1_scale_method": scale_method,
         },
         "train_records": train_records,
         "model_fit_records": fit_records,
