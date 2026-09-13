@@ -11,8 +11,10 @@ from scipy import signal as sps
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import StratifiedShuffleSplit
 
+from .scale_estimation import DEFAULT_SCALE_METHOD, estimate_scale
+
 SUPPRESSOR_VERSION = "rf-candidate-suppressor-v4"
-FEATURE_SCHEMA_VERSION = "candidate-features-v3"
+FEATURE_SCHEMA_VERSION = "candidate-features-v4"  # bumped: feature normalization changed (see below)
 DEFAULT_TARGET_RECALL = 0.995
 DEFAULT_TOLERANCE_S = 0.075
 DEFAULT_CALIBRATION_FRACTION = 0.20
@@ -73,8 +75,24 @@ def _candidate_features(
     candidate_indices: Sequence[int],
     prominences: Sequence[float] | None = None,
     window_s: float = 0.25,
+    *,
+    scale_method: str = DEFAULT_SCALE_METHOD,
 ) -> tuple[np.ndarray, list[str]]:
-    """Extract candidate features in bounded vectorized chunks."""
+    """Extract candidate features in bounded vectorized chunks.
+
+    scale_method controls how `global_scale` (used to normalize both the
+    z-signal and prominences below) is estimated. Originally a plain global
+    std, which has the same fragile-global-statistic problem Stage-1 had:
+    for a record with severe multi-minute DC drift (e.g. INCART I03, ~8mV
+    drift vs ~0.3-0.5mV true QRS amplitude), global std is dominated by the
+    drift, so true-beat prominences normalize to near-zero and look like
+    noise to the RF -- even when Stage-1 generates plenty of correct
+    candidates. Defaulting to the same windowed_std estimator used in
+    Stage-1 fixes this (see scale_estimation.py for the full history).
+    Changing this default changes the feature space the RF is trained on,
+    hence the FEATURE_SCHEMA_VERSION bump above -- requires a full retrain,
+    not just reloading an old model.
+    """
     signal, fs_hz = _validate_signal(signal, fs_hz)
     candidates = np.asarray(candidate_indices, dtype=int)
     if candidates.ndim != 1:
@@ -85,7 +103,7 @@ def _candidate_features(
         raise ValueError("window_s must be positive and finite")
 
     base = signal - np.median(signal)
-    global_scale = float(np.std(base)) or 1.0
+    global_scale = estimate_scale(base, fs_hz, method=scale_method) or 1.0
     zsignal = base / global_scale
     prominences = np.zeros(len(candidates), dtype=float) if prominences is None else np.asarray(prominences, dtype=float)
     if prominences.ndim != 1 or len(prominences) != len(candidates):

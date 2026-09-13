@@ -7,134 +7,24 @@ import numpy as np
 from scipy import signal as sps
 
 from .candidate_suppressor import CandidateSuppressor, _candidate_features
+from .scale_estimation import (
+    DEFAULT_ADAPTIVE_INFLATION_RATIO,
+    DEFAULT_SCALE_METHOD,
+    DEFAULT_SCALE_WINDOW_S,
+    estimate_scale,
+    estimate_stage1_scale,
+)
 
 DEFAULT_NEGATIVE_COUNT_RATIO = 0.70
 DEFAULT_RECOVERY_GAP_RATIO = 1.65
 DEFAULT_RECOVERY_PROMINENCE = 0.25
 
-# --- Stage-1 amplitude-scale estimation -----------------------------------
-#
-# Priority-1 fix (see docs/PRIORITY1_STAGE1_HANDOFF.md): Stage-1 candidate
-# generation used a single global `std(signal)` to set the prominence
-# threshold for the *entire* record. On INCART, a short high-amplitude
-# noise/artifact segment inflates that one number, which raises the
-# threshold everywhere else in the record and starves candidate generation
-# even over otherwise clean QRS complexes (`stage1_candidates / reference`
-# as low as ~0.01 on the Priority-1 focus records, versus gqrs F1 > 0.98 on
-# the same records). "std" is kept only for exact backward-compatibility /
-# A-B comparison against the pre-fix behavior.
-#
-# IMPORTANT: real-data validation on full INCART (2026-09-12) showed
-# "windowed_mad" fixes the 3 artifact-burst-style focus records but causes
-# a large *net regression* on the aggregate (F1 0.4854 -> 0.3358, sens
-# 0.324 -> 0.203) because MAD's median-based robustness breaks down once a
-# window's "elevated" (QRS/T) fraction exceeds ~50%, which happens on
-# faster/wider-complex INCART records. DEFAULT_SCALE_METHOD is reverted to
-# "std" until a method is found that doesn't regress the full set — see
-# "windowed_std" below, not yet validated on real data as of this writing.
-DEFAULT_SCALE_METHOD = "windowed_std"
-DEFAULT_SCALE_WINDOW_S = 8.0
-DEFAULT_ADAPTIVE_INFLATION_RATIO = 1.5
-_MAD_TO_STD = 1.4826
-
-
-def _mad_scale(x: np.ndarray) -> float:
-    """Robust scale estimate: 1.4826 * MAD, falling back to std if MAD is ~0
-    (e.g. a flat/quantized segment) so the estimator never silently returns
-    zero and disables the prominence threshold entirely."""
-    med = float(np.median(x))
-    mad = float(np.median(np.abs(x - med)))
-    if mad > 1e-12:
-        return _MAD_TO_STD * mad
-    return float(np.std(x))
-
-
-def estimate_stage1_scale(
-    z: np.ndarray,
-    fs_hz: float,
-    *,
-    method: str = DEFAULT_SCALE_METHOD,
-    window_s: float = DEFAULT_SCALE_WINDOW_S,
-    inflation_ratio: float = DEFAULT_ADAPTIVE_INFLATION_RATIO,
-) -> float:
-    """Estimate the amplitude scale used to set the Stage-1 prominence threshold.
-
-    method="std"
-        The original global standard deviation. A single artifact/noise
-        burst inflates it for the whole record. Kept only for
-        backward-compatible / A-B comparison runs.
-    method="mad"
-        Global robust scale (1.4826 * MAD). Resistant to a *few* extreme
-        samples, but still one record-wide number, so a long noisy segment
-        can still dominate it.
-    method="windowed_mad"
-        Splits the record into `window_s`-second blocks, computes a robust
-        (MAD) scale per block, and takes the *median across blocks*. A
-        minority of corrupted blocks can no longer set the threshold for
-        the whole record — this is what fixes the INCART starvation.
-
-        Caveat found during real-data validation: MAD is only robust to a
-        *minority* of "outlier" samples per window. On faster/wider-complex
-        records, QRS+T can occupy >50% of an 8s window, which flips what
-        the median tracks from the quiet baseline to the QRS/T amplitude
-        itself, over-suppressing real beats. See method="windowed_std".
-    method="windowed_std"
-        Same windowing as "windowed_mad", but takes the median of per-window
-        plain std instead of MAD. Keeps std's continuous behavior (no
-        discrete flip once a window's "elevated" fraction crosses ~50%)
-        while still discounting a minority of corrupted windows.
-
-        Real-data validation (2026-09-12): recovers the 5 Priority-1 focus
-        records dramatically (e.g. I56 sensitivity 0.0018 -> 0.2628) and
-        mostly un-does windowed_mad's collateral damage on records where
-        "std" already worked (I69 0.9332 -> 0.8887, vs windowed_mad's
-        0.0946). Net INCART aggregate F1 is still slightly below "std"
-        (0.4716 vs 0.4854) — a dozen or so mid-performing records get
-        moderately worse even as the worst ones improve a lot. See
-        method="adaptive" for a per-record compromise.
-    method="adaptive"
-        Uses "std" by default, but falls back to "windowed_std" on a
-        per-record basis when the record's own global std looks inflated
-        relative to its own windowed estimate — i.e. when
-        std(z) / windowed_std(z) > inflation_ratio. This is a purely
-        signal-derived check (no reference annotations involved, so it
-        doesn't touch the "no INCART labels" constraint) intended to catch
-        exactly the artifact-burst records without changing behavior on
-        records where "std" already works fine. Not yet validated on real
-        data as of this writing — inflation_ratio is a starting guess.
-    """
-    z = np.asarray(z, dtype=float)
-    method = str(method).lower()
-    if method == "std":
-        return float(np.std(z))
-    if method == "mad":
-        return _mad_scale(z)
-    if method in ("windowed_mad", "windowed_std"):
-        window = max(1, int(round(fs_hz * window_s)))
-        n = z.size
-        if n <= window:
-            return _mad_scale(z) if method == "windowed_mad" else float(np.std(z))
-        min_block = max(4, window // 4)
-        local_scales = []
-        for start in range(0, n, window):
-            seg = z[start:start + window]
-            if seg.size < min_block:
-                continue
-            s = _mad_scale(seg) if method == "windowed_mad" else float(np.std(seg))
-            if np.isfinite(s) and s > 0:
-                local_scales.append(s)
-        if not local_scales:
-            return _mad_scale(z) if method == "windowed_mad" else float(np.std(z))
-        return float(np.median(local_scales))
-    if method == "adaptive":
-        global_std = float(np.std(z))
-        windowed_std = estimate_stage1_scale(z, fs_hz, method="windowed_std", window_s=window_s)
-        if windowed_std <= 0 or not np.isfinite(windowed_std):
-            return global_std
-        if global_std / windowed_std > inflation_ratio:
-            return windowed_std
-        return global_std
-    raise ValueError(f"unknown scale method: {method!r}")
+# Scale estimation (DEFAULT_SCALE_METHOD, estimate_stage1_scale, etc.) now
+# lives in scale_estimation.py, imported above -- Stage 2's feature
+# normalization (candidate_suppressor.py) needed the same fix (see that
+# module's docstring for the full history/numbers), and validation_detectors.py
+# already imports FROM candidate_suppressor.py, so the shared logic had to
+# move to a third module to avoid a circular import.
 
 
 @dataclass(frozen=True)
@@ -329,6 +219,6 @@ def detect_r_peaks_two_stage(
             prom_map.update({int(idx): float(prom) for idx, prom in zip(extra_peaks, extra_prom)})
             all_prom = np.asarray([prom_map[int(idx)] for idx in all_peaks], dtype=float)
 
-    features, _ = _candidate_features(signal, fs_hz, all_peaks, all_prom)
+    features, _ = _candidate_features(signal, fs_hz, all_peaks, all_prom, scale_method=scale_method)
     retained, probabilities = suppressor.filter_candidates(all_peaks, features, threshold=threshold)
     return retained.astype(int), probabilities.astype(float)

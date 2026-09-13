@@ -159,12 +159,14 @@ def _fit_group_calibrated(features, labels, groups, target_recall, seed):
 
 
 def _train_records(records, data_dir, polarity, recovery, seed, scale_method=None):
+    from electrotrace.validation_detectors import DEFAULT_SCALE_METHOD
+    scale_method = scale_method or DEFAULT_SCALE_METHOD
     features, labels, groups = [], [], []
     feature_names = None
     for record in records:
         _, rec, signal, refs = _load_record(record, data_dir)
         candidates, prominences, _ = _candidate_stream(signal, float(rec.fs), polarity, recovery, scale_method)
-        X, names = _candidate_features(signal, float(rec.fs), candidates, prominences)
+        X, names = _candidate_features(signal, float(rec.fs), candidates, prominences, scale_method=scale_method)
         y = label_candidates(candidates, refs, float(rec.fs))
         features.append(X); labels.append(y); groups.append(np.full(len(y), record, dtype=object)); feature_names = names
     model, fit_records, calibration_records = _fit_group_calibrated(

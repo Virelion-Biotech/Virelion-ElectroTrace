@@ -161,6 +161,9 @@ def candidate_stream(signal, fs_hz, polarity="adaptive", scale_method=None):
 
 
 def train_mitdb_model(data_dir, seed=42, scale_method=None):
+    from electrotrace.scale_estimation import DEFAULT_SCALE_METHOD
+    scale_method = scale_method or DEFAULT_SCALE_METHOD
+
     all_features = []
     all_labels = []
     all_groups = []
@@ -184,6 +187,7 @@ def train_mitdb_model(data_dir, seed=42, scale_method=None):
             float(rec.fs),
             candidates,
             prominences,
+            scale_method=scale_method,
         )
 
         labels = label_candidates(
@@ -237,6 +241,7 @@ def train_mitdb_model(data_dir, seed=42, scale_method=None):
             float(rec.fs),
             candidates,
             prominences,
+            scale_method=scale_method,
         )
 
         labels = label_candidates(
