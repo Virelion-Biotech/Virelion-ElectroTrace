@@ -20,12 +20,6 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Topic :: Scientific/Engineering",
 ]
-[project.urls]
-Homepage = "https://github.com/Virelion-Biotech/Virelion-ElectroTrace"
-Documentation = "https://github.com/Virelion-Biotech/Virelion-ElectroTrace/tree/main/docs"
-Repository = "https://github.com/Virelion-Biotech/Virelion-ElectroTrace"
-Issues = "https://github.com/Virelion-Biotech/Virelion-ElectroTrace/issues"
-
 dependencies = [
   "numpy>=1.24",
   "pandas>=2.0",
@@ -67,6 +61,12 @@ electrotrace-hearttwin = "electrotrace.hearttwin_adapter:main"
 
 [project.entry-points."electrotrace.detectors"]
 # Third-party detector packages register callables here.
+
+[project.urls]
+Homepage = "https://github.com/Virelion-Biotech/Virelion-ElectroTrace"
+Documentation = "https://github.com/Virelion-Biotech/Virelion-ElectroTrace/tree/main/docs"
+Repository = "https://github.com/Virelion-Biotech/Virelion-ElectroTrace"
+Issues = "https://github.com/Virelion-Biotech/Virelion-ElectroTrace/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
