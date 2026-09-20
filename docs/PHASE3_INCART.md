@@ -16,7 +16,7 @@ The script is scripts/phase3_incart_ablation.py.
 
 ## Colab
 
-The historical pickle model is retrieved from the 201096a source snapshot, while the hardening branch uses skops for new model artifacts. skops is designed for safer scikit-learn model persistence and supports auditing unknown serialized types before loading. citeturn468255search0turn468255search1
+The historical pickle model is retrieved from the 201096a source snapshot, while the hardening branch uses skops for new model artifacts. skops is designed for safer scikit-learn model persistence and supports auditing unknown serialized types before loading.
 
 ```python
 # Cell 1: clone the hardening branch
@@ -59,6 +59,6 @@ print(json.dumps(report["summary_by_transform"], indent=2, sort_keys=True))
 print("skipped:", len(report["skipped_records"]))
 ```
 
-For a strict historical-model conversion, use the scikit-learn version associated with the original artifact before conversion. PyPI has scikit-learn 1.9.0 and 1.9.1; the latter was released September 10, 2026. citeturn347126search0turn347126search1
+For a strict historical-model conversion, use the scikit-learn version associated with the original artifact before conversion. PyPI has scikit-learn 1.9.0 and 1.9.1; the latter was released September 10, 2026.
 
 After the run, copy the JSON back as a new dated evidence artifact. Do not overwrite the existing locked reports.
