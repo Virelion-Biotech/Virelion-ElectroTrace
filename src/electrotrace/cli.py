@@ -203,11 +203,12 @@ def cmd_batch(args: argparse.Namespace) -> int:
         key = str(path.relative_to(root))
         cached = state.get(key)
         current_hash = _record_hash(path)
+        peak_file_rel = Path("peaks") / path.relative_to(root).with_suffix(".csv")
         if (
             args.resume
             and cached
             and cached.get("source_sha256") == current_hash
-            and Path(cached["peak_file"]).exists()
+            and (output / cached.get("peak_file", "")).exists()
         ):
             return cached, []
 
@@ -221,7 +222,7 @@ def cmd_batch(args: argparse.Namespace) -> int:
             peaks = np.asarray(spec.detector(signal, record.sampling_rate_hz), dtype=int)
             probabilities = np.full(len(peaks), np.nan)
 
-        peak_file = (peaks_dir / f"{path.stem}.csv").resolve()
+        peak_file = output / peak_file_rel
         beat_rows = [
             {
                 "record": key,
@@ -246,7 +247,7 @@ def cmd_batch(args: argparse.Namespace) -> int:
             "n_peaks": int(len(peaks)),
             "detector": spec.name,
             "detector_version": spec.version,
-            "peak_file": str(peak_file),
+            "peak_file": str(peak_file_rel),
         }
         return row, beat_rows
 
@@ -457,6 +458,33 @@ def cmd_bench(args: argparse.Namespace) -> int:
             row["detector_version"] = spec.version
             rows.append(row)
 
+    input_files = {}
+    for record in records:
+        record_path = record
+        for name, digest in _record_file_hashes(record_path).items():
+            input_files[f"{record_path.stem}::{name}"] = digest
+
+    manifest = DatasetManifest(
+        dataset_id=Path(args.input_dir).name,
+        dataset_version="1",
+        source=str(Path(args.input_dir).resolve()),
+        records=tuple(record.stem for record in records),
+        input_files=input_files,
+        detector_config={
+            "detectors": [row["detector"] for row in summaries],
+            "tolerance_ms": args.tolerance_ms,
+            "channel": args.channel,
+            "annotation": args.annotation,
+            "seed": args.seed,
+            "bootstrap": args.bootstrap,
+        },
+        software_version=__version__,
+        software_commit=_git_sha(),
+    ).to_dict()
+    manifest["manifest_sha256"] = hashlib.sha256(
+        json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
     payload = {
         "protocol": {
             "tolerance_ms": args.tolerance_ms,
@@ -466,6 +494,7 @@ def cmd_bench(args: argparse.Namespace) -> int:
             "bootstrap": args.bootstrap,
             "git_sha": _git_sha(),
         },
+        "manifest": manifest,
         "summaries": summaries,
         "records": rows,
         "failures": failures,
