@@ -18,6 +18,12 @@ from .scale_estimation import (
 DEFAULT_NEGATIVE_COUNT_RATIO = 0.70
 DEFAULT_RECOVERY_GAP_RATIO = 1.65
 DEFAULT_RECOVERY_PROMINENCE = 0.25
+DEFAULT_DUAL_POLARITY_MERGE_WINDOW_S = 0.10
+MERGE_FEATURE_SCOPES = ("per_stream", "pooled")
+MERGE_SCOPES = ("all", "gaps")
+# Opposite-polarity candidates must rise this many scale-units above the median
+# baseline (in their own polarity). See _score_dual_polarity_streams.
+DEFAULT_MINORITY_MIN_PEAK_SCALE = 0.25
 
 # Scale estimation (DEFAULT_SCALE_METHOD, estimate_stage1_scale, etc.) now
 # lives in scale_estimation.py, imported above -- Stage 2's feature
@@ -227,6 +233,213 @@ def recover_stage1_candidates(
     return np.asarray([idx for idx, _ in selected], dtype=int), np.asarray([prom for _, prom in selected], dtype=float)
 
 
+def _merge_dual_polarity_candidates(
+    peaks: np.ndarray,
+    probabilities: np.ndarray,
+    merge_window_s: float,
+    fs_hz: float,
+    prominences: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """NMS over RF-retained candidates from both polarity streams: within
+    `merge_window_s`, keep only the highest-probability candidate. Returns
+    (peaks, probabilities) sorted by sample index. Note this only removes
+    Q/R/S-scale double counts (~30-100 ms); T-waves sit ~150-250 ms after the
+    QRS and must be rejected by the classifier, not by this window."""
+    peaks = np.asarray(peaks, dtype=int)
+    probabilities = np.asarray(probabilities, dtype=float)
+    if peaks.size == 0:
+        return peaks, probabilities
+    window = max(1, int(round(float(merge_window_s) * float(fs_hz))))
+    # RF probabilities saturate (many candidates at exactly 1.0), so break ties
+    # by Stage-1 prominence instead of by sample order.
+    if prominences is None:
+        order = np.argsort(-probabilities, kind="stable")
+    else:
+        order = np.lexsort((-np.asarray(prominences, dtype=float), -probabilities))
+    kept: list[int] = []
+    kept_peaks = np.empty(0, dtype=int)
+    for i in order:
+        p = int(peaks[i])
+        if kept_peaks.size and np.any(np.abs(kept_peaks - p) <= window):
+            continue
+        kept.append(int(i))
+        kept_peaks = np.append(kept_peaks, p)
+    kept_arr = np.asarray(sorted(kept, key=lambda i: int(peaks[i])), dtype=int)
+    return peaks[kept_arr], probabilities[kept_arr]
+
+
+def _score_dual_polarity_streams(
+    signal: np.ndarray,
+    fs_hz: float,
+    suppressor: CandidateSuppressor,
+    *,
+    scale_method: str,
+    feature_scope: str = "per_stream",
+    minority_stream: int | None = None,
+    minority_min_peak_scale: float = 0.0,
+) -> dict[str, np.ndarray]:
+    """Generate Stage-1 candidates under BOTH polarities and score them with the
+    (unretrained) Stage-2 RF. Returns parallel arrays: peaks, probabilities,
+    stream (0 = positive-going, 1 = negative-going), sorted by peak index.
+
+    feature_scope controls how the RF's candidate-list-dependent features
+    (rr_prev_s, rr_next_s, rr_prev_ratio, rr_next_ratio, and the record RR
+    median they are normalised by) are computed:
+
+    "per_stream" (default): features are extracted separately for each
+        polarity's own candidate list -- exactly the distribution the RF was
+        trained on (a single polarity stream, >= 250 ms apart by construction
+        of _candidate_set). This is the corrected behaviour.
+    "pooled": features are extracted on the sorted union of both streams.
+        The RR features then describe distances to *opposite-polarity*
+        neighbours (S-wave / T-wave / notch candidates 30-250 ms away) and
+        rr_median collapses to roughly half the true RR, a feature
+        distribution the RF never saw in training. Kept only to reproduce and
+        A/B the original dual-polarity experiment.
+
+    minority_stream / minority_min_peak_scale: scipy's prominence is measured
+    down to the nearest HIGHER peak on each side. In the mirrored (-z) view of
+    a positive-going record the QRS complexes are deep valleys, so the highest
+    isoelectric-baseline noise maximum within a few beats inherits a huge
+    "prominence" (~ the R-wave depth) despite sitting at baseline level. Such
+    candidates -- like S-wave / ST / PR valleys -- never appear as labelled
+    negatives in single-polarity training, so the RF has no basis for rejecting
+    them. Candidates of the minority stream whose own-polarity peak value is
+    below `minority_min_peak_scale * scale` are therefore dropped before
+    scoring (0 disables).
+    """
+    if feature_scope not in MERGE_FEATURE_SCOPES:
+        raise ValueError(f"feature_scope must be one of {MERGE_FEATURE_SCOPES}")
+    z = signal - np.median(signal)
+    scale = estimate_stage1_scale(z, fs_hz, method=scale_method)
+    empty = {
+        "peaks": np.empty(0, dtype=int), "probabilities": np.empty(0, dtype=float),
+        "stream": np.empty(0, dtype=int), "prominences": np.empty(0, dtype=float),
+    }
+    if not np.isfinite(scale) or scale == 0:
+        return empty
+    streams = []
+    for stream_id, sig in enumerate((z, -z)):
+        peaks, prom = _candidate_set(sig, fs_hz, scale)
+        if stream_id == minority_stream and minority_min_peak_scale > 0 and peaks.size:
+            floor = float(minority_min_peak_scale) * scale
+            keep_floor = sig[peaks] >= floor
+            peaks, prom = peaks[keep_floor], prom[keep_floor]
+        streams.append((stream_id, peaks, prom))
+
+    if feature_scope == "pooled":
+        peaks = np.concatenate([s[1] for s in streams])
+        prom = np.concatenate([s[2] for s in streams])
+        stream = np.concatenate([np.full(len(s[1]), s[0], dtype=int) for s in streams])
+        if peaks.size == 0:
+            return empty
+        order = np.argsort(peaks, kind="stable")
+        peaks, prom, stream = peaks[order], prom[order], stream[order]
+        features, _ = _candidate_features(signal, fs_hz, peaks, prom, scale_method=scale_method)
+        return {"peaks": peaks, "probabilities": suppressor.predict_proba(features), "stream": stream, "prominences": prom}
+
+    out_peaks, out_prob, out_stream, out_prom = [], [], [], []
+    for stream_id, peaks, prom in streams:
+        if peaks.size == 0:
+            continue
+        features, _ = _candidate_features(signal, fs_hz, peaks, prom, scale_method=scale_method)
+        out_peaks.append(peaks)
+        out_prob.append(suppressor.predict_proba(features))
+        out_stream.append(np.full(len(peaks), stream_id, dtype=int))
+        out_prom.append(prom)
+    if not out_peaks:
+        return empty
+    peaks = np.concatenate(out_peaks)
+    order = np.argsort(peaks, kind="stable")
+    return {
+        "peaks": peaks[order], "probabilities": np.concatenate(out_prob)[order],
+        "stream": np.concatenate(out_stream)[order], "prominences": np.concatenate(out_prom)[order],
+    }
+
+
+def _gap_fill_minority(
+    majority_peaks: np.ndarray,
+    minority_peaks: np.ndarray,
+    minority_prob: np.ndarray,
+    fs_hz: float,
+    *,
+    gap_ratio: float = DEFAULT_RECOVERY_GAP_RATIO,
+    merge_window_s: float = DEFAULT_DUAL_POLARITY_MERGE_WINDOW_S,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Accept opposite-polarity candidates ONLY inside unusually long RR gaps of
+    the majority-polarity beat train (e.g. the compensatory pause around a
+    T-wave-discordant PVC whose QRS only exists in the other polarity).
+    At most round(gap / typical_rr) - 1 candidates are taken per gap, best
+    probability first, never within `merge_window_s` of a gap edge or of each
+    other's window. Everything else from the minority stream is discarded, which
+    is what keeps the false-positive flood of unrestricted merging out."""
+    majority_peaks = np.asarray(majority_peaks, dtype=int)
+    minority_peaks = np.asarray(minority_peaks, dtype=int)
+    minority_prob = np.asarray(minority_prob, dtype=float)
+    if majority_peaks.size < 3 or minority_peaks.size == 0:
+        return np.empty(0, dtype=int), np.empty(0, dtype=float)
+    diffs = np.diff(majority_peaks)
+    typical_rr = float(np.median(diffs))
+    if not np.isfinite(typical_rr) or typical_rr <= 0:
+        return np.empty(0, dtype=int), np.empty(0, dtype=float)
+    guard = max(1, int(round(merge_window_s * fs_hz)))
+    add_p: list[int] = []
+    add_q: list[float] = []
+    for left, right in zip(majority_peaks[:-1], majority_peaks[1:]):
+        gap = int(right - left)
+        if gap <= gap_ratio * typical_rr:
+            continue
+        budget = max(1, int(round(gap / typical_rr)) - 1)
+        inside = np.flatnonzero((minority_peaks > left + guard) & (minority_peaks < right - guard))
+        if inside.size == 0:
+            continue
+        taken: list[int] = []
+        for j in inside[np.argsort(-minority_prob[inside], kind="stable")]:
+            if len(taken) >= budget:
+                break
+            if all(abs(int(minority_peaks[j]) - t) > guard for t in taken):
+                taken.append(int(minority_peaks[j]))
+                add_p.append(int(minority_peaks[j]))
+                add_q.append(float(minority_prob[j]))
+    order = np.argsort(add_p, kind="stable") if add_p else np.empty(0, dtype=int)
+    return np.asarray(add_p, dtype=int)[order], np.asarray(add_q, dtype=float)[order]
+
+
+def _combine_scored_streams(
+    scored: dict[str, np.ndarray],
+    major_id: int,
+    threshold: float,
+    fs_hz: float,
+    *,
+    merge_scope: str = "gaps",
+    merge_window_s: float = DEFAULT_DUAL_POLARITY_MERGE_WINDOW_S,
+    minority_threshold: float | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Turn scored dual-polarity candidates into final (peaks, probabilities).
+    Split out of detect_r_peaks_two_stage so diagnostics can sweep variants
+    without re-running feature extraction / the RF."""
+    if merge_scope not in MERGE_SCOPES:
+        raise ValueError(f"merge_scope must be one of {MERGE_SCOPES}")
+    is_major = scored["stream"] == major_id
+    minor_value = threshold if minority_threshold is None else max(threshold, float(minority_threshold))
+    keep = scored["probabilities"] >= np.where(is_major, threshold, minor_value)
+    if merge_scope == "all":
+        return _merge_dual_polarity_candidates(
+            scored["peaks"][keep], scored["probabilities"][keep], merge_window_s, fs_hz,
+            prominences=scored["prominences"][keep],
+        )
+    major_mask = keep & is_major
+    minor_mask = keep & ~is_major
+    extra_p, extra_q = _gap_fill_minority(
+        scored["peaks"][major_mask], scored["peaks"][minor_mask], scored["probabilities"][minor_mask], fs_hz,
+        merge_window_s=merge_window_s,
+    )
+    peaks = np.concatenate([scored["peaks"][major_mask], extra_p])
+    prob = np.concatenate([scored["probabilities"][major_mask], extra_q])
+    order = np.argsort(peaks, kind="stable")
+    return peaks[order].astype(int), prob[order].astype(float)
+
+
 def detect_r_peaks_two_stage(
     signal: np.ndarray,
     fs_hz: float,
@@ -237,11 +450,45 @@ def detect_r_peaks_two_stage(
     recovery: bool = False,
     recovery_gap_ratio: float = DEFAULT_RECOVERY_GAP_RATIO,
     scale_method: str = DEFAULT_SCALE_METHOD,
+    dual_polarity_merge_window_s: float = DEFAULT_DUAL_POLARITY_MERGE_WINDOW_S,
+    merge_feature_scope: str = "per_stream",
+    merge_scope: str = "gaps",
+    minority_threshold: float | None = None,
+    minority_min_peak_scale: float = DEFAULT_MINORITY_MIN_PEAK_SCALE,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Run Stage 1, optional long-gap recovery, then the trained suppressor."""
+    """Run Stage 1, optional long-gap recovery, then the trained suppressor.
+
+    polarity="merge" (opt-in) scores both polarities with the same RF, then
+    keeps opposite-polarity peaks only inside long RR gaps (merge_scope="gaps").
+    Defaults match the best INCART opt-in variant: per_stream features,
+    gaps scope, minority_min_peak_scale=0.25. Default polarity remains
+    whatever the caller passes (use "adaptive" in production).
+    minority_threshold (merge only) raises the RF probability an
+    opposite-polarity-to-the-record candidate must reach; the RF has no
+    record-level polarity feature, so its scores on the minority stream are
+    not calibrated by the Stage-2 threshold. minority_min_peak_scale is the
+    Stage-1 baseline-blip guard for the minority stream (see
+    _score_dual_polarity_streams).
+    """
     signal, fs_hz = _validate_signal(signal, fs_hz)
     if not suppressor.fitted:
         raise ValueError("suppressor must be fitted before two-stage detection")
+    if merge_scope not in MERGE_SCOPES:
+        raise ValueError(f"merge_scope must be one of {MERGE_SCOPES}")
+    if polarity == "merge":
+        if recovery:
+            raise ValueError("recovery is not supported with polarity='merge'")
+        majority = select_signal_polarity(signal, fs_hz, scale_method=scale_method).polarity
+        major_id = 0 if majority != "negative" else 1
+        scored = _score_dual_polarity_streams(
+            signal, fs_hz, suppressor, scale_method=scale_method, feature_scope=merge_feature_scope,
+            minority_stream=1 - major_id, minority_min_peak_scale=minority_min_peak_scale,
+        )
+        threshold_value = float(suppressor.metadata.threshold if threshold is None else threshold)
+        return _combine_scored_streams(
+            scored, major_id, threshold_value, fs_hz, merge_scope=merge_scope,
+            merge_window_s=dual_polarity_merge_window_s, minority_threshold=minority_threshold,
+        )
     chosen_polarity = polarity
     if polarity == "adaptive":
         chosen_polarity = select_signal_polarity(signal, fs_hz, scale_method=scale_method).polarity
