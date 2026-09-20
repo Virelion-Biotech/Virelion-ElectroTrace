@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
+import hashlib
 import json
 import pickle
 import warnings
@@ -330,11 +331,13 @@ class CandidateSuppressor:
                 "skops is required for safe model persistence; install with pip install skops"
             ) from exc
         skops_io.dump(self.model, path)
+        model_sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
         metadata_path = path.with_suffix(path.suffix + ".json")
         payload = {
             "format_version": MODEL_FORMAT_VERSION,
             "metadata": self.metadata.to_dict(),
             "feature_names": self.feature_names or [],
+            "model_sha256": model_sha256,
         }
         metadata_path.write_text(
             json.dumps(payload, indent=2, sort_keys=True) + "\\n", encoding="utf-8"
@@ -383,6 +386,13 @@ class CandidateSuppressor:
                 f"unsupported model format: {envelope.get('format_version')!r}"
             )
         metadata = SuppressorMetadata(**envelope["metadata"])
+        expected_sha = envelope.get("model_sha256")
+        if expected_sha:
+            actual_sha = hashlib.sha256(path.read_bytes()).hexdigest()
+            if actual_sha != expected_sha:
+                raise ValueError(
+                    f"model SHA-256 mismatch for {path.name}; expected {expected_sha}, got {actual_sha}"
+                )
 
         runtime_major = str(sklearn.__version__).split(".", 1)[0]
         stored_major = (
