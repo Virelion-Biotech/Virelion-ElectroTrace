@@ -8,19 +8,39 @@ version = "1.8.1"
 description = "Reproducible ECG/electrophysiology annotation, benchmarking, phenotyping, and leakage-safe validation toolkit"
 requires-python = ">=3.10"
 dependencies = [
-  "flask>=3.0",
   "numpy>=1.24",
   "pandas>=2.0",
   "scipy>=1.10",
   "scikit-learn>=1.4",
+]
+
+[project.optional-dependencies]
+wfdb = ["wfdb>=4.1"]
+edf = ["pyedflib>=0.1.38"]
+server = ["flask>=3.0"]
+models = ["skops>=0.14"]
+all = [
+  "wfdb>=4.1",
+  "pyedflib>=0.1.38",
+  "flask>=3.0",
+  "skops>=0.14",
+]
+test = [
+  "pytest>=8.0",
   "wfdb>=4.1",
   "pyedflib>=0.1.38",
   "skops>=0.14",
 ]
-
-[project.optional-dependencies]
-test = ["pytest>=8.0"]
-dev = ["pytest>=8.0", "ruff>=0.6", "build>=1.2", "mypy>=1.11"]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.6",
+  "build>=1.2",
+  "mypy>=1.11",
+  "wfdb>=4.1",
+  "pyedflib>=0.1.38",
+  "flask>=3.0",
+  "skops>=0.14",
+]
 
 [project.scripts]
 electrotrace = "electrotrace.cli:main"
