@@ -3,7 +3,6 @@ message: "Please cite ElectroTrace using the software citation below."
 title: "ElectroTrace: reproducible ECG/electrophysiology annotation and benchmarking"
 type: software
 version: "1.8.1"
-date-released: "2026-09-20"
 license: "AGPL-3.0-or-later"
 repository-code: "https://github.com/Virelion-Biotech/Virelion-ElectroTrace"
 authors:
