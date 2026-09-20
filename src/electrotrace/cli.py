@@ -30,6 +30,37 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _record_files(path: Path) -> list[Path]:
+    """Return the files belonging to one input record.
+    
+    WFDB records are multi-file objects; hashing only the .hea header would
+    allow a changed .dat or annotation file to reuse stale batch state.
+    """
+    if path.suffix.lower() == ".hea":
+        companions = sorted(path.parent.glob(f"{path.stem}.*"))
+        return [p for p in companions if p.is_file()]
+    return [path]
+
+
+def _record_hash(path: Path) -> str:
+    digest = hashlib.sha256()
+    for source in _record_files(path):
+        digest.update(source.name.encode("utf-8"))
+        digest.update(b"\0")
+        with source.open("rb") as fh:
+            for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+                digest.update(chunk)
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def _record_file_hashes(path: Path) -> dict[str, str]:
+    return {
+        source.name: _sha256(source)
+        for source in _record_files(path)
+    }
+
+
 def _git_sha() -> str:
     return os.environ.get("ELECTROTRACE_GIT_SHA") or os.environ.get("GITHUB_SHA") or "unknown"
 
@@ -106,7 +137,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
         dataset_version="1",
         source=str(Path(args.input).resolve()),
         records=(Path(args.input).name,),
-        input_files={Path(args.input).name: _sha256(Path(args.input))},
+        input_files=_record_file_hashes(Path(args.input)),
         detector_config={
             "detector": spec.name,
             "detector_version": spec.version,
@@ -171,7 +202,13 @@ def cmd_batch(args: argparse.Namespace) -> int:
     def run_one(path: Path):
         key = str(path.relative_to(root))
         cached = state.get(key)
-        if args.resume and cached and Path(cached["peak_file"]).exists():
+        current_hash = _record_hash(path)
+        if (
+            args.resume
+            and cached
+            and cached.get("source_sha256") == current_hash
+            and Path(cached["peak_file"]).exists()
+        ):
             return cached, []
 
         record = load_recording(path)
@@ -198,7 +235,8 @@ def cmd_batch(args: argparse.Namespace) -> int:
         row = {
             "record": key,
             "source_file": str(path.resolve()),
-            "source_sha256": _sha256(path),
+            "source_sha256": current_hash,
+            "source_files": _record_file_hashes(path),
             "status": "ok",
             "channel_index": int(args.channel),
             "channel_name": channel_name,
@@ -262,7 +300,10 @@ def cmd_batch(args: argparse.Namespace) -> int:
     _write_csv(output / "subjects.csv", subject_rows, ["subject_id", "n_records", "n_beats"])
     state_path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
-    input_files = {row["record"]: row["source_sha256"] for row in successful}
+    input_files = {}
+    for row in successful:
+        for name, digest in row["source_files"].items():
+            input_files[f"{row['record']}::{name}"] = digest
     record_ids = tuple(sorted(input_files))
     record_subject_map = {record: subject_map[record] for record in record_ids} if subject_map else {}
     manifest = DatasetManifest(
