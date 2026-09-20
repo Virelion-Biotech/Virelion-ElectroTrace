@@ -19,6 +19,15 @@ from .scale_estimation import DEFAULT_SCALE_METHOD, estimate_scale
 SUPPRESSOR_VERSION = "rf-candidate-suppressor-v4"
 FEATURE_SCHEMA_VERSION = "candidate-features-v4"  # bumped: feature normalization changed (see below)
 MODEL_FORMAT_VERSION = "electrotrace-model-v2-skops"
+DEFAULT_TRUSTED_SKOPS_TYPES = (
+    "numpy.core.multiarray._reconstruct",
+    "numpy.core.multiarray.scalar",
+    "numpy.dtype",
+    "numpy.ndarray",
+    "sklearn.ensemble._forest.RandomForestClassifier",
+    "sklearn.tree._classes.DecisionTreeClassifier",
+    "sklearn.tree._tree.Tree",
+)
 DEFAULT_TARGET_RECALL = 0.995
 DEFAULT_TOLERANCE_S = 0.075
 DEFAULT_CALIBRATION_FRACTION = 0.20
@@ -284,6 +293,7 @@ class CandidateSuppressor:
         model.fit(X, y)
         self.model = model
         import sklearn
+        from sklearn.ensemble import RandomForestClassifier
         self.metadata = SuppressorMetadata(
             SUPPRESSOR_VERSION,
             FEATURE_SCHEMA_VERSION,
@@ -353,6 +363,7 @@ class CandidateSuppressor:
     ) -> "CandidateSuppressor":
         """Load a model with safe-by-default serialization."""
         import sklearn
+        from sklearn.ensemble import RandomForestClassifier
 
         path = Path(path)
         if path.suffix.lower() == ".pkl":
@@ -415,13 +426,18 @@ class CandidateSuppressor:
             ) from exc
 
         unknown = list(skops_io.get_untrusted_types(file=path))
-        unresolved = [name for name in unknown if name not in set(trusted_types)]
+        allowed_types = set(DEFAULT_TRUSTED_SKOPS_TYPES).union(trusted_types)
+        unresolved = [name for name in unknown if name not in allowed_types]
         if unresolved:
             raise ValueError(
                 "model contains unknown serialized types; inspect the .skops file before loading: "
                 + ", ".join(unresolved)
             )
-        model = skops_io.load(path, trusted=list(trusted_types))
+        model = skops_io.load(path, trusted=sorted(allowed_types))
+        if not isinstance(model, RandomForestClassifier):
+            raise ValueError(
+                "unsupported model type in CandidateSuppressor artifact; expected RandomForestClassifier"
+            )
         obj = cls(model=model, metadata=metadata)
         obj.feature_names = list(envelope.get("feature_names", [])) or None
         return obj
