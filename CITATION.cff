@@ -6,6 +6,4 @@ version: "1.8.1"
 license: "AGPL-3.0-or-later"
 repository-code: "https://github.com/Virelion-Biotech/Virelion-ElectroTrace"
 authors:
-  - family-names: Hannan
-    given-names: "Syed Umer"
-    affiliation: "Virelion Biotech"
+  - name: "Virelion Biotech"
