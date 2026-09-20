@@ -20,13 +20,13 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Topic :: Scientific/Engineering",
 ]
-project-urls = {
-  Homepage = "https://github.com/Virelion-Biotech/Virelion-ElectroTrace",
-  Documentation = "https://github.com/Virelion-Biotech/Virelion-ElectroTrace/tree/main/docs",
-  Repository = "https://github.com/Virelion-Biotech/Virelion-ElectroTrace",
-  Issues = "https://github.com/Virelion-Biotech/Virelion-ElectroTrace/issues",
-}
+[project.urls]
+Homepage = "https://github.com/Virelion-Biotech/Virelion-ElectroTrace"
+Documentation = "https://github.com/Virelion-Biotech/Virelion-ElectroTrace/tree/main/docs"
+Repository = "https://github.com/Virelion-Biotech/Virelion-ElectroTrace"
+Issues = "https://github.com/Virelion-Biotech/Virelion-ElectroTrace/issues"
 
+[project]
 dependencies = [
   "numpy>=1.24",
   "pandas>=2.0",
