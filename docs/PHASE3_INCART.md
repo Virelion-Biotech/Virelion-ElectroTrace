@@ -26,8 +26,7 @@ The historical pickle model is retrieved from the 201096a source snapshot, while
 # Cell 2: install validation dependencies
 !python -m pip install -e ".[all,dev]"
 
-# Cell 2b: match the historical model's documented scikit-learn runtime
-!python -m pip install "scikit-learn==1.9.0"
+
 
 # Cell 3: retrieve the historical model from the exact 1.8.1 source snapshot
 !wget -q -O /content/incart_mitbih_model_windowed_std_2026-09-09.pkl \
@@ -62,6 +61,6 @@ print(json.dumps(report["summary_by_transform"], indent=2, sort_keys=True))
 print("skipped:", len(report["skipped_records"]))
 ```
 
-For a strict historical-model conversion, use the scikit-learn version associated with the original artifact before conversion. PyPI has scikit-learn 1.9.0 and 1.9.1; the latter was released September 10, 2026.
+The historical repository requirements only declared scikit-learn>=1.4, so the original model-training version is not recorded in the source snapshot. Do not invent a historical pin. Before conversion, record the runtime version used by the Colab, then use that same environment for the resulting .skops artifact and Phase-3 run.
 
 After the run, copy the JSON back as a new dated evidence artifact. Do not overwrite the existing locked reports.
