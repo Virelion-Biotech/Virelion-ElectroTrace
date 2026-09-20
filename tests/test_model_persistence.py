@@ -33,6 +33,7 @@ def test_skops_roundtrip_preserves_predictions_and_metadata(tmp_path):
     model.save(path)
     loaded = CandidateSuppressor.load(path)
 
+    assert loaded.metadata.model_version
     assert loaded.metadata.feature_schema_version == model.metadata.feature_schema_version
     assert loaded.metadata.sklearn_version == model.metadata.sklearn_version
     assert loaded.feature_names == model.feature_names
