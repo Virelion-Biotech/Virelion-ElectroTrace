@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   audit:
     runs-on: ubuntu-latest
@@ -15,7 +18,7 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: pip install -e ".[test]" pip-audit bandit
       - run: pip-audit
-      - run: bandit -q -r server.py src -x tests,candidate_suppressor.py
-      # CandidateSuppressor deliberately loads trusted local model artifacts with pickle.
-      # Keep all other Bandit checks enabled for this file.
-      - run: bandit -q src/electrotrace/candidate_suppressor.py -s B403,B301
+      - run: bandit -q -r server.py src tests scripts -x candidate_suppressor.py
+      # The remaining legacy-pickle migration path is deliberately isolated and
+      # requires an explicit allow_pickle=True opt-in.
+      - run: bandit -q src/electrotrace/candidate_suppressor.py -s B301
