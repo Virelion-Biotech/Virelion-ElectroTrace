@@ -470,7 +470,7 @@ def main():
 
     model_path = (
         output_dir /
-        f"incart_mitbih_model_{scale_method}_2026-09-09.pkl"
+        f"incart_mitbih_model_{scale_method}_2026-09-09.skops"
     )
 
     model.save(model_path)
