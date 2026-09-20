@@ -7,7 +7,9 @@ venv/
 .DS_Store
 .cache/
 
-# Trained model artifacts are reproducible from train_mitdb_model() + MIT-BIH -- don't commit by default.
+# Model artifacts are local/release assets, never source-controlled.
 validation_reports/*.pkl
-!validation_reports/incart_mitbih_model_windowed_std_2026-09-09.pkl
-!validation_reports/mitdb_windowed_std_polarityfix.pkl
+validation_reports/*.skops
+validation_reports/*.skops.json
+*.skops
+*.skops.json
