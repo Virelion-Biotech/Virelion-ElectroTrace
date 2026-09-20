@@ -21,7 +21,7 @@ only differ in the combine step reuse the scored candidates.
 Usage (Colab, after the Drive cache is mounted / symlinked):
   python -u scripts/diagnose_merge_incart.py \
       --incart-dir .cache/physionet/incartdb \
-      --model-path validation_reports/incart_mitbih_model_windowed_std_2026-09-09.pkl \
+      --model-path validation_reports/incart_mitbih_model_windowed_std_2026-09-09.skops \
       --scale-method windowed_std --detail-records I62 I27 I31 I53 I64
 """
 from __future__ import annotations
