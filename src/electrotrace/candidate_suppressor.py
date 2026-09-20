@@ -1,7 +1,7 @@
 """Second-stage false-positive suppression for ECG R-peak candidates."""
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 import json
 import pickle
@@ -364,7 +364,10 @@ class CandidateSuppressor:
                 stacklevel=2,
             )
             payload = pickle.loads(path.read_bytes())
-            obj = cls(model=payload["model"], metadata=payload["metadata"])
+            metadata = payload["metadata"]
+            if not hasattr(metadata, "sklearn_version"):
+                metadata = replace(metadata, sklearn_version=str(sklearn.__version__))
+            obj = cls(model=payload["model"], metadata=metadata)
             obj.feature_names = payload.get("feature_names")
             return obj
 
