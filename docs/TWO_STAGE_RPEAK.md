@@ -38,7 +38,7 @@ python scripts/benchmark_two_stage_mitdb.py \
   --output validation_reports/mitdb_two_stage_validation.json
 ```
 
-It reports Stage-2 performance only on evaluation records and stores the trained verifier as a separate `.pkl` artifact. Never load an untrusted pickle file.
+It reports Stage-2 performance only on evaluation records and stores the trained verifier as a separate `.skops` artifact with a JSON metadata sidecar. Legacy pickle conversion is migration-only and requires explicit trusted-local opt-in.
 
 ## Research safeguards
 
