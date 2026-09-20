@@ -6,8 +6,6 @@ import pytest
 from electrotrace.candidate_suppressor import CandidateSuppressor
 
 
-pytest.importorskip("skops")
-
 
 def test_legacy_pickle_is_rejected_by_default(tmp_path):
     path = tmp_path / "legacy.pkl"
