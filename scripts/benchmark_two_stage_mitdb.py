@@ -284,7 +284,7 @@ def main() -> int:
     }
     output = Path(args.output); output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-    model.save(output.with_suffix(".pkl"))
+    model.save(output.with_suffix(".skops"))
     print(json.dumps(report["summary"], indent=2))
     print(f"Report written to {output}")
     return 0
