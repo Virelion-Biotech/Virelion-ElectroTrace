@@ -25,4 +25,4 @@ jobs:
       - run: pip-audit
       - run: bandit -q -r server.py src -x candidate_suppressor.py
       # Legacy pickle loading is isolated and requires explicit local opt-in.
-      - run: bandit -q src/electrotrace/candidate_suppressor.py -s B301
+      - run: bandit -q src/electrotrace/candidate_suppressor.py -s B403,B301
