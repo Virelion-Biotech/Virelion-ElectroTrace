@@ -1,10 +1,11 @@
 """Detector interface and plugin discovery for ElectroTrace benchmarking."""
 from __future__ import annotations
 
+import warnings
+from collections.abc import Callable
 from dataclasses import dataclass
 from importlib.metadata import entry_points
-from typing import Callable, Protocol
-import warnings
+from typing import Protocol
 
 import numpy as np
 
@@ -30,14 +31,28 @@ class DetectorSpec:
 
 
 BUILTIN_CITATIONS = {
-    "pan-tompkins": "Pan J, Tompkins WJ. A Real-Time QRS Detection Algorithm. IEEE T-BME. 1985;32(3):230-236.",
-    "hamilton": "Hamilton PS, Tompkins WJ. Quantitative investigation of QRS detection rules. IEEE T-BME. 1986;33(12):1157-1165.",
-    "stage1": "ElectroTrace Stage-1 heuristic candidate detector; see repository validation documentation.",
-    "electrotrace-two-stage": "ElectroTrace two-stage Random Forest suppressor; see repository model and validation documentation.",
+    "pan-tompkins": (
+        "Pan J, Tompkins WJ. A Real-Time QRS Detection Algorithm. "
+        "IEEE T-BME. 1985;32(3):230-236."
+    ),
+    "hamilton": (
+        "Hamilton PS, Tompkins WJ. Quantitative investigation of QRS detection rules. "
+        "IEEE T-BME. 1986;33(12):1157-1165."
+    ),
+    "stage1": (
+        "ElectroTrace Stage-1 heuristic candidate detector; "
+        "see repository validation documentation."
+    ),
+    "electrotrace-two-stage": (
+        "ElectroTrace two-stage Random Forest suppressor; "
+        "see repository model and validation documentation."
+    ),
 }
 
 
-def _builtin_specs(model=None, polarity: str = "adaptive", scale_method: str = "windowed_std") -> dict[str, DetectorSpec]:
+def _builtin_specs(
+    model=None, polarity: str = "adaptive", scale_method: str = "windowed_std"
+) -> dict[str, DetectorSpec]:
     specs: dict[str, DetectorSpec] = {
         "pan-tompkins": DetectorSpec(
             "pan-tompkins",
