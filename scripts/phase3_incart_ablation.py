@@ -14,6 +14,7 @@ deployment threshold from INCART labels and never retrains on INCART.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import platform
 import subprocess
@@ -51,6 +52,14 @@ def git_head() -> str:
         return subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
     except Exception:
         return "unknown"
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def robust_scale(x: np.ndarray) -> np.ndarray:
@@ -252,6 +261,12 @@ def main() -> int:
         for transform in transforms
     }
 
+    input_hashes = {}
+    for record_name in names:
+        for source in sorted(args.incart_dir.glob(f"{record_name}.*")):
+            if source.is_file():
+                input_hashes[f"{record_name}::{source.name}"] = sha256_file(source)
+
     report = {
         "schema": "electrotrace.incart_phase3_ablation/v1",
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -261,7 +276,9 @@ def main() -> int:
         "python": sys.version.split()[0],
         "platform": platform.platform(),
         "model": str(args.model),
+        "model_sha256": sha256_file(args.model),
         "model_metadata": model.metadata.to_dict(),
+        "input_hashes": input_hashes,
         "protocol": {
             "dataset": "PhysioNet INCART",
             "records_requested": names,
