@@ -6,7 +6,27 @@ build-backend = "setuptools.build_meta"
 name = "electrotrace"
 version = "1.8.1"
 description = "Reproducible ECG/electrophysiology annotation, benchmarking, phenotyping, and leakage-safe validation toolkit"
+readme = "README.md"
+license = { text = "AGPL-3.0-or-later" }
 requires-python = ">=3.10"
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering",
+]
+project-urls = {
+  Homepage = "https://github.com/Virelion-Biotech/Virelion-ElectroTrace",
+  Documentation = "https://github.com/Virelion-Biotech/Virelion-ElectroTrace/tree/main/docs",
+  Repository = "https://github.com/Virelion-Biotech/Virelion-ElectroTrace",
+  Issues = "https://github.com/Virelion-Biotech/Virelion-ElectroTrace/issues",
+}
+
 dependencies = [
   "numpy>=1.24",
   "pandas>=2.0",
