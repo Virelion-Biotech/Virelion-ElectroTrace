@@ -304,8 +304,12 @@ def cmd_batch(args: argparse.Namespace) -> int:
     for row in successful:
         for name, digest in row["source_files"].items():
             input_files[f"{row['record']}::{name}"] = digest
-    record_ids = tuple(sorted(input_files))
-    record_subject_map = {record: subject_map[record] for record in record_ids} if subject_map else {}
+    record_ids = tuple(sorted(row["record"] for row in successful))
+    record_subject_map = (
+        {record: subject_map[record] for record in record_ids}
+        if subject_map
+        else {}
+    )
     manifest = DatasetManifest(
         dataset_id=root.name,
         dataset_version="1",
