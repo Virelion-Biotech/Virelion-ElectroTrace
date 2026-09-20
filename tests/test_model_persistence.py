@@ -48,6 +48,8 @@ def test_skops_roundtrip_rejects_payload_hash_mismatch(tmp_path):
 
     payload = path.with_suffix(".skops.json")
     text = payload.read_text(encoding="utf-8")
-    payload.write_text(text.replace(model.metadata.feature_schema_version, "candidate-features-tampered"), encoding="utf-8")
-    with pytest.raises(ValueError):
+    data = __import__("json").loads(text)
+    data["model_sha256"] = "0" * 64
+    payload.write_text(__import__("json").dumps(data), encoding="utf-8")
+    with pytest.raises(ValueError, match="SHA-256 mismatch"):
         CandidateSuppressor.load(path)
