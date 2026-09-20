@@ -6,7 +6,6 @@ import pytest
 from electrotrace.candidate_suppressor import CandidateSuppressor
 
 
-
 def test_legacy_pickle_is_rejected_by_default(tmp_path):
     path = tmp_path / "legacy.pkl"
     path.write_bytes(b"not a real pickle")
