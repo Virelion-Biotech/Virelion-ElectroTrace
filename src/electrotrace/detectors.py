@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from importlib.metadata import entry_points
 from typing import Callable, Protocol
+import warnings
 
 import numpy as np
 
@@ -92,9 +93,12 @@ def discover_detectors(
             specs[name] = DetectorSpec(
                 name, version, citation, obj, source=f"entry-point:{ep.value}"
             )
-        except Exception:
-            # An unavailable optional plugin must not break the built-in registry.
-            continue
+        except Exception as exc:
+            warnings.warn(
+                f"Could not load ElectroTrace detector plugin {ep.name!r}: {exc}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
     return specs
 
 
