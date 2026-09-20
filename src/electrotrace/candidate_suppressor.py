@@ -293,7 +293,6 @@ class CandidateSuppressor:
         model.fit(X, y)
         self.model = model
         import sklearn
-        from sklearn.ensemble import RandomForestClassifier
         self.metadata = SuppressorMetadata(
             SUPPRESSOR_VERSION,
             FEATURE_SCHEMA_VERSION,
@@ -363,7 +362,6 @@ class CandidateSuppressor:
     ) -> "CandidateSuppressor":
         """Load a model with safe-by-default serialization."""
         import sklearn
-        from sklearn.ensemble import RandomForestClassifier
 
         path = Path(path)
         if path.suffix.lower() == ".pkl":
