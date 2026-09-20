@@ -31,6 +31,6 @@ The plugin registry does not make third-party dependencies mandatory. An unavail
 
 The current registry includes the local Pan-Tompkins and Hamilton research reimplementations, ElectroTrace Stage-1, optional ElectroTrace two-stage detection when a model is supplied, and the WFDB Python gqrs adapter.
 
-WFDB's Python processing API exposes gqrs_detect for one-dimensional ECG signals and sampling rates. citeturn131459search0turn131459search7
+WFDB's Python processing API exposes gqrs_detect for one-dimensional ECG signals and sampling rates.
 
 gqrs is treated as a reference adapter, not as a detector-superiority claim. Its citation and provenance should remain visible in comparative output.
