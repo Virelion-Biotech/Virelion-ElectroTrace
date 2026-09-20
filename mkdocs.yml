@@ -1,0 +1,11 @@
+site_name: ElectroTrace
+theme:
+  name: material
+repo_url: https://github.com/Virelion-Biotech/Virelion-ElectroTrace
+nav:
+  - Home: index.md
+  - Quickstart: QUICKSTART.md
+  - Validation: validation/README.md
+  - Limitations: LIMITATIONS.md
+  - Reproducibility: REPRODUCIBILITY.md
+  - Contributing: ../CONTRIBUTING.md
