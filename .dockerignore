@@ -1,0 +1,9 @@
+.git
+.github
+.cache
+.pytest_cache
+.venv
+validation_reports/*.pkl
+validation_reports/*.skops
+validation_reports/*.skops.json
+*.pyc
