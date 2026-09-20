@@ -26,6 +26,9 @@ The historical pickle model is retrieved from the 201096a source snapshot, while
 # Cell 2: install validation dependencies
 !python -m pip install -e ".[all,dev]"
 
+# Cell 2b: match the historical model's documented scikit-learn runtime
+!python -m pip install "scikit-learn==1.9.0"
+
 # Cell 3: retrieve the historical model from the exact 1.8.1 source snapshot
 !wget -q -O /content/incart_mitbih_model_windowed_std_2026-09-09.pkl \
   https://raw.githubusercontent.com/Virelion-Biotech/Virelion-ElectroTrace/201096a/validation_reports/incart_mitbih_model_windowed_std_2026-09-09.pkl
