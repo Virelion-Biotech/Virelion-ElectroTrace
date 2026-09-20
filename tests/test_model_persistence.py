@@ -37,3 +37,17 @@ def test_skops_roundtrip_preserves_predictions_and_metadata(tmp_path):
     assert loaded.metadata.sklearn_version == model.metadata.sklearn_version
     assert loaded.feature_names == model.feature_names
     np.testing.assert_allclose(loaded.predict_proba(X), model.predict_proba(X))
+
+
+def test_skops_roundtrip_rejects_payload_hash_mismatch(tmp_path):
+    X = np.vstack([np.ones((8, 4)), -np.ones((8, 4))])
+    y = np.array([1] * 8 + [0] * 8)
+    model = CandidateSuppressor().fit(X, y, target_recall=0.9, n_estimators=8)
+    path = tmp_path / "model.skops"
+    model.save(path)
+
+    payload = path.with_suffix(".skops.json")
+    text = payload.read_text(encoding="utf-8")
+    payload.write_text(text.replace(model.metadata.feature_schema_version, "candidate-features-tampered"), encoding="utf-8")
+    with pytest.raises(ValueError):
+        CandidateSuppressor.load(path)
