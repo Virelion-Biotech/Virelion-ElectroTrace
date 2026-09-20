@@ -26,7 +26,6 @@ Documentation = "https://github.com/Virelion-Biotech/Virelion-ElectroTrace/tree/
 Repository = "https://github.com/Virelion-Biotech/Virelion-ElectroTrace"
 Issues = "https://github.com/Virelion-Biotech/Virelion-ElectroTrace/issues"
 
-[project]
 dependencies = [
   "numpy>=1.24",
   "pandas>=2.0",
