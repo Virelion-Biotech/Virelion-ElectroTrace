@@ -65,6 +65,18 @@ def _git_sha() -> str:
     return os.environ.get("ELECTROTRACE_GIT_SHA") or os.environ.get("GITHUB_SHA") or "unknown"
 
 
+def _model_provenance(path: str | None) -> dict:
+    if not path:
+        return {}
+    model_path = Path(path)
+    out = {"model_file": model_path.name, "model_sha256": _sha256(model_path)}
+    sidecar = model_path.with_suffix(model_path.suffix + ".json")
+    if sidecar.exists():
+        out["model_metadata_file"] = sidecar.name
+        out["model_metadata_sha256"] = _sha256(sidecar)
+    return out
+
+
 def _write_csv(path: Path, rows: list[dict], fieldnames: list[str] | None = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fields = fieldnames or (list(rows[0]) if rows else [])
@@ -145,6 +157,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
             "channel_name": channel_name,
             "polarity": args.polarity,
             "scale_method": args.scale_method,
+            **_model_provenance(args.model),
         },
         software_version=__version__,
         software_commit=_git_sha(),
@@ -325,6 +338,7 @@ def cmd_batch(args: argparse.Namespace) -> int:
             "channel": int(args.channel),
             "polarity": args.polarity,
             "scale_method": args.scale_method,
+            **_model_provenance(args.model),
         },
         software_version=__version__,
         software_commit=_git_sha(),
