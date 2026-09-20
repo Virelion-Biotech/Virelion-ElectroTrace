@@ -1,8 +1,17 @@
 name: test
 
 on:
+  workflow_dispatch:
   push:
+    branches: [main]
   pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -17,5 +26,38 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip
-      - run: pip install -e ".[test]"
+      - run: pip install -e ".[test,dev]"
+      - run: ruff check src/electrotrace/__init__.py src/electrotrace/cli.py src/electrotrace/detectors.py tests/test_public_api.py tests/test_detector_registry.py tests/test_model_persistence.py scripts/convert_model_pickle_to_skops.py scripts/phase3_incart_ablation.py
+      - name: Check formatting (advisory)
+        run: |
+          if ! ruff format --check src/electrotrace/__init__.py src/electrotrace/cli.py src/electrotrace/detectors.py tests/test_public_api.py tests/test_detector_registry.py tests/test_model_persistence.py scripts/convert_model_pickle_to_skops.py scripts/phase3_incart_ablation.py; then
+            echo "::warning::Ruff formatter reports differences in release-hardening files; lint, build, and tests remain blocking."
+          fi
+      - run: python -m build --wheel
       - run: pytest -q
+      - name: Smoke import and CLI
+        env:
+          ELECTROTRACE_GIT_SHA: ${{ github.sha }}
+        run: |
+          python - <<'PY'
+          import electrotrace
+          assert electrotrace.detect_r_peaks
+          assert electrotrace.load_recording
+          PY
+          electrotrace list
+
+  package:
+    runs-on: ubuntu-latest
+    needs: test
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --upgrade pip
+      - run: pip install build
+      - run: python -m build
+      - run: python -m pip install dist/*.whl
+      - run: electrotrace --help

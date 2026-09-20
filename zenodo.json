@@ -1,0 +1,26 @@
+{
+  "title": "ElectroTrace: reproducible ECG/electrophysiology annotation and benchmarking",
+  "description": "Research software for ECG/electrophysiology annotation, detector benchmarking, leakage-aware validation, provenance, and subject-level analysis.",
+  "license": "AGPL-3.0",
+  "upload_type": "software",
+  "keywords": [
+    "ECG",
+    "electrophysiology",
+    "QRS detection",
+    "benchmarking",
+    "reproducibility",
+    "biomedical signal processing"
+  ],
+  "creators": [
+    {
+      "name": "Virelion Biotech"
+    }
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/Virelion-Biotech/Virelion-ElectroTrace",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ]
+}

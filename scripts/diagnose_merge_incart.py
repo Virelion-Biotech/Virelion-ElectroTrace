@@ -21,7 +21,7 @@ only differ in the combine step reuse the scored candidates.
 Usage (Colab, after the Drive cache is mounted / symlinked):
   python -u scripts/diagnose_merge_incart.py \
       --incart-dir .cache/physionet/incartdb \
-      --model-path validation_reports/incart_mitbih_model_windowed_std_2026-09-09.pkl \
+      --model-path validation_reports/incart_mitbih_model_windowed_std_2026-09-09.skops \
       --scale-method windowed_std --detail-records I62 I27 I31 I53 I64
 """
 from __future__ import annotations
@@ -132,7 +132,6 @@ def detail_for_record(signal, fs, refs, model, adaptive_peaks, merge_peaks, scor
 
     cov_maj, acc_maj = coverage(is_major)
     cov_min, acc_min = coverage(~is_major)
-    n_ref = max(len(refs), 1)
     out["reference_coverage"] = {
         "majority_has_candidate": float(cov_maj.mean()) if len(refs) else 0.0,
         "minority_has_candidate": float(cov_min.mean()) if len(refs) else 0.0,
@@ -286,9 +285,13 @@ def main() -> None:
             rec = evaluate_record(incart / name, model, args.scale_method, specs, name in set(args.detail_records))
             records.append(rec)
             v = rec["variants"]
-            print(f"[{i}/{len(names)}] {name}: adaptive F1={v['adaptive']['f1']:.4f}  "
-                  f"pooled={v['pooled_floor0_all']['f1']:.4f}  ps_floor0={v['per_stream_floor0_all']['f1']:.4f}  "
-                  f"ps_floor1={v['per_stream_floor1_all']['f1']:.4f}  gaps1={v['per_stream_floor1_gaps']['f1']:.4f}", flush=True)
+            gap_floor0 = v["per_stream_floor0_gaps"]["f1"]
+            gap_floor1 = v["per_stream_floor1_gaps"]["f1"]
+            print(
+                f"[{i}/{len(names)}] {name}: adaptive F1={v['adaptive']['f1']:.4f}  "
+                f"gaps_floor0 F1={gap_floor0:.4f}  gaps_floor1 F1={gap_floor1:.4f}",
+                flush=True,
+            )
         except Exception as exc:  # noqa: BLE001 - keep the sweep going, record why
             skipped.append({"record": name, "reason": f"{type(exc).__name__}: {exc}"})
             print(f"[{i}/{len(names)}] {name}: SKIPPED: {exc}", flush=True)

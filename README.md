@@ -1,74 +1,115 @@
-# Virelion-ElectroTrace
+# ElectroTrace
 
-ElectroTrace is a Python/REST research toolkit for ECG and electrophysiology signal import, annotation, beat segmentation, R-peak detection, phenotype extraction, and leakage-aware evaluation.
+**A reproducible ECG/electrophysiology annotation and benchmarking workbench.**
 
-## What it contains
+ElectroTrace is built around a simple principle: **the evidence is the product**. It provides one place to run detectors, compare them under declared protocols, preserve record/subject-level statistics, and carry hashes, software versions, and provenance alongside results.
 
-- CSV, EDF/EDF+, and WFDB ZIP import.
-- Signal validation and non-destructive preprocessing.
-- Interactive multi-channel annotation.
-- Adaptive-polarity R-peak candidate generation.
-- Two-stage Random Forest false-positive suppression.
-- Beat-level feature and phenotype extraction.
-- Subject/record-level validation and experimental-unit-aware statistics.
-- REST endpoints and a local web interface.
-- Reproducible dataset/software provenance.
+The repository also ships its own Stage-1 and two-stage Random Forest detector, but that detector is not the project's only or primary claim. The current evidence is deliberately mixed: the two-stage model performs strongly on its locked MIT-BIH split, while the same trained model shows a large cross-database drop on INCART. That gap is preserved and documented rather than hidden.
 
-## Installation
+## Current evidence
 
-Requires Python 3.10+.
+| Protocol | Detector | Records | Sensitivity | PPV | F1 |
+|---|---|---:|---:|---:|---:|
+| Locked MIT-BIH held-out | ElectroTrace two-stage | 12 | 0.9924 | 0.9879 | 0.9902 |
+| Locked MIT-BIH held-out | Pan-Tompkins reimplementation | 12 | 0.9908 | 0.9954 | 0.9931 |
+| Locked MIT-BIH held-out | Hamilton reimplementation | 12 | 0.9990 | 0.9303 | 0.9634 |
+| Locked MIT-BIH held-out | ElectroTrace Stage-1 | 12 | 0.9931 | 0.7553 | 0.8580 |
+| INCART external comparison | ElectroTrace two-stage | 68 | 0.3239 | 0.9679 | 0.4854 |
+| INCART certified WFDB comparison | WFDB gqrs | 68 | 0.9324 | 0.9265 | 0.9294 |
 
-```bash
+These values are transcribed from the repository's locked validation artifacts. They are retrospective research results, not clinical validation and not evidence of general detector superiority.
+
+## Why ElectroTrace exists
+
+Most ECG software answers "what detector should I use?" ElectroTrace is aimed at a different question:
+
+> **Under one explicit protocol, how does this detector behave, and can someone else reproduce the answer?**
+
+Primary statistics should treat records or subjects as the experimental unit rather than pretending individual beats are independent biological replicates. Validation artifacts can carry dataset hashes, detector configuration, software version, git commit, and protocol metadata.
+
+### Primary use cases
+
+**Preclinical electrophysiology:** batch animal recordings, retain explicit subject identifiers, and export record/subject-level tables for downstream statistics.
+
+**Methods-heavy human ECG research:** evaluate an existing detector on held-out records and retain an auditable artifact for papers, reviews, and lab handoff.
+
+**Detector development:** register a detector plugin and compare it against fixed baselines under the same matching rules.
+
+ElectroTrace is research software. It is not a clinical device and the current models are not validated for clinical deployment.
+
+## Install
+
+Python 3.10+ is required.
+
+**PyPI publication is prepared by CI but not yet performed for this hardening branch.** For the current code, install from source:
+
+~~~bash
 git clone https://github.com/Virelion-Biotech/Virelion-ElectroTrace.git
 cd Virelion-ElectroTrace
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -U pip
-pip install -e '.[test]'
-```
+python -m pip install -e ".[test,dev]"
+~~~
 
-## Usage
+## Five-minute start
 
-Start the local server:
+~~~bash
+electrotrace list
+electrotrace detect recording.edf --detector pan-tompkins --channel 0 -o peaks.csv
+electrotrace batch data/ --detector pan-tompkins --workers 4 -o results/
+electrotrace report validation.json -o validation.html
+~~~
 
-```bash
-python server.py
-```
+Batch outputs:
 
-The development server listens on `127.0.0.1:5000`.
+~~~text
+results/
+├── beats.csv
+├── records.csv
+├── subjects.csv
+├── failures.csv
+├── manifest.json
+├── batch_state.json
+└── peaks/
+~~~
 
-Python:
+Subject information is never inferred from filenames. Supply a two-column CSV with record and subject_id using --subject-map when subject aggregation is appropriate.
 
-```python
-from electrotrace import detect_r_peaks
+## Validation and benchmarking
 
-peaks = detect_r_peaks(signal, fs=250, polarity="adaptive")
-```
+~~~bash
+electrotrace validate .cache/physionet/mitdb/100 --detector pan-tompkins -o validation.json
+electrotrace bench .cache/physionet/mitdb --detectors pan-tompkins,hamilton --tolerance-ms 75 -o bench.json
+~~~
 
-The REST API exposes recording, filtering, R-peak detection, beat segmentation, ML, phenotype, statistics, and benchmark operations under `/api/`.
+Bench currently operates on local WFDB records. The repository does not vendor PhysioNet data.
 
-## Inputs and outputs
+The detector plugin interface is already present. The next benchmark phase will add external package adapters and a regenerated multi-database leaderboard rather than a single scalar ranking.
 
-**Inputs:** ECG/electrophysiology recordings in supported formats, sampling rate and channel metadata, optional annotations, preprocessing parameters, and optional trained detection models.
+## Model artifacts
 
-**Outputs:** validated recordings, annotations, R-peak locations, beat segments, extracted features/phenotypes, statistical comparisons, benchmark reports, and provenance records.
+The two-stage Random Forest is opt-in. New model persistence uses .skops plus a metadata sidecar. Legacy pickle models are migration-only and rejected by default.
 
-## Validation
+A model records its feature schema and training scikit-learn major version. Loading stops when the runtime major version is incompatible or when the .skops file contains unknown serialized types.
 
-The repository contains a locked MIT-BIH held-out validation protocol and an INCART external pilot. Validation documentation and reports are under `docs/` and `validation_reports/`. The current INCART work is an external pilot, not population-level external validation.
+The current INCART result is therefore part of the evidence surface: cross-database behavior must be measured instead of inferred from MIT-BIH.
 
-The two-stage Random Forest suppressor is currently validated primarily in-distribution on MIT-BIH. The existing INCART pilot shows substantial domain shift, so MIT-BIH performance must not be interpreted as evidence that the trained suppressor generalizes to unseen ECG databases. External deployment or cross-database benchmarking should be treated as unsupported until the full external validation protocol and an appropriate calibration/domain-adaptation strategy have been evaluated.
+## Validation philosophy
 
-Run software tests with:
+- record-level rather than beat-level primary statistics;
+- one-to-one matching under a declared tolerance;
+- locked splits with explicit seeds;
+- bootstrap confidence intervals over records;
+- SHA-256 input hashes and software/git provenance;
+- separate timing error, sensitivity, PPV, and F1;
+- explicit limitations and non-claims.
 
-```bash
-pytest -q
-```
+## What is not claimed
 
-## Limitations
+ElectroTrace does not claim clinical performance, real-time streaming performance, population generalization, or superiority over established QRS detectors.
 
-ElectroTrace is research software, not a clinical device or validated clinical algorithm. MIT-BIH/QTDB results do not establish population generalization. ECG beats are not automatically independent biological replicates. The current two-stage benchmark is retrospective full-record evaluation and should not be interpreted as real-time performance. The ML false-positive suppression stage may be sensitive to database/domain shift and currently should not be assumed to transfer across datasets without external validation.
+## Documentation and citation
+
+See docs/, mkdocs.yml, and CITATION.cff. A DOI-bearing software release still requires final release/Zenodo configuration.
 
 ## License
 
-GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later). See `LICENSE`.
+AGPL-3.0-or-later at present. Any future core/server license split will be an explicit project decision.

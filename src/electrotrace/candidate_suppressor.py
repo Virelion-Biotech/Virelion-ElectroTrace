@@ -1,9 +1,12 @@
 """Second-stage false-positive suppression for ECG R-peak candidates."""
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
+import hashlib
+import json
 import pickle
+import warnings
 from typing import Sequence
 
 import numpy as np
@@ -15,6 +18,16 @@ from .scale_estimation import DEFAULT_SCALE_METHOD, estimate_scale
 
 SUPPRESSOR_VERSION = "rf-candidate-suppressor-v4"
 FEATURE_SCHEMA_VERSION = "candidate-features-v4"  # bumped: feature normalization changed (see below)
+MODEL_FORMAT_VERSION = "electrotrace-model-v2-skops"
+DEFAULT_TRUSTED_SKOPS_TYPES = (
+    "numpy.core.multiarray._reconstruct",
+    "numpy.core.multiarray.scalar",
+    "numpy.dtype",
+    "numpy.ndarray",
+    "sklearn.ensemble._forest.RandomForestClassifier",
+    "sklearn.tree._classes.DecisionTreeClassifier",
+    "sklearn.tree._tree.Tree",
+)
 DEFAULT_TARGET_RECALL = 0.995
 DEFAULT_TOLERANCE_S = 0.075
 DEFAULT_CALIBRATION_FRACTION = 0.20
@@ -35,6 +48,7 @@ class SuppressorMetadata:
     calibration_fraction: float = DEFAULT_CALIBRATION_FRACTION
     calibration_candidates: int = 0
     calibration_method: str = "held_out_stratified"
+    sklearn_version: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -278,10 +292,22 @@ class CandidateSuppressor:
                                        max_depth=14, random_state=int(random_seed), n_jobs=-1)
         model.fit(X, y)
         self.model = model
-        self.metadata = SuppressorMetadata(SUPPRESSOR_VERSION, FEATURE_SCHEMA_VERSION, float(target_recall), float(threshold),
-                                           int(len(y)), int(y.sum()), int((y == 0).sum()), int(random_seed), int(n_estimators),
-                                           calibration_fraction=float(calibration_fraction), calibration_candidates=calibration_candidates,
-                                           calibration_method=calibration_method)
+        import sklearn
+        self.metadata = SuppressorMetadata(
+            SUPPRESSOR_VERSION,
+            FEATURE_SCHEMA_VERSION,
+            float(target_recall),
+            float(threshold),
+            int(len(y)),
+            int(y.sum()),
+            int((y == 0).sum()),
+            int(random_seed),
+            int(n_estimators),
+            calibration_fraction=float(calibration_fraction),
+            calibration_candidates=calibration_candidates,
+            calibration_method=calibration_method,
+            sklearn_version=str(sklearn.__version__),
+        )
         return self
 
     def predict_proba(self, features: np.ndarray) -> np.ndarray:
@@ -299,14 +325,117 @@ class CandidateSuppressor:
         return candidates[mask], probabilities
 
     def save(self, path: str | Path) -> None:
-        if not self.fitted: raise ValueError("cannot save an unfitted candidate suppressor")
-        Path(path).write_bytes(pickle.dumps({"model": self.model, "metadata": self.metadata, "feature_names": self.feature_names}, protocol=pickle.HIGHEST_PROTOCOL))
+        """Persist the fitted sklearn model using skops plus a JSON sidecar."""
+        if not self.fitted:
+            raise ValueError("cannot save an unfitted candidate suppressor")
+        path = Path(path)
+        if path.suffix.lower() != ".skops":
+            raise ValueError(
+                "model paths must end in .skops; legacy pickle is read-only compatibility format"
+            )
+        try:
+            from skops import io as skops_io
+        except ImportError as exc:
+            raise RuntimeError(
+                "skops is required for safe model persistence; install with pip install skops"
+            ) from exc
+        skops_io.dump(self.model, path)
+        model_sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
+        metadata_path = path.with_suffix(path.suffix + ".json")
+        payload = {
+            "format_version": MODEL_FORMAT_VERSION,
+            "metadata": self.metadata.to_dict(),
+            "feature_names": self.feature_names or [],
+            "model_sha256": model_sha256,
+        }
+        metadata_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
 
     @classmethod
-    def load(cls, path: str | Path) -> "CandidateSuppressor":
-        """Load a suppressor from a trusted local model file.
+    def load(
+        cls,
+        path: str | Path,
+        *,
+        allow_pickle: bool = False,
+        trusted_types: Sequence[str] = (),
+    ) -> "CandidateSuppressor":
+        """Load a model with safe-by-default serialization."""
+        import sklearn
 
-        Pickle is executable serialization; never load model files obtained from
-        untrusted users, downloads, or external sources.
-        """
-        payload = pickle.loads(Path(path).read_bytes()); obj = cls(model=payload["model"], metadata=payload["metadata"]); obj.feature_names = payload.get("feature_names"); return obj
+        path = Path(path)
+        if path.suffix.lower() == ".pkl":
+            if not allow_pickle:
+                raise ValueError(
+                    "Refusing legacy pickle model. Convert it to .skops first; "
+                    "use allow_pickle=True only for a trusted local migration."
+                )
+            warnings.warn(
+                "Loading legacy pickle; use .skops for safe persistence.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            payload = pickle.loads(path.read_bytes())
+            metadata = payload["metadata"]
+            if not hasattr(metadata, "sklearn_version"):
+                metadata = replace(metadata, sklearn_version=str(sklearn.__version__))
+            obj = cls(model=payload["model"], metadata=metadata)
+            obj.feature_names = payload.get("feature_names")
+            return obj
+
+        if path.suffix.lower() != ".skops":
+            raise ValueError("unsupported model format; expected .skops or legacy .pkl")
+
+        metadata_path = path.with_suffix(path.suffix + ".json")
+        if not metadata_path.exists():
+            raise ValueError(f"missing model metadata sidecar: {metadata_path.name}")
+        envelope = json.loads(metadata_path.read_text(encoding="utf-8"))
+        if envelope.get("format_version") != MODEL_FORMAT_VERSION:
+            raise ValueError(
+                f"unsupported model format: {envelope.get('format_version')!r}"
+            )
+        metadata = SuppressorMetadata(**envelope["metadata"])
+        expected_sha = envelope.get("model_sha256")
+        if expected_sha:
+            actual_sha = hashlib.sha256(path.read_bytes()).hexdigest()
+            if actual_sha != expected_sha:
+                raise ValueError(
+                    f"model SHA-256 mismatch for {path.name}; expected {expected_sha}, got {actual_sha}"
+                )
+
+        runtime_major = str(sklearn.__version__).split(".", 1)[0]
+        stored_major = (
+            metadata.sklearn_version.split(".", 1)[0]
+            if metadata.sklearn_version
+            else ""
+        )
+        if stored_major and stored_major != runtime_major:
+            raise ValueError(
+                f"model was built with scikit-learn {metadata.sklearn_version}, "
+                f"but the runtime has {sklearn.__version__}. "
+                "Retrain/export the model for the current major version."
+            )
+
+        try:
+            from skops import io as skops_io
+        except ImportError as exc:
+            raise RuntimeError(
+                "skops is required for model loading; install with pip install skops"
+            ) from exc
+
+        unknown = list(skops_io.get_untrusted_types(file=path))
+        allowed_types = set(DEFAULT_TRUSTED_SKOPS_TYPES).union(trusted_types)
+        unresolved = [name for name in unknown if name not in allowed_types]
+        if unresolved:
+            raise ValueError(
+                "model contains unknown serialized types; inspect the .skops file before loading: "
+                + ", ".join(unresolved)
+            )
+        model = skops_io.load(path, trusted=sorted(allowed_types))
+        if not isinstance(model, RandomForestClassifier):
+            raise ValueError(
+                "unsupported model type in CandidateSuppressor artifact; expected RandomForestClassifier"
+            )
+        obj = cls(model=model, metadata=metadata)
+        obj.feature_names = list(envelope.get("feature_names", [])) or None
+        return obj
