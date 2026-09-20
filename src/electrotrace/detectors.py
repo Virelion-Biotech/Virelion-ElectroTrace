@@ -30,6 +30,14 @@ class DetectorSpec:
     source: str = "builtin"
 
 
+def _wfdb_gqrs(signal: np.ndarray, fs_hz: float) -> np.ndarray:
+    try:
+        import wfdb
+    except ImportError as exc:
+        raise RuntimeError("WFDB gqrs requires the wfdb extra: pip install electrotrace[wfdb]") from exc
+    return np.asarray(wfdb.processing.gqrs_detect(sig=signal, fs=fs_hz), dtype=int)
+
+
 BUILTIN_CITATIONS = {
     "pan-tompkins": (
         "Pan J, Tompkins WJ. A Real-Time QRS Detection Algorithm. "
@@ -46,6 +54,10 @@ BUILTIN_CITATIONS = {
     "electrotrace-two-stage": (
         "ElectroTrace two-stage Random Forest suppressor; "
         "see repository model and validation documentation."
+    ),
+    "wfdb-gqrs": (
+        "WFDB Python processing.gqrs_detect; original GQRS algorithm port. "
+        "See WFDB documentation and original WFDB references."
     ),
 }
 
@@ -73,6 +85,12 @@ def _builtin_specs(
             lambda signal, fs: detect_r_peaks(signal, fs, polarity=polarity, scale_method=scale_method),
         ),
     }
+    specs["wfdb-gqrs"] = DetectorSpec(
+        "wfdb-gqrs",
+        "wfdb-compatible",
+        BUILTIN_CITATIONS["wfdb-gqrs"],
+        _wfdb_gqrs,
+    )
     if model is not None:
         specs["electrotrace-two-stage"] = DetectorSpec(
             "electrotrace-two-stage",
@@ -125,6 +143,7 @@ def get_detector(
     aliases = {
         "pantompkins": "pan-tompkins",
         "electrotrace-2stage": "electrotrace-two-stage",
+        "gqrs": "wfdb-gqrs",
     }
     normalized = aliases.get(normalized, normalized)
     if normalized not in specs:
