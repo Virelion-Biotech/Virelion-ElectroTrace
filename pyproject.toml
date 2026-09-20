@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "electrotrace"
 version = "1.8.1"
-description = "Research-oriented ECG and electrophysiology annotation, segmentation, phenotyping, and leakage-safe ML toolkit"
+description = "Reproducible ECG/electrophysiology annotation, benchmarking, phenotyping, and leakage-safe validation toolkit"
 requires-python = ">=3.10"
 dependencies = [
   "flask>=3.0",
@@ -15,15 +15,19 @@ dependencies = [
   "scikit-learn>=1.4",
   "wfdb>=4.1",
   "pyedflib>=0.1.38",
+  "skops>=0.14",
 ]
 
 [project.optional-dependencies]
 test = ["pytest>=8.0"]
-
-dev = ["pytest>=8.0", "ruff>=0.6", "build>=1.2"]
+dev = ["pytest>=8.0", "ruff>=0.6", "build>=1.2", "mypy>=1.11"]
 
 [project.scripts]
+electrotrace = "electrotrace.cli:main"
 electrotrace-hearttwin = "electrotrace.hearttwin_adapter:main"
+
+[project.entry-points."electrotrace.detectors"]
+# Third-party detector packages register callables here.
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -31,3 +35,17 @@ where = ["src"]
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
 testpaths = ["tests"]
+addopts = "--strict-markers"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true
