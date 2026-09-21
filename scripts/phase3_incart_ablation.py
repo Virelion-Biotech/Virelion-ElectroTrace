@@ -115,37 +115,57 @@ def load_record(data_dir: Path, name: str) -> tuple[np.ndarray, float, np.ndarra
     return signal, float(rec.fs), refs
 
 
-def evaluate(
+def score_candidates(
     model: CandidateSuppressor,
     signal: np.ndarray,
     fs_hz: float,
-    refs: np.ndarray,
-    *,
-    threshold: float | None,
-) -> dict:
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """Run Stage 1 + Stage 2 scoring once and return all Stage-2 candidates.
+
+    Thresholding is deliberately deferred until after scoring so a threshold
+    sweep reuses the same candidate probabilities instead of rerunning
+    Stage 1 and feature extraction for every threshold.
+    """
     from electrotrace.validation_detectors import detect_r_peaks, detect_r_peaks_two_stage
 
-    stage1 = detect_r_peaks(signal, fs_hz, polarity="adaptive", scale_method="windowed_std")
-    detected, probabilities = detect_r_peaks_two_stage(
+    stage1 = detect_r_peaks(
+        signal, fs_hz, polarity="adaptive", scale_method="windowed_std"
+    )
+    candidates, probabilities = detect_r_peaks_two_stage(
         signal,
         fs_hz,
         model,
         polarity="adaptive",
         recovery=False,
         scale_method="windowed_std",
-        threshold=threshold,
+        threshold=0.0,
     )
+    return candidates.astype(int), probabilities.astype(float), int(len(stage1))
+
+
+def evaluate_scored(
+    model: CandidateSuppressor,
+    candidates: np.ndarray,
+    probabilities: np.ndarray,
+    stage1_count: int,
+    fs_hz: float,
+    refs: np.ndarray,
+    *,
+    threshold: float | None,
+) -> dict:
+    selected_threshold = float(model.metadata.threshold if threshold is None else threshold)
+    detected = candidates[probabilities >= selected_threshold]
     metrics = match_peaks(detected, refs, fs_hz, tolerance_ms=75.0)
     return {
         "reference_count": int(len(refs)),
-        "stage1_candidates": int(len(stage1)),
+        "stage1_candidates": int(stage1_count),
         "detected_count": int(len(detected)),
         "sensitivity": metrics.sensitivity,
         "ppv": metrics.positive_predictive_value,
         "f1": metrics.f1,
         "median_abs_timing_error_ms": metrics.median_absolute_timing_error_ms,
         "p95_abs_timing_error_ms": metrics.p95_absolute_timing_error_ms,
-        "threshold": float(model.metadata.threshold if threshold is None else threshold),
+        "threshold": selected_threshold,
         "probability_median": float(np.median(probabilities)) if len(probabilities) else None,
     }
 
@@ -191,7 +211,18 @@ def main() -> int:
                 x, xfs = transform_signal(signal, fs_hz, transform)
                 scale = xfs / fs_hz
                 xrefs = np.rint(refs * scale).astype(int)
-                baseline = evaluate(model, x, xfs, xrefs, threshold=None)
+                candidates, probabilities, stage1_count = score_candidates(
+                    model, x, xfs
+                )
+                baseline = evaluate_scored(
+                    model,
+                    candidates,
+                    probabilities,
+                    stage1_count,
+                    xfs,
+                    xrefs,
+                    threshold=None,
+                )
                 baseline.update(
                     {
                         "record": name,
@@ -203,7 +234,15 @@ def main() -> int:
                 results.append(baseline)
 
                 for threshold in thresholds:
-                    sweep = evaluate(model, x, xfs, xrefs, threshold=threshold)
+                    sweep = evaluate_scored(
+                        model,
+                        candidates,
+                        probabilities,
+                        stage1_count,
+                        xfs,
+                        xrefs,
+                        threshold=threshold,
+                    )
                     sweep.update(
                         {
                             "record": name,

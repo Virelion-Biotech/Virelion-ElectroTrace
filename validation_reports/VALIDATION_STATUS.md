@@ -36,17 +36,24 @@ Artifacts:
 
 ## INCART external comparison
 
-The repository's certified comparison uses 68 records and the same 75 ms matching rule:
+Two model generations are present in the immutable validation history and must be kept distinct:
 
-| Detector | Sensitivity | PPV | F1 |
-|---|---:|---:|---:|
-| ElectroTrace two-stage | 0.3239 | 0.9679 | 0.4854 |
-| WFDB gqrs | 0.9324 | 0.9265 | 0.9294 |
-| WFDB sqrs | 0.7488 | 0.9513 | 0.8380 |
+| Model | Feature schema | Records | Sensitivity | PPV | F1 |
+|---|---|---:|---:|---:|---:|
+| Earlier two-stage model | candidate-features-v3 | 68 | 0.3239 | 0.9679 | 0.4854 |
+| Windowed-std two-stage model | candidate-features-v4 | 68 | 0.9011 | 0.7594 | 0.8242 |
 
-This is evidence of a large cross-database generalization gap for the current two-stage model. It is not a clinical performance claim.
+The second row is the current windowed-std model and is the relevant post-fix external result. WFDB gqrs on the same 68-record protocol has sensitivity 0.9324, PPV 0.9265, F1 0.9294; sqrs has sensitivity 0.7488, PPV 0.9513, F1 0.8380. These are cross-database detector results under the stated matching protocol, not clinical performance claims.
 
-Artifact: incart_wfdb_vs_electrotrace_comparison_2026-09-11.json
+Artifacts:
+- incart_two_stage_external_full_windowed_std_2026-09-09.json
+- incart_wfdb_vs_electrotrace_comparison_2026-09-11.json
+
+### Phase-3 preprocessing/threshold ablation
+
+A 2026-09-21 run of the windowed-std model evaluated 66 usable local records because I09 and I61 were missing locally; the same seven negative-annotation-index records remained excluded. Mean record-level F1 was 0.8236 on raw signals, 0.8235 after 257->360 Hz resampling, and unchanged by robust scaling. The threshold sweep is exploratory only; its highest mean record-level F1 on this run was 0.8729 at threshold 0.50, but this threshold was not selected for deployment.
+
+Interpretation: the Phase-3 ablation does not support resampling or robust scaling as the main explanation for the remaining INCART gap. Further work should focus on record-level polarity/candidate errors and score/threshold domain shift rather than immediately changing the model architecture.
 
 ## Model artifact policy
 
