@@ -126,17 +126,10 @@ def score_candidates(
     sweep reuses the same candidate probabilities instead of rerunning
     Stage 1 and feature extraction for every threshold.
     """
-    from electrotrace.validation_detectors import detect_r_peaks_two_stage
+    from electrotrace.validation_detectors import detect_r_peaks, detect_r_peaks_two_stage
 
-    stage1, _ = (
-        __import__("electrotrace.validation_detectors", fromlist=["detect_r_peaks"])
-        .detect_r_peaks(
-            signal,
-            fs_hz,
-            polarity="adaptive",
-            scale_method="windowed_std",
-        ),
-        None,
+    stage1 = detect_r_peaks(
+        signal, fs_hz, polarity="adaptive", scale_method="windowed_std"
     )
     candidates, probabilities = detect_r_peaks_two_stage(
         signal,
