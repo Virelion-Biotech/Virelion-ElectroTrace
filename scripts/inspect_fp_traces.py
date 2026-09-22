@@ -34,8 +34,13 @@ from electrotrace import __version__
 from electrotrace.candidate_suppressor import CandidateSuppressor
 from electrotrace.validation import DEFAULT_BEAT_SYMBOLS
 from electrotrace.wfdb_records import POLICIES, RecordExcluded, load_annotated_record
-
-from scripts.incart_fp_offsets import _json_default, analyze_signal_record, git_head, package_versions, sha256_file
+from scripts.incart_fp_offsets import (
+    _json_default,
+    analyze_signal_record,
+    git_head,
+    package_versions,
+    sha256_file,
+)
 
 
 def select_samples(
