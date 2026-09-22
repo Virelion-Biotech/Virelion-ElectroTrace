@@ -2,7 +2,7 @@
 
 **Software:** electrotrace 1.8.1  
 **Primary scientific endpoint:** held-out MIT-BIH test records only (not full-pool)  
-**Current hardening branch:** release-hardening-v1.9
+**Current hardening branch:** merged into `main`; there is no separate hardening branch to check out
 
 ## Unit tests
 
@@ -51,9 +51,17 @@ Artifacts:
 
 ### Phase-3 preprocessing/threshold ablation
 
-A 2026-09-21 run of the windowed-std model evaluated 66 usable local records because I09 and I61 were missing locally; the same seven negative-annotation-index records remained excluded. Mean record-level F1 was 0.8236 on raw signals, 0.8235 after 257->360 Hz resampling, and unchanged by robust scaling. The threshold sweep is exploratory only; its highest mean record-level F1 on this run was 0.8729 at threshold 0.50, but this threshold was not selected for deployment.
+A 2026-09-21 Phase-3 run evaluated 66 usable local records; the two missing records were then rerun separately and both completed with no skipped records. The combined I09/I61 artifact is `incart_phase3_missing_I09_I61.json`. Across the original 66-record run, mean record-level F1 was 0.8236 on raw signals, 0.8235 after 257->360 Hz resampling, and unchanged by robust scaling. The threshold sweep is exploratory only; its highest mean record-level F1 on that run was 0.8729 at threshold 0.50, but this threshold was not selected for deployment.
 
 Interpretation: the Phase-3 ablation does not support resampling or robust scaling as the main explanation for the remaining INCART gap. Further work should focus on record-level polarity/candidate errors and score/threshold domain shift rather than immediately changing the model architecture.
+### False-positive forensics (2026-09-22)
+
+`scripts/incart_fp_offsets.py` classifies every false positive on the 68-record windowed-std run by its position relative to neighbouring reference beats. 74% sit 150-450 ms after the preceding true beat (the post-QRS T-wave window); approximately 0% are duplicate detections. Stage-2 ranking AUC is 0.998 even on the 13 worst over-detecting records, so the candidate ranking is strong and the remaining error is concentrated in operating-threshold calibration rather than simple ranking failure. These are development-data diagnostics, not held-out test results.
+
+Seven INCART records were previously excluded for a leading negative annotation index. Six repair cleanly under `--annotation-policy drop_edges`; I57 remains excluded pending a second reference-detector check.
+
+`scripts/recalibrate_threshold_grouped_cv.py` is the direct follow-up. It performs record-grouped cross-validation across the MIT-BIH calibration records plus INCART, never reads the locked 12-record MIT-BIH held-out split, and never retrains the RF. It reports both an out-of-fold threshold estimate and a full-pool deployment-candidate threshold; neither is validated until tested on a genuinely fresh database.
+
 
 ## Model artifact policy
 
