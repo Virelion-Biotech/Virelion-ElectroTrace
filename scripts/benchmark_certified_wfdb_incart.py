@@ -16,8 +16,14 @@ from electrotrace.validation import (
     DEFAULT_BEAT_SYMBOLS,
     DetectionMetrics,
     RecordValidation,
+    match_peaks,
     summarize_records,
-    validate_record,
+)
+from electrotrace.wfdb_records import (
+    POLICIES,
+    RecordExcluded,
+    load_annotated_record,
+    summarize_audits,
 )
 
 REFERENCE_BEAT_SYMBOLS = sorted(DEFAULT_BEAT_SYMBOLS)
@@ -28,19 +34,6 @@ def git_head() -> str:
         return subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
     except Exception:
         return "unknown"
-
-
-def load_reference_samples(record_base: Path) -> np.ndarray:
-    ann = wfdb.rdann(str(record_base), "atr")
-    refs = np.asarray(
-        [
-            int(sample)
-            for sample, symbol in zip(ann.sample, ann.symbol)
-            if symbol in REFERENCE_BEAT_SYMBOLS
-        ],
-        dtype=int,
-    )
-    return refs
 
 
 def run_detector(executable: str, record_base: Path) -> np.ndarray:
@@ -83,6 +76,16 @@ def main() -> None:
     parser.add_argument("--work-dir", type=Path, required=True)
     parser.add_argument("--tolerance-ms", type=float, default=75.0)
     parser.add_argument("--detectors", default="gqrs,sqrs")
+    parser.add_argument(
+        "--annotation-policy",
+        choices=POLICIES,
+        default="error",
+        help=(
+            "error (historical): records with invalid reference annotations are skipped. "
+            "drop_edges: drop invalid edge annotations only when this run's detector "
+            "output confirms the remaining reference is aligned."
+        ),
+    )
     args = parser.parse_args()
 
     detectors = [x.strip() for x in args.detectors.split(",") if x.strip()]
@@ -106,6 +109,7 @@ def main() -> None:
         detector_dir.mkdir(parents=True, exist_ok=True)
         detector_results = []
         skipped = []
+        audits = []
         print(f"\n===== {detector_name} =====")
 
         for idx, record_name in enumerate(record_names, start=1):
@@ -119,27 +123,30 @@ def main() -> None:
                         raise FileNotFoundError(source)
                     shutil.copy2(source, target)
 
-                refs = load_reference_samples(target_base)
-                if refs.size and np.any(refs < 0):
-                    reason = "negative annotation sample index"
-                    skipped.append({"record": record_name, "reason": reason})
-                    print(f"[{idx}/{len(record_names)}] {record_name}: SKIPPED: {reason}")
-                    continue
-
                 detected = run_detector(detector_name, target_base)
+                try:
+                    annotated = load_annotated_record(
+                        target_base,
+                        load_signal=False,
+                        beat_symbols=REFERENCE_BEAT_SYMBOLS,
+                        tolerance_ms=args.tolerance_ms,
+                        policy=args.annotation_policy,
+                        alignment_peaks=detected,
+                    )
+                except RecordExcluded as exc:
+                    audits.append(exc.audit)
+                    skipped.append({"record": record_name, "reason": exc.reason})
+                    print(f"[{idx}/{len(record_names)}] {record_name}: SKIPPED: {exc.reason}")
+                    continue
+                audits.append(annotated.audit)
 
-                def detector_fn(signal, fs_hz, _detected=detected):
-                    return _detected
-
-                result = validate_record(
-                    str(target_base),
-                    detector_fn,
-                    channel=0,
-                    annotation_extension="atr",
-                    beat_symbols=REFERENCE_BEAT_SYMBOLS,
+                metrics = match_peaks(
+                    detected,
+                    annotated.reference,
+                    annotated.fs_hz,
                     tolerance_ms=args.tolerance_ms,
                 )
-                payload = result.to_dict()
+                payload = {"record": record_name, "fs_hz": annotated.fs_hz, **metrics.to_dict()}
                 payload["detector"] = detector_name
                 detector_results.append(payload)
                 print(
@@ -178,6 +185,10 @@ def main() -> None:
         all_results[detector_name] = {
             "records": detector_results,
             "skipped_records": skipped,
+            "annotation_audit": {
+                "summary": summarize_audits(audits),
+                "records": [a.to_dict() for a in audits],
+            },
             "summary": summarize_records(validation_results)
             if validation_results
             else {"records": 0, "note": "no usable records"},
@@ -202,7 +213,8 @@ def main() -> None:
             "annotation_extension": "atr",
             "beat_symbols": REFERENCE_BEAT_SYMBOLS,
             "tolerance_ms": args.tolerance_ms,
-            "skip_negative_annotation_indices": True,
+            "annotation_policy": args.annotation_policy,
+            "skip_negative_annotation_indices": args.annotation_policy == "error",
             "purpose": "External domain-shift baseline for comparison with ElectroTrace INCART two-stage external study",
             "comparable_electrotrace_report": "validation_reports/incart_two_stage_external_full_2026-09-09.json",
             "certified_tools": {name: shutil.which(name) for name in detectors},

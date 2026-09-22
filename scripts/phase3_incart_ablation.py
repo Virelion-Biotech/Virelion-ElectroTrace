@@ -30,6 +30,12 @@ import wfdb
 from electrotrace import __version__
 from electrotrace.candidate_suppressor import CandidateSuppressor
 from electrotrace.validation import DEFAULT_BEAT_SYMBOLS, match_peaks
+from electrotrace.wfdb_records import (
+    POLICIES,
+    RecordExcluded,
+    load_annotated_record,
+    summarize_audits,
+)
 
 
 @dataclass(frozen=True)
@@ -60,6 +66,17 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def package_versions() -> dict:
+    versions = {}
+    for module_name in ("numpy", "scipy", "sklearn", "skops", "wfdb", "pandas"):
+        try:
+            module = __import__(module_name)
+            versions[module_name] = getattr(module, "__version__", "unknown")
+        except Exception:
+            versions[module_name] = "missing"
+    return versions
 
 
 def robust_scale(x: np.ndarray) -> np.ndarray:
@@ -96,23 +113,6 @@ def record_names(data_dir: Path) -> list[str]:
         return records
     names = [Path(x).name for x in wfdb.get_record_list("incartdb")]
     return sorted(names)
-
-
-def load_record(data_dir: Path, name: str) -> tuple[np.ndarray, float, np.ndarray]:
-    base = str(data_dir / name)
-    rec = wfdb.rdrecord(base, channels=[0], physical=False)
-    signal = np.asarray(
-        rec.p_signal[:, 0] if rec.p_signal is not None else rec.d_signal[:, 0],
-        dtype=float,
-    )
-    ann = wfdb.rdann(base, "atr")
-    refs = np.asarray(
-        [int(sample) for sample, symbol in zip(ann.sample, ann.symbol) if symbol in DEFAULT_BEAT_SYMBOLS],
-        dtype=int,
-    )
-    if refs.size and np.any(refs < 0):
-        raise ValueError("negative annotation sample index")
-    return signal, float(rec.fs), refs
 
 
 def score_candidates(
@@ -189,6 +189,16 @@ def main() -> int:
         help="Defaults to every local INCART record.",
     )
     parser.add_argument(
+        "--annotation-policy",
+        choices=POLICIES,
+        default="error",
+        help=(
+            "error (historical): records with invalid reference annotations are "
+            "excluded. drop_edges: drop invalid edge annotations only when an "
+            "independent detector confirms the remaining reference is aligned."
+        ),
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=Path("validation_reports/incart_phase3_ablation.json"),
@@ -203,10 +213,17 @@ def main() -> int:
 
     results: list[dict] = []
     skipped: list[dict] = []
+    audits = []
 
     for index, name in enumerate(names, start=1):
         try:
-            signal, fs_hz, refs = load_record(args.incart_dir, name)
+            annotated = load_annotated_record(
+                args.incart_dir / name,
+                beat_symbols=DEFAULT_BEAT_SYMBOLS,
+                policy=args.annotation_policy,
+            )
+            audits.append(annotated.audit)
+            signal, fs_hz, refs = annotated.signal, annotated.fs_hz, annotated.reference
             for transform in transforms:
                 x, xfs = transform_signal(signal, fs_hz, transform)
                 scale = xfs / fs_hz
@@ -254,6 +271,10 @@ def main() -> int:
                     results.append(sweep)
 
             print(f"[{index}/{len(names)}] {name}: done", flush=True)
+        except RecordExcluded as exc:
+            audits.append(exc.audit)
+            skipped.append({"record": name, "reason": exc.reason})
+            print(f"[{index}/{len(names)}] {name}: EXCLUDED: {exc.reason}", flush=True)
         except Exception as exc:
             skipped.append({"record": name, "reason": f"{type(exc).__name__}: {exc}"})
             print(f"[{index}/{len(names)}] {name}: SKIPPED: {exc}", flush=True)
@@ -314,6 +335,7 @@ def main() -> int:
         "software_version": __version__,
         "python": sys.version.split()[0],
         "platform": platform.platform(),
+        "package_versions": package_versions(),
         "model": str(args.model),
         "model_sha256": sha256_file(args.model),
         "model_metadata": model.metadata.to_dict(),
@@ -326,6 +348,11 @@ def main() -> int:
             "thresholds": thresholds,
             "threshold_selection_note": "Threshold sweep is exploratory; no threshold is selected from INCART labels.",
             "retraining": False,
+            "annotation_policy": args.annotation_policy,
+        },
+        "annotation_audit": {
+            "summary": summarize_audits(audits),
+            "records": [a.to_dict() for a in audits],
         },
         "summary_by_transform": summary_by_transform,
         "summary_by_threshold": summary_by_threshold,
