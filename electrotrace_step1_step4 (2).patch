@@ -1,0 +1,2236 @@
+diff --git a/scripts/benchmark_certified_wfdb_incart.py b/scripts/benchmark_certified_wfdb_incart.py
+index 65a5c9a..a9b9c5a 100644
+--- a/scripts/benchmark_certified_wfdb_incart.py
++++ b/scripts/benchmark_certified_wfdb_incart.py
+@@ -16,8 +16,14 @@ from electrotrace.validation import (
+     DEFAULT_BEAT_SYMBOLS,
+     DetectionMetrics,
+     RecordValidation,
++    match_peaks,
+     summarize_records,
+-    validate_record,
++)
++from electrotrace.wfdb_records import (
++    POLICIES,
++    RecordExcluded,
++    load_annotated_record,
++    summarize_audits,
+ )
+ 
+ REFERENCE_BEAT_SYMBOLS = sorted(DEFAULT_BEAT_SYMBOLS)
+@@ -30,19 +36,6 @@ def git_head() -> str:
+         return "unknown"
+ 
+ 
+-def load_reference_samples(record_base: Path) -> np.ndarray:
+-    ann = wfdb.rdann(str(record_base), "atr")
+-    refs = np.asarray(
+-        [
+-            int(sample)
+-            for sample, symbol in zip(ann.sample, ann.symbol)
+-            if symbol in REFERENCE_BEAT_SYMBOLS
+-        ],
+-        dtype=int,
+-    )
+-    return refs
+-
+-
+ def run_detector(executable: str, record_base: Path) -> np.ndarray:
+     completed = subprocess.run(
+         [executable, "-r", str(record_base), "-s", "0"],
+@@ -83,6 +76,16 @@ def main() -> None:
+     parser.add_argument("--work-dir", type=Path, required=True)
+     parser.add_argument("--tolerance-ms", type=float, default=75.0)
+     parser.add_argument("--detectors", default="gqrs,sqrs")
++    parser.add_argument(
++        "--annotation-policy",
++        choices=POLICIES,
++        default="error",
++        help=(
++            "error (historical): records with invalid reference annotations are skipped. "
++            "drop_edges: drop invalid edge annotations only when this run's detector "
++            "output confirms the remaining reference is aligned."
++        ),
++    )
+     args = parser.parse_args()
+ 
+     detectors = [x.strip() for x in args.detectors.split(",") if x.strip()]
+@@ -106,6 +109,7 @@ def main() -> None:
+         detector_dir.mkdir(parents=True, exist_ok=True)
+         detector_results = []
+         skipped = []
++        audits = []
+         print(f"\n===== {detector_name} =====")
+ 
+         for idx, record_name in enumerate(record_names, start=1):
+@@ -119,27 +123,30 @@ def main() -> None:
+                         raise FileNotFoundError(source)
+                     shutil.copy2(source, target)
+ 
+-                refs = load_reference_samples(target_base)
+-                if refs.size and np.any(refs < 0):
+-                    reason = "negative annotation sample index"
+-                    skipped.append({"record": record_name, "reason": reason})
+-                    print(f"[{idx}/{len(record_names)}] {record_name}: SKIPPED: {reason}")
+-                    continue
+-
+                 detected = run_detector(detector_name, target_base)
++                try:
++                    annotated = load_annotated_record(
++                        target_base,
++                        load_signal=False,
++                        beat_symbols=REFERENCE_BEAT_SYMBOLS,
++                        tolerance_ms=args.tolerance_ms,
++                        policy=args.annotation_policy,
++                        alignment_peaks=detected,
++                    )
++                except RecordExcluded as exc:
++                    audits.append(exc.audit)
++                    skipped.append({"record": record_name, "reason": exc.reason})
++                    print(f"[{idx}/{len(record_names)}] {record_name}: SKIPPED: {exc.reason}")
++                    continue
++                audits.append(annotated.audit)
+ 
+-                def detector_fn(signal, fs_hz, _detected=detected):
+-                    return _detected
+-
+-                result = validate_record(
+-                    str(target_base),
+-                    detector_fn,
+-                    channel=0,
+-                    annotation_extension="atr",
+-                    beat_symbols=REFERENCE_BEAT_SYMBOLS,
++                metrics = match_peaks(
++                    detected,
++                    annotated.reference,
++                    annotated.fs_hz,
+                     tolerance_ms=args.tolerance_ms,
+                 )
+-                payload = result.to_dict()
++                payload = {"record": record_name, "fs_hz": annotated.fs_hz, **metrics.to_dict()}
+                 payload["detector"] = detector_name
+                 detector_results.append(payload)
+                 print(
+@@ -178,6 +185,10 @@ def main() -> None:
+         all_results[detector_name] = {
+             "records": detector_results,
+             "skipped_records": skipped,
++            "annotation_audit": {
++                "summary": summarize_audits(audits),
++                "records": [a.to_dict() for a in audits],
++            },
+             "summary": summarize_records(validation_results)
+             if validation_results
+             else {"records": 0, "note": "no usable records"},
+@@ -202,7 +213,8 @@ def main() -> None:
+             "annotation_extension": "atr",
+             "beat_symbols": REFERENCE_BEAT_SYMBOLS,
+             "tolerance_ms": args.tolerance_ms,
+-            "skip_negative_annotation_indices": True,
++            "annotation_policy": args.annotation_policy,
++            "skip_negative_annotation_indices": args.annotation_policy == "error",
+             "purpose": "External domain-shift baseline for comparison with ElectroTrace INCART two-stage external study",
+             "comparable_electrotrace_report": "validation_reports/incart_two_stage_external_full_2026-09-09.json",
+             "certified_tools": {name: shutil.which(name) for name in detectors},
+diff --git a/scripts/diagnose_wfdb_annotations.py b/scripts/diagnose_wfdb_annotations.py
+new file mode 100644
+index 0000000..a8375ef
+--- /dev/null
++++ b/scripts/diagnose_wfdb_annotations.py
+@@ -0,0 +1,156 @@
++#!/usr/bin/env python3
++"""Why do some records' reference annotations fail validation?
++
++Seven of 75 INCART records (I04, I17, I35, I44, I57, I72, I74) were dropped by
++every validation script with "negative annotation sample index".  Before any
++repair policy is trusted, look at what is actually in those files.
++
++For each record this prints/records:
++  * the raw annotation dump (first entries, where the negative indices sit, symbol
++    counts, how many steps are non-increasing);
++  * the audit under the historical policy (``error``);
++  * the audit under ``drop_edges``, which drops only invalid *edge* annotations and
++    accepts the result only if an independent detector (Pan-Tompkins here) agrees
++    with what remains;
++  * the alignment coverage of the valid remainder even when no repair is possible,
++    so a shifted reference is visible as low coverage.
++
++Usage:
++  python scripts/diagnose_wfdb_annotations.py \\
++      --data-dir .cache/physionet/incartdb --records I04 I17 I35 I44 I57 I72 I74
++
++  # or audit everything and only report records with a problem
++  python scripts/diagnose_wfdb_annotations.py --data-dir .cache/physionet/incartdb --only-invalid
++
++Read the output before switching any script to ``--annotation-policy drop_edges``.
++"""
++from __future__ import annotations
++
++import argparse
++import json
++import platform
++import sys
++from datetime import datetime, timezone
++from pathlib import Path
++
++import numpy as np
++
++from electrotrace import __version__
++from electrotrace.baseline_detectors import pan_tompkins_r_peaks
++from electrotrace.validation import DEFAULT_BEAT_SYMBOLS
++from electrotrace.wfdb_records import (
++    RecordExcluded,
++    clean_reference_annotations,
++    estimate_alignment,
++    raw_annotation_dump,
++)
++
++
++def diagnose_record(base: Path, *, tolerance_ms: float) -> dict:
++    import wfdb
++
++    name = base.name
++    rec = wfdb.rdrecord(str(base), channels=[0], physical=False)
++    signal = np.asarray(rec.p_signal[:, 0] if rec.p_signal is not None else rec.d_signal[:, 0], dtype=float)
++    fs = float(rec.fs)
++    ann = wfdb.rdann(str(base), "atr")
++    peaks = pan_tompkins_r_peaks(signal, fs)
++
++    out = {
++        "record": name,
++        "fs_hz": fs,
++        "signal_length": int(signal.size),
++        "raw": raw_annotation_dump(base),
++        "policies": {},
++    }
++    for policy in ("error", "drop_edges"):
++        try:
++            _, audit = clean_reference_annotations(
++                ann.sample,
++                ann.symbol,
++                n_samples=signal.size,
++                fs_hz=fs,
++                record=name,
++                beat_symbols=DEFAULT_BEAT_SYMBOLS,
++                policy=policy,
++                alignment_peaks=peaks,
++                tolerance_ms=tolerance_ms,
++            )
++        except RecordExcluded as exc:
++            audit = exc.audit
++        out["policies"][policy] = audit.to_dict()
++
++    sample = np.asarray(ann.sample, dtype=np.int64)
++    is_beat = np.array([s in DEFAULT_BEAT_SYMBOLS for s in ann.symbol], dtype=bool)
++    valid = sample[is_beat & (sample >= 0) & (sample < signal.size)]
++    valid = valid[np.concatenate([[True], np.diff(valid) > 0])] if valid.size else valid
++    coverage, offset = estimate_alignment(peaks, valid, fs, tolerance_ms=tolerance_ms)
++    out["valid_remainder_alignment"] = {
++        "n_valid_beats": int(valid.size),
++        "coverage_vs_pan_tompkins": coverage,
++        "median_offset_ms": offset,
++        "note": "coverage near 1 = aligned; about 2*tolerance/RR (roughly 0.2) = shifted or unrelated",
++    }
++    return out
++
++
++def main() -> int:
++    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
++    parser.add_argument("--data-dir", type=Path, required=True)
++    parser.add_argument("--records", nargs="*", default=None, help="Defaults to every local record.")
++    parser.add_argument("--only-invalid", action="store_true", help="Report only records with invalid annotations.")
++    parser.add_argument("--tolerance-ms", type=float, default=75.0)
++    parser.add_argument("--output", type=Path, default=None, help="Optional JSON report path.")
++    args = parser.parse_args()
++
++    names = args.records or sorted(p.stem for p in args.data_dir.glob("*.hea"))
++    if not names:
++        raise SystemExit(f"No records found under {args.data_dir}")
++
++    reports = []
++    failures = []
++    print(f"{'record':8} {'neg':>4} {'lead':>4} {'inter':>5} {'trail':>5} {'error':>9} {'drop_edges':>26} {'cover':>6}")
++    for name in names:
++        try:
++            report = diagnose_record(args.data_dir / name, tolerance_ms=args.tolerance_ms)
++        except Exception as exc:
++            failures.append({"record": name, "reason": f"{type(exc).__name__}: {exc}"})
++            print(f"{name:8} FAILED: {exc}")
++            continue
++        err = report["policies"]["error"]
++        drop = report["policies"]["drop_edges"]
++        has_problem = err["action"] != "kept_unchanged" or drop["n_beyond_end_beat"] > 0
++        if args.only_invalid and not has_problem:
++            continue
++        reports.append(report)
++        cov = report["valid_remainder_alignment"]["coverage_vs_pan_tompkins"]
++        print(
++            f"{name:8} {err['n_negative_beat']:>4} {drop['n_leading_invalid']:>4} {drop['n_interior_invalid']:>5} "
++            f"{drop['n_trailing_invalid']:>5} {err['action']:>9} {drop['action']:>26} {cov:>6.2f}"
++        )
++        if has_problem:
++            raw = report["raw"]
++            print(f"         first annotations: {raw['first'][:6]}")
++            print(f"         negative positions: {raw['negative_positions'][:8]}  symbols: {raw['negative_symbols']}")
++            if drop["reason"]:
++                print(f"         drop_edges: {drop['reason']}")
++
++    payload = {
++        "schema": "electrotrace.wfdb_annotation_diagnostics/v1",
++        "created_at_utc": datetime.now(timezone.utc).isoformat(),
++        "software_version": __version__,
++        "python": sys.version.split()[0],
++        "platform": platform.platform(),
++        "tolerance_ms": args.tolerance_ms,
++        "records": reports,
++        "failures": failures,
++    }
++    if args.output:
++        args.output.parent.mkdir(parents=True, exist_ok=True)
++        args.output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
++        print("\nWritten:", args.output)
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+diff --git a/scripts/incart_fp_offsets.py b/scripts/incart_fp_offsets.py
+new file mode 100644
+index 0000000..9e98555
+--- /dev/null
++++ b/scripts/incart_fp_offsets.py
+@@ -0,0 +1,471 @@
++#!/usr/bin/env python3
++"""Where do the extra detections come from?  False-positive forensics on INCART.
++
++Runs the *frozen* two-stage model (no retraining, no threshold selection) over
++INCART and, for every false positive at the model's operating threshold, records
++where it sits relative to the neighbouring reference beats, how tall it is
++compared with the nearest true beat, and what Stage 2 thought of it.  It also
++reports how well the Stage-2 probabilities rank true against false candidates
++(AUC) and the best global threshold each record *could* have had (oracle,
++diagnostic only).
++
++Evidence status: INCART is development data for this model generation (scale
++variants and thresholds were examined against it).  Nothing here is a test
++result.  Do not run this on a database you have reserved as a held-out test.
++
++Usage (Colab, INCART cached locally):
++  python -u scripts/incart_fp_offsets.py \\
++      --incart-dir .cache/physionet/incartdb \\
++      --model validation_reports/incart_mitbih_model_windowed_std_2026-09-09.skops
++
++Outputs (in --output-dir): incart_fp_forensics.json, incart_fp_detail.csv and,
++if matplotlib is available, incart_fp_forensics.png.
++"""
++from __future__ import annotations
++
++import argparse
++import csv
++import hashlib
++import json
++import platform
++import subprocess
++import sys
++from datetime import datetime, timezone
++from pathlib import Path
++
++import numpy as np
++
++from electrotrace import __version__
++from electrotrace.candidate_suppressor import CandidateSuppressor
++from electrotrace.fp_analysis import (
++    CATEGORIES,
++    DEFAULT_BANDS_MS,
++    analyze_record,
++    match_peaks_detailed,
++    pool_false_positives,
++)
++from electrotrace.validation import DEFAULT_BEAT_SYMBOLS
++from electrotrace.validation_detectors import detect_r_peaks_two_stage
++from electrotrace.wfdb_records import (
++    POLICIES,
++    RecordExcluded,
++    load_annotated_record,
++    summarize_audits,
++)
++
++NUMERIC_COLUMNS = ("dt_prev_ms", "dt_next_ms", "rr_ms", "phase", "nearest_offset_ms")
++
++EVIDENCE_NOTE = (
++    "Development diagnostic. INCART informed the design of this model generation, so nothing "
++    "in this report is a held-out test result. Oracle thresholds use reference labels and are "
++    "an upper bound for diagnosis, not a deployable setting."
++)
++
++
++def _json_default(value):
++    if isinstance(value, np.integer):
++        return int(value)
++    if isinstance(value, np.floating):
++        return float(value)
++    if isinstance(value, np.ndarray):
++        return value.tolist()
++    raise TypeError(f"not JSON serialisable: {type(value).__name__}")
++
++
++def git_head() -> str:
++    try:
++        return subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
++    except Exception:
++        return "unknown"
++
++
++def sha256_file(path: Path) -> str:
++    digest = hashlib.sha256()
++    with path.open("rb") as handle:
++        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
++            digest.update(chunk)
++    return digest.hexdigest()
++
++
++def package_versions() -> dict:
++    versions = {}
++    for module_name in ("numpy", "scipy", "sklearn", "skops", "wfdb", "pandas", "matplotlib"):
++        try:
++            module = __import__(module_name)
++            versions[module_name] = getattr(module, "__version__", "unknown")
++        except Exception:
++            versions[module_name] = "missing"
++    return versions
++
++
++def analyze_signal_record(
++    model,
++    signal: np.ndarray,
++    fs_hz: float,
++    reference: np.ndarray,
++    *,
++    scale_method: str = "windowed_std",
++    threshold: float | None = None,
++    tolerance_ms: float = 75.0,
++) -> dict:
++    """Score every Stage-1 candidate once, then analyse the false positives.
++
++    ``threshold=0.0`` retains every Stage-1 candidate, so the returned candidates
++    are exactly the Stage-1 set (this is also how the Phase-3 ablation scores).
++    """
++    operating = float(model.metadata.threshold if threshold is None else threshold)
++    candidates, probabilities = detect_r_peaks_two_stage(
++        signal,
++        fs_hz,
++        model,
++        polarity="adaptive",
++        recovery=False,
++        scale_method=scale_method,
++        threshold=0.0,
++    )
++    candidates = np.asarray(candidates, dtype=np.int64)
++    probabilities = np.asarray(probabilities, dtype=float)
++    result = analyze_record(
++        signal,
++        fs_hz,
++        candidates,
++        probabilities,
++        reference,
++        threshold=operating,
++        tolerance_ms=tolerance_ms,
++    )
++    truth = match_peaks_detailed(candidates, reference, fs_hz, tolerance_ms).detected_matched
++    result["stage1_candidates"] = int(candidates.size)
++    result["candidate_probability_true"] = probabilities[truth]
++    result["candidate_probability_false"] = probabilities[~truth]
++    return result
++
++
++def record_row(name: str, fs_hz: float, result: dict) -> dict:
++    m = result["metrics"]
++    cand = result["candidates"]
++    return {
++        "record": name,
++        "fs_hz": fs_hz,
++        "reference_count": m["reference_count"],
++        "stage1_candidates": result["stage1_candidates"],
++        "detected_count": m["detected_count"],
++        "sensitivity": m["sensitivity"],
++        "ppv": m["positive_predictive_value"],
++        "f1": m["f1"],
++        "false_positive": m["false_positive"],
++        "detected_over_reference": result["detected_over_reference"],
++        "false_positive_categories": result["false_positive_categories"],
++        "stage2_auc": cand["auc"],
++        "oracle_best_f1": cand["oracle_best_f1"],
++        "oracle_best_threshold": cand["oracle_best_threshold"],
++        "prob_true_candidates": cand["prob_true"],
++        "prob_false_candidates": cand["prob_false"],
++    }
++
++
++def group_summary(rows: list[dict], results: dict[str, dict]) -> dict:
++    if not rows:
++        return {"n_records": 0}
++    aucs = [r["stage2_auc"] for r in rows if r["stage2_auc"] is not None]
++    oracle = [r["oracle_best_f1"] for r in rows if r["oracle_best_f1"] is not None]
++    return {
++        "n_records": len(rows),
++        "records": [r["record"] for r in rows],
++        "mean_f1_at_model_threshold": float(np.mean([r["f1"] for r in rows])),
++        "mean_sensitivity": float(np.mean([r["sensitivity"] for r in rows])),
++        "mean_ppv": float(np.mean([r["ppv"] for r in rows])),
++        "median_stage2_auc": float(np.median(aucs)) if aucs else None,
++        "mean_oracle_best_f1": float(np.mean(oracle)) if oracle else None,
++        "oracle_is_diagnostic_only": True,
++        "pooled_false_positives": pool_false_positives(
++            [results[r["record"]]["false_positive_table"] for r in rows]
++        ),
++    }
++
++
++def write_detail_csv(
++    path: Path,
++    results: dict[str, dict],
++    fs_by_record: dict[str, float],
++    groups: dict,
++) -> None:
++    columns = [
++        "record",
++        "group",
++        "sample",
++        "time_s",
++        "category",
++        "dt_prev_ms",
++        "dt_next_ms",
++        "rr_ms",
++        "phase",
++        "nearest_offset_ms",
++        "amp_ratio",
++        "same_polarity",
++        "stage2_probability",
++    ]
++    with path.open("w", newline="", encoding="utf-8") as handle:
++        writer = csv.writer(handle)
++        writer.writerow(columns)
++        for name, result in results.items():
++            t = result["false_positive_table"]
++            fs = fs_by_record[name]
++            for k in range(len(t["sample"])):
++                writer.writerow(
++                    [
++                        name,
++                        groups[name],
++                        int(t["sample"][k]),
++                        f"{t['sample'][k] / fs:.3f}",
++                        t["category"][k],
++                        *(f"{t[c][k]:.3f}" for c in NUMERIC_COLUMNS),
++                        f"{t['amp_ratio'][k]:.3f}",
++                        int(bool(t["same_polarity"][k])),
++                        f"{t['probability'][k]:.4f}",
++                    ]
++                )
++
++
++def make_figure(path: Path, results: dict[str, dict], groups: dict, threshold: float) -> bool:
++    try:
++        import matplotlib
++
++        matplotlib.use("Agg")
++        import matplotlib.pyplot as plt
++    except Exception:
++        return False
++
++    def stack(key: str, group: str, source: str = "false_positive_table") -> np.ndarray:
++        parts = [r[source][key] if source else r[key] for n, r in results.items() if groups[n] == group]
++        return np.concatenate(parts) if parts else np.array([])
++
++    def hist_fraction(ax, values, bins, colour, label):
++        v = np.asarray(values, dtype=float)
++        v = v[np.isfinite(v)]
++        if v.size:
++            ax.hist(v, bins=bins, weights=np.full(v.size, 1.0 / v.size), alpha=0.6, color=colour, label=label)
++
++    over, other = "overdetecting", "other"
++    fig, axes = plt.subplots(2, 2, figsize=(12, 8))
++    for group, colour in ((over, "tab:red"), (other, "tab:gray")):
++        hist_fraction(axes[0, 0], stack("nearest_offset_ms", group), np.arange(-600, 601, 25), colour, group)
++        hist_fraction(axes[0, 1], stack("phase", group), np.linspace(0, 1, 21), colour, group)
++    axes[0, 0].set_title("False positives: signed offset to nearest reference beat")
++    axes[0, 0].set_xlabel("ms (detection minus reference)")
++    axes[0, 0].set_ylabel("fraction of group's false positives")
++    axes[0, 0].legend()
++    axes[0, 1].set_title("Position within the RR interval (0 = previous beat)")
++    axes[0, 1].set_xlabel("phase")
++    axes[0, 1].legend()
++
++    fractions = []
++    for group in (over, other):
++        cats = stack("category", group)
++        total = max(len(cats), 1)
++        fractions.append([float(np.sum(cats == c)) / total for c in CATEGORIES])
++    x = np.arange(len(CATEGORIES))
++    axes[1, 0].bar(x - 0.2, fractions[0], width=0.4, color="tab:red", label=over)
++    axes[1, 0].bar(x + 0.2, fractions[1], width=0.4, color="tab:gray", label=other)
++    axes[1, 0].set_xticks(x)
++    axes[1, 0].set_xticklabels([c.replace("_", "\n") for c in CATEGORIES], fontsize=7)
++    axes[1, 0].set_title("False-positive timing category")
++    axes[1, 0].legend()
++
++    true_p = stack("candidate_probability_true", over, source="")
++    false_p = stack("candidate_probability_false", over, source="")
++    bins = np.linspace(0, 1, 41)
++    if true_p.size:
++        axes[1, 1].hist(true_p, bins=bins, alpha=0.6, color="tab:green", label="true candidates")
++    if false_p.size:
++        axes[1, 1].hist(false_p, bins=bins, alpha=0.6, color="tab:red", label="false candidates")
++    axes[1, 1].axvline(threshold, color="k", linestyle="--", label=f"threshold {threshold:.3f}")
++    axes[1, 1].set_yscale("log")
++    axes[1, 1].set_title("Stage-2 probability, over-detecting records")
++    axes[1, 1].legend()
++    fig.suptitle("INCART false-positive forensics (development data, not a test result)")
++    fig.tight_layout()
++    fig.savefig(path, dpi=140)
++    plt.close(fig)
++    return True
++
++
++def main() -> int:
++    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
++    parser.add_argument("--incart-dir", type=Path, required=True)
++    parser.add_argument("--model", type=Path, required=True)
++    parser.add_argument(
++        "--output-dir",
++        type=Path,
++        default=Path("validation_reports/experiments/2026-09-incart-fp-forensics"),
++    )
++    parser.add_argument("--records", nargs="*", default=None, help="Defaults to every local INCART record.")
++    parser.add_argument("--scale-method", default="windowed_std")
++    parser.add_argument("--tolerance-ms", type=float, default=75.0)
++    parser.add_argument(
++        "--threshold",
++        type=float,
++        default=None,
++        help="Operating threshold to analyse. Defaults to the model's stored threshold.",
++    )
++    parser.add_argument(
++        "--overdetect-ratio",
++        type=float,
++        default=1.5,
++        help="Records with detected/reference above this form the 'overdetecting' group.",
++    )
++    parser.add_argument("--annotation-policy", choices=POLICIES, default="error")
++    parser.add_argument("--no-plot", action="store_true")
++    args = parser.parse_args()
++
++    model = CandidateSuppressor.load(args.model)
++    threshold = float(model.metadata.threshold if args.threshold is None else args.threshold)
++    names = args.records or sorted(p.stem for p in args.incart_dir.glob("*.hea"))
++    if not names:
++        raise SystemExit(f"No records found under {args.incart_dir}")
++
++    rows: list[dict] = []
++    results: dict[str, dict] = {}
++    fs_by_record: dict[str, float] = {}
++    skipped: list[dict] = []
++    audits = []
++
++    for index, name in enumerate(names, start=1):
++        try:
++            annotated = load_annotated_record(
++                args.incart_dir / name,
++                beat_symbols=DEFAULT_BEAT_SYMBOLS,
++                tolerance_ms=args.tolerance_ms,
++                policy=args.annotation_policy,
++            )
++            audits.append(annotated.audit)
++            result = analyze_signal_record(
++                model,
++                annotated.signal,
++                annotated.fs_hz,
++                annotated.reference,
++                scale_method=args.scale_method,
++                threshold=threshold,
++                tolerance_ms=args.tolerance_ms,
++            )
++        except RecordExcluded as exc:
++            audits.append(exc.audit)
++            skipped.append({"record": name, "reason": exc.reason})
++            print(f"[{index}/{len(names)}] {name}: EXCLUDED: {exc.reason}", flush=True)
++            continue
++        except Exception as exc:
++            skipped.append({"record": name, "reason": f"{type(exc).__name__}: {exc}"})
++            print(f"[{index}/{len(names)}] {name}: SKIPPED: {exc}", flush=True)
++            continue
++        row = record_row(name, annotated.fs_hz, result)
++        rows.append(row)
++        results[name] = result
++        fs_by_record[name] = annotated.fs_hz
++        top = max(row["false_positive_categories"].items(), key=lambda kv: kv[1])
++        print(
++            f"[{index}/{len(names)}] {name}: F1={row['f1']:.3f} sens={row['sensitivity']:.3f} "
++            f"ppv={row['ppv']:.3f} det/ref={row['detected_over_reference']:.2f} "
++            f"AUC={row['stage2_auc'] if row['stage2_auc'] is None else round(row['stage2_auc'], 3)} "
++            f"top FP category={top[0]} ({top[1]})",
++            flush=True,
++        )
++
++    if not rows:
++        raise SystemExit("No usable records; nothing to report.")
++
++    groups = {
++        r["record"]: "overdetecting" if (r["detected_over_reference"] or 0.0) > args.overdetect_ratio else "other"
++        for r in rows
++    }
++    over_rows = [r for r in rows if groups[r["record"]] == "overdetecting"]
++    other_rows = [r for r in rows if groups[r["record"]] == "other"]
++    for r in rows:
++        r["group"] = groups[r["record"]]
++
++    args.output_dir.mkdir(parents=True, exist_ok=True)
++    csv_path = args.output_dir / "incart_fp_detail.csv"
++    png_path = args.output_dir / "incart_fp_forensics.png"
++    json_path = args.output_dir / "incart_fp_forensics.json"
++    write_detail_csv(csv_path, results, fs_by_record, groups)
++    plotted = False if args.no_plot else make_figure(png_path, results, groups, threshold)
++
++    input_hashes = {}
++    for name in [r["record"] for r in rows]:
++        for source in sorted(args.incart_dir.glob(f"{name}.*")):
++            if source.is_file():
++                input_hashes[f"{name}::{source.name}"] = sha256_file(source)
++
++    report = {
++        "schema": "electrotrace.incart_fp_forensics/v1",
++        "created_at_utc": datetime.now(timezone.utc).isoformat(),
++        "evidence_status": "development_only",
++        "evidence_note": EVIDENCE_NOTE,
++        "git_head": git_head(),
++        "software_version": __version__,
++        "python": sys.version.split()[0],
++        "platform": platform.platform(),
++        "package_versions": package_versions(),
++        "model": {
++            "path": str(args.model),
++            "sha256": sha256_file(args.model),
++            "metadata": model.metadata.to_dict(),
++        },
++        "input_hashes": input_hashes,
++        "protocol": {
++            "dataset": "PhysioNet INCART",
++            "channel": 0,
++            "polarity": "adaptive",
++            "recovery": False,
++            "scale_method": args.scale_method,
++            "tolerance_ms": args.tolerance_ms,
++            "operating_threshold": threshold,
++            "retraining": False,
++            "threshold_selection": "none; oracle thresholds are diagnostic only",
++            "overdetect_ratio": args.overdetect_ratio,
++            "annotation_policy": args.annotation_policy,
++            "category_bands_ms": DEFAULT_BANDS_MS,
++            "category_note": (
++                "Timing bands are triage heuristics relative to the preceding/next reference beat; "
++                "they do not establish a physiological cause."
++            ),
++        },
++        "annotation_audit": {
++            "summary": summarize_audits(audits),
++            "records": [a.to_dict() for a in audits],
++        },
++        "groups": {
++            "overdetecting": group_summary(over_rows, results),
++            "other": group_summary(other_rows, results),
++            "all": group_summary(rows, results),
++        },
++        "records": rows,
++        "skipped_records": skipped,
++        "outputs": {
++            "detail_csv": csv_path.name,
++            "figure": png_path.name if plotted else None,
++        },
++    }
++    json_path.write_text(json.dumps(report, indent=2, sort_keys=True, default=_json_default) + "\n", encoding="utf-8")
++
++    print("\n===== SUMMARY (development data) =====")
++    for label in ("all", "overdetecting", "other"):
++        g = report["groups"][label]
++        if not g.get("n_records"):
++            continue
++        pooled = g["pooled_false_positives"]
++        print(
++            f"{label}: {g['n_records']} records, mean F1 {g['mean_f1_at_model_threshold']:.3f}, "
++            f"sens {g['mean_sensitivity']:.3f}, PPV {g['mean_ppv']:.3f}, "
++            f"median Stage-2 AUC {g['median_stage2_auc']}, mean oracle-threshold F1 {g['mean_oracle_best_f1']:.3f}"
++        )
++        fractions = pooled.get("category_fractions")
++        if fractions:
++            ordered = sorted(fractions.items(), key=lambda kv: -kv[1])
++            print("   false positives by timing category: " + ", ".join(f"{k} {v:.0%}" for k, v in ordered if v > 0))
++    print("\nWritten:", json_path)
++    print("Skipped/excluded:", len(skipped))
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+diff --git a/scripts/phase3_incart_ablation.py b/scripts/phase3_incart_ablation.py
+index 05d0a79..4582c2d 100644
+--- a/scripts/phase3_incart_ablation.py
++++ b/scripts/phase3_incart_ablation.py
+@@ -30,6 +30,12 @@ import wfdb
+ from electrotrace import __version__
+ from electrotrace.candidate_suppressor import CandidateSuppressor
+ from electrotrace.validation import DEFAULT_BEAT_SYMBOLS, match_peaks
++from electrotrace.wfdb_records import (
++    POLICIES,
++    RecordExcluded,
++    load_annotated_record,
++    summarize_audits,
++)
+ 
+ 
+ @dataclass(frozen=True)
+@@ -62,6 +68,17 @@ def sha256_file(path: Path) -> str:
+     return digest.hexdigest()
+ 
+ 
++def package_versions() -> dict:
++    versions = {}
++    for module_name in ("numpy", "scipy", "sklearn", "skops", "wfdb", "pandas"):
++        try:
++            module = __import__(module_name)
++            versions[module_name] = getattr(module, "__version__", "unknown")
++        except Exception:
++            versions[module_name] = "missing"
++    return versions
++
++
+ def robust_scale(x: np.ndarray) -> np.ndarray:
+     center = float(np.median(x))
+     mad = float(np.median(np.abs(x - center)))
+@@ -98,23 +115,6 @@ def record_names(data_dir: Path) -> list[str]:
+     return sorted(names)
+ 
+ 
+-def load_record(data_dir: Path, name: str) -> tuple[np.ndarray, float, np.ndarray]:
+-    base = str(data_dir / name)
+-    rec = wfdb.rdrecord(base, channels=[0], physical=False)
+-    signal = np.asarray(
+-        rec.p_signal[:, 0] if rec.p_signal is not None else rec.d_signal[:, 0],
+-        dtype=float,
+-    )
+-    ann = wfdb.rdann(base, "atr")
+-    refs = np.asarray(
+-        [int(sample) for sample, symbol in zip(ann.sample, ann.symbol) if symbol in DEFAULT_BEAT_SYMBOLS],
+-        dtype=int,
+-    )
+-    if refs.size and np.any(refs < 0):
+-        raise ValueError("negative annotation sample index")
+-    return signal, float(rec.fs), refs
+-
+-
+ def score_candidates(
+     model: CandidateSuppressor,
+     signal: np.ndarray,
+@@ -188,6 +188,16 @@ def main() -> int:
+         default=None,
+         help="Defaults to every local INCART record.",
+     )
++    parser.add_argument(
++        "--annotation-policy",
++        choices=POLICIES,
++        default="error",
++        help=(
++            "error (historical): records with invalid reference annotations are "
++            "excluded. drop_edges: drop invalid edge annotations only when an "
++            "independent detector confirms the remaining reference is aligned."
++        ),
++    )
+     parser.add_argument(
+         "--output",
+         type=Path,
+@@ -203,10 +213,17 @@ def main() -> int:
+ 
+     results: list[dict] = []
+     skipped: list[dict] = []
++    audits = []
+ 
+     for index, name in enumerate(names, start=1):
+         try:
+-            signal, fs_hz, refs = load_record(args.incart_dir, name)
++            annotated = load_annotated_record(
++                args.incart_dir / name,
++                beat_symbols=DEFAULT_BEAT_SYMBOLS,
++                policy=args.annotation_policy,
++            )
++            audits.append(annotated.audit)
++            signal, fs_hz, refs = annotated.signal, annotated.fs_hz, annotated.reference
+             for transform in transforms:
+                 x, xfs = transform_signal(signal, fs_hz, transform)
+                 scale = xfs / fs_hz
+@@ -254,6 +271,10 @@ def main() -> int:
+                     results.append(sweep)
+ 
+             print(f"[{index}/{len(names)}] {name}: done", flush=True)
++        except RecordExcluded as exc:
++            audits.append(exc.audit)
++            skipped.append({"record": name, "reason": exc.reason})
++            print(f"[{index}/{len(names)}] {name}: EXCLUDED: {exc.reason}", flush=True)
+         except Exception as exc:
+             skipped.append({"record": name, "reason": f"{type(exc).__name__}: {exc}"})
+             print(f"[{index}/{len(names)}] {name}: SKIPPED: {exc}", flush=True)
+@@ -314,6 +335,7 @@ def main() -> int:
+         "software_version": __version__,
+         "python": sys.version.split()[0],
+         "platform": platform.platform(),
++        "package_versions": package_versions(),
+         "model": str(args.model),
+         "model_sha256": sha256_file(args.model),
+         "model_metadata": model.metadata.to_dict(),
+@@ -326,6 +348,11 @@ def main() -> int:
+             "thresholds": thresholds,
+             "threshold_selection_note": "Threshold sweep is exploratory; no threshold is selected from INCART labels.",
+             "retraining": False,
++            "annotation_policy": args.annotation_policy,
++        },
++        "annotation_audit": {
++            "summary": summarize_audits(audits),
++            "records": [a.to_dict() for a in audits],
+         },
+         "summary_by_transform": summary_by_transform,
+         "summary_by_threshold": summary_by_threshold,
+diff --git a/src/electrotrace/fp_analysis.py b/src/electrotrace/fp_analysis.py
+new file mode 100644
+index 0000000..32559a4
+--- /dev/null
++++ b/src/electrotrace/fp_analysis.py
+@@ -0,0 +1,358 @@
++"""False-positive forensics for R-peak detectors.
++
++This is a *development diagnostic*, not a validation metric.  It answers the
++question "what are the extra detections?" for a detector that has good
++sensitivity but poor PPV: are they double detections of the same beat, a
++deflection just after the QRS, something in the T-wave window, or unrelated to
++any reference beat?  The timing bands are heuristics for triage; they do not
++prove a physiological cause.  Use them to decide which experiment to run next,
++and never to tune a model on data you intend to use as a test set.
++
++Everything here is pure numpy (plus ``sklearn.metrics.roc_auc_score`` for the
++candidate-ranking summary), so it is testable without WFDB or a trained model.
++"""
++from __future__ import annotations
++
++from collections.abc import Sequence
++from dataclasses import dataclass
++
++import numpy as np
++
++from .validation import _validate_integer_samples, match_peaks
++
++CATEGORIES = (
++    "duplicate_within_tolerance",
++    "post_qrs_near",
++    "post_qrs_t_window",
++    "pre_qrs_near",
++    "pre_qrs_p_window",
++    "mid_interval_other",
++    "outside_reference_span",
++)
++
++DEFAULT_BANDS_MS = {
++    "post_qrs_near_max": 150.0,  # tolerance < dt_after_prev_ref <= this
++    "post_qrs_t_window_max": 450.0,  # (post_qrs_near_max, this]
++    "pre_qrs_near_max": 150.0,  # tolerance < dt_before_next_ref <= this
++    "pre_qrs_p_window_max": 300.0,  # (pre_qrs_near_max, this]
++}
++
++OFFSET_EDGES_MS = tuple(range(-600, 601, 25))
++PHASE_EDGES = tuple(np.round(np.linspace(0.0, 1.0, 11), 2))
++
++
++@dataclass(frozen=True)
++class MatchDetail:
++    """One-to-one matching identical to ``validation.match_peaks``, with labels."""
++
++    detected_matched: np.ndarray  # bool, one per detection
++    reference_matched: np.ndarray  # bool, one per reference beat
++    true_positive: int
++
++
++def match_peaks_detailed(
++    detected: Sequence[int],
++    reference: Sequence[int],
++    fs_hz: float,
++    tolerance_ms: float = 75.0,
++) -> MatchDetail:
++    """Same greedy two-pointer matching as ``match_peaks``, but keeps the labels."""
++    fs_hz = float(fs_hz)
++    tolerance_ms = float(tolerance_ms)
++    if not np.isfinite(fs_hz) or fs_hz <= 0:
++        raise ValueError("fs_hz must be positive and finite")
++    if not np.isfinite(tolerance_ms) or tolerance_ms <= 0:
++        raise ValueError("tolerance_ms must be positive and finite")
++    det = _validate_integer_samples(detected, "detected_samples")
++    ref = _validate_integer_samples(reference, "reference_samples")
++    tol = tolerance_ms * fs_hz / 1000.0
++    det_ok = np.zeros(det.size, dtype=bool)
++    ref_ok = np.zeros(ref.size, dtype=bool)
++    i = j = tp = 0
++    while i < det.size and j < ref.size:
++        delta = int(det[i]) - int(ref[j])
++        if abs(delta) <= tol:
++            det_ok[i] = True
++            ref_ok[j] = True
++            tp += 1
++            i += 1
++            j += 1
++        elif det[i] < ref[j]:
++            i += 1
++        else:
++            j += 1
++    return MatchDetail(det_ok, ref_ok, tp)
++
++
++def classify_false_positives(
++    fp_samples: Sequence[int],
++    reference: Sequence[int],
++    fs_hz: float,
++    *,
++    tolerance_ms: float = 75.0,
++    bands_ms: dict | None = None,
++) -> dict:
++    """Locate each false positive relative to its neighbouring reference beats.
++
++    Returns arrays (one entry per false positive): ``dt_prev_ms`` (time after the
++    preceding reference beat), ``dt_next_ms`` (time before the next one),
++    ``rr_ms``, ``phase`` (dt_prev / RR, 0..1), ``nearest_offset_ms`` (signed:
++    detection minus nearest reference), ``nearest_ref_index`` and ``category``.
++    """
++    bands = {**DEFAULT_BANDS_MS, **(bands_ms or {})}
++    fp = np.asarray(fp_samples, dtype=np.int64)
++    ref = np.asarray(reference, dtype=np.int64)
++    n = fp.size
++    ms = 1000.0 / float(fs_hz)
++    out = {
++        "sample": fp,
++        "dt_prev_ms": np.full(n, np.nan),
++        "dt_next_ms": np.full(n, np.nan),
++        "rr_ms": np.full(n, np.nan),
++        "phase": np.full(n, np.nan),
++        "nearest_offset_ms": np.full(n, np.nan),
++        "nearest_ref_index": np.full(n, -1, dtype=np.int64),
++        "category": np.full(n, "outside_reference_span", dtype=object),
++    }
++    if n == 0 or ref.size == 0:
++        return out
++
++    idx = np.searchsorted(ref, fp, side="right")
++    prev_i = idx - 1
++    next_i = idx
++    has_prev = prev_i >= 0
++    has_next = next_i < ref.size
++    dt_prev = np.where(has_prev, (fp - ref[np.clip(prev_i, 0, ref.size - 1)]) * ms, np.nan)
++    dt_next = np.where(has_next, (ref[np.clip(next_i, 0, ref.size - 1)] - fp) * ms, np.nan)
++    both = has_prev & has_next
++    rr = np.where(both, dt_prev + dt_next, np.nan)
++
++    prev_nearer = np.where(
++        both, dt_prev <= dt_next, has_prev
++    )  # only-prev -> prev; only-next -> next
++    nearest_dt = np.where(prev_nearer, dt_prev, dt_next)
++    nearest_signed = np.where(prev_nearer, dt_prev, -dt_next)
++    nearest_idx = np.where(prev_nearer, prev_i, next_i)
++
++    tol = float(tolerance_ms)
++    category = np.full(n, "mid_interval_other", dtype=object)
++    # apply lowest precedence first so higher-precedence rules overwrite
++    category[(dt_next > tol) & (dt_next <= bands["pre_qrs_p_window_max"])] = "pre_qrs_p_window"
++    category[(dt_next > tol) & (dt_next <= bands["pre_qrs_near_max"])] = "pre_qrs_near"
++    category[(dt_prev > tol) & (dt_prev <= bands["post_qrs_t_window_max"])] = "post_qrs_t_window"
++    category[(dt_prev > tol) & (dt_prev <= bands["post_qrs_near_max"])] = "post_qrs_near"
++    category[~both] = "outside_reference_span"
++    category[nearest_dt <= tol] = "duplicate_within_tolerance"
++
++    out.update(
++        dt_prev_ms=dt_prev,
++        dt_next_ms=dt_next,
++        rr_ms=rr,
++        phase=np.where(both & (rr > 0), dt_prev / np.where(rr > 0, rr, 1.0), np.nan),
++        nearest_offset_ms=nearest_signed,
++        nearest_ref_index=nearest_idx.astype(np.int64),
++        category=category,
++    )
++    return out
++
++
++def _peak_context(signal: np.ndarray, fs_hz: float, i: int, *, half_s: float, peak_s: float):
++    n = signal.size
++    lo = max(0, i - int(round(half_s * fs_hz)))
++    hi = min(n, i + int(round(half_s * fs_hz)) + 1)
++    med = float(np.median(signal[lo:hi]))
++    w = int(round(peak_s * fs_hz))
++    a = max(0, i - w)
++    b = min(n, i + w + 1)
++    seg = signal[a:b] - med
++    k = int(np.argmax(np.abs(seg)))
++    return abs(float(seg[k])), (1.0 if seg[k] >= 0 else -1.0)
++
++
++def amplitude_context(
++    signal: np.ndarray,
++    fs_hz: float,
++    fp_samples: Sequence[int],
++    reference: Sequence[int],
++    nearest_ref_index: Sequence[int],
++    *,
++    half_window_s: float = 1.0,
++    peak_window_s: float = 0.03,
++) -> dict:
++    """Peak height of each false positive relative to its nearest true beat.
++
++    ``amp_ratio`` near 1 with equal polarity suggests a second detection on a
++    QRS-sized deflection; 0.2-0.6 is typical of T-wave-sized deflections; below
++    about 0.1 suggests baseline wander/noise.  ``same_polarity`` is False when
++    the false positive points the opposite way to the nearest true beat.
++    """
++    x = np.asarray(signal, dtype=float)
++    fp = np.asarray(fp_samples, dtype=np.int64)
++    ref = np.asarray(reference, dtype=np.int64)
++    ni = np.asarray(nearest_ref_index, dtype=np.int64)
++    ratio = np.full(fp.size, np.nan)
++    same = np.zeros(fp.size, dtype=bool)
++    for k in range(fp.size):
++        if ni[k] < 0 or not (0 <= fp[k] < x.size):
++            continue
++        r = int(ref[ni[k]])
++        if not (0 <= r < x.size):
++            continue
++        a_fp, s_fp = _peak_context(x, fs_hz, int(fp[k]), half_s=half_window_s, peak_s=peak_window_s)
++        a_ref, s_ref = _peak_context(x, fs_hz, r, half_s=half_window_s, peak_s=peak_window_s)
++        if a_ref > 0:
++            ratio[k] = a_fp / a_ref
++        same[k] = s_fp == s_ref
++    return {"amp_ratio": ratio, "same_polarity": same}
++
++
++def _quantiles(values: np.ndarray) -> dict | None:
++    v = np.asarray(values, dtype=float)
++    v = v[np.isfinite(v)]
++    if v.size == 0:
++        return None
++    q = np.percentile(v, [5, 25, 50, 75, 95])
++    return {"n": int(v.size), **{f"p{p:02d}": float(x) for p, x in zip((5, 25, 50, 75, 95), q)}}
++
++
++def candidate_scoring_summary(
++    candidates: Sequence[int],
++    probabilities: Sequence[float],
++    reference: Sequence[int],
++    fs_hz: float,
++    threshold: float,
++    *,
++    tolerance_ms: float = 75.0,
++    oracle_grid: Sequence[float] | None = None,
++) -> dict:
++    """How well do the Stage-2 probabilities separate true from false candidates?
++
++    A candidate is "true" if the one-to-one matcher pairs it with a reference beat
++    when *all* candidates are submitted.  High AUC with a poor operating point
++    means the ranking is fine and only the threshold is off; AUC near 0.5 means
++    the features do not discriminate on this data.  ``oracle_*`` uses reference
++    labels to pick the best global threshold for this record: an upper bound for
++    diagnosis, never a deployable setting.
++    """
++    from sklearn.metrics import roc_auc_score
++
++    cand = np.asarray(candidates, dtype=np.int64)
++    prob = np.asarray(probabilities, dtype=float)
++    if cand.shape != prob.shape:
++        raise ValueError("candidates and probabilities must have the same length")
++    detail = match_peaks_detailed(cand, reference, fs_hz, tolerance_ms)
++    truth = detail.detected_matched
++    n_true = int(truth.sum())
++    n_false = int((~truth).sum())
++    auc = float(roc_auc_score(truth, prob)) if n_true and n_false else None
++    kept = prob >= float(threshold)
++
++    grid = np.linspace(0.02, 0.98, 49) if oracle_grid is None else np.asarray(oracle_grid, dtype=float)
++    best_f1, best_thr = -1.0, None
++    if len(reference):
++        for t in grid:
++            sel = cand[prob >= t]
++            m = match_peaks(sel, reference, fs_hz, tolerance_ms) if sel.size else None
++            f1 = m.f1 if m else 0.0
++            if f1 > best_f1:
++                best_f1, best_thr = f1, float(t)
++    return {
++        "n_candidates": int(cand.size),
++        "n_true_candidates": n_true,
++        "n_false_candidates": n_false,
++        "auc": auc,
++        "prob_true": _quantiles(prob[truth]),
++        "prob_false": _quantiles(prob[~truth]),
++        "false_candidates_retained_at_threshold": int((kept & ~truth).sum()),
++        "true_candidates_dropped_at_threshold": int((~kept & truth).sum()),
++        "oracle_best_f1": float(best_f1) if best_thr is not None else None,
++        "oracle_best_threshold": best_thr,
++        "oracle_is_diagnostic_only": True,
++    }
++
++
++def analyze_record(
++    signal: np.ndarray | None,
++    fs_hz: float,
++    candidates: Sequence[int],
++    probabilities: Sequence[float],
++    reference: Sequence[int],
++    *,
++    threshold: float,
++    tolerance_ms: float = 75.0,
++    bands_ms: dict | None = None,
++) -> dict:
++    """Full forensic summary for one record at the model's operating threshold."""
++    cand = np.asarray(candidates, dtype=np.int64)
++    prob = np.asarray(probabilities, dtype=float)
++    ref = np.asarray(reference, dtype=np.int64)
++    retained = cand[prob >= float(threshold)]
++    metrics = match_peaks(retained, ref, fs_hz, tolerance_ms)
++    detail = match_peaks_detailed(retained, ref, fs_hz, tolerance_ms)
++    fp_samples = retained[~detail.detected_matched]
++    fp_prob = prob[prob >= float(threshold)][~detail.detected_matched]
++    cls = classify_false_positives(
++        fp_samples, ref, fs_hz, tolerance_ms=tolerance_ms, bands_ms=bands_ms
++    )
++    if signal is not None and fp_samples.size:
++        cls.update(
++            amplitude_context(signal, fs_hz, fp_samples, ref, cls["nearest_ref_index"])
++        )
++    else:
++        cls["amp_ratio"] = np.full(fp_samples.size, np.nan)
++        cls["same_polarity"] = np.zeros(fp_samples.size, dtype=bool)
++    cls["probability"] = fp_prob
++    counts = {c: int(np.sum(cls["category"] == c)) for c in CATEGORIES}
++    return {
++        "metrics": metrics.to_dict(),
++        "threshold": float(threshold),
++        "detected_over_reference": (
++            float(metrics.detected_count / metrics.reference_count) if metrics.reference_count else None
++        ),
++        "false_positive_categories": counts,
++        "candidates": candidate_scoring_summary(
++            cand, prob, ref, fs_hz, threshold, tolerance_ms=tolerance_ms
++        ),
++        "false_positive_table": cls,
++    }
++
++
++def histogram(values: Sequence[float], edges: Sequence[float]) -> dict:
++    v = np.asarray(values, dtype=float)
++    v = v[np.isfinite(v)]
++    counts, _ = np.histogram(v, bins=np.asarray(edges, dtype=float))
++    return {"edges": [float(e) for e in edges], "counts": [int(c) for c in counts], "n": int(v.size)}
++
++
++def pool_false_positives(tables: Sequence[dict]) -> dict:
++    """Aggregate several records' ``false_positive_table`` dicts into one summary."""
++    if not tables:
++        return {"n_false_positives": 0}
++    cat = np.concatenate([t["category"] for t in tables]) if tables else np.array([], dtype=object)
++    n = int(cat.size)
++    if n == 0:
++        return {"n_false_positives": 0}
++    cat_counts = {c: int(np.sum(cat == c)) for c in CATEGORIES}
++    off = np.concatenate([t["nearest_offset_ms"] for t in tables])
++    phase = np.concatenate([t["phase"] for t in tables])
++    amp = np.concatenate([t["amp_ratio"] for t in tables])
++    same = np.concatenate([t["same_polarity"] for t in tables])
++    prob = np.concatenate([t["probability"] for t in tables])
++    finite_amp = np.isfinite(amp)
++    return {
++        "n_false_positives": n,
++        "category_counts": cat_counts,
++        "category_fractions": {c: cat_counts[c] / n for c in CATEGORIES},
++        "signed_offset_to_nearest_reference_ms": histogram(off, OFFSET_EDGES_MS),
++        "phase_in_rr_interval": histogram(phase, PHASE_EDGES),
++        "amp_ratio_to_nearest_true_beat": _quantiles(amp),
++        "fraction_amp_ratio_below_0.1": float(np.mean(amp[finite_amp] < 0.1)) if finite_amp.any() else None,
++        "fraction_amp_ratio_0.1_to_0.6": (
++            float(np.mean((amp[finite_amp] >= 0.1) & (amp[finite_amp] < 0.6))) if finite_amp.any() else None
++        ),
++        "fraction_amp_ratio_at_least_0.6": float(np.mean(amp[finite_amp] >= 0.6)) if finite_amp.any() else None,
++        "fraction_opposite_polarity_to_nearest_true_beat": (
++            float(np.mean(~same[finite_amp])) if finite_amp.any() else None
++        ),
++        "stage2_probability": _quantiles(prob),
++    }
+diff --git a/src/electrotrace/wfdb_records.py b/src/electrotrace/wfdb_records.py
+new file mode 100644
+index 0000000..7a0ce25
+--- /dev/null
++++ b/src/electrotrace/wfdb_records.py
+@@ -0,0 +1,375 @@
++"""Shared WFDB record + reference-annotation loading with an explicit audit trail.
++
++Why this exists
++---------------
++Several validation scripts each carried their own copy of "load the record, read
++the ``atr`` annotations, raise on any negative sample index".  Seven of the 75
++INCART records trip that check, and every script silently dropped them, so no
++reported INCART result covers more than 68 records.  This module centralises the
++loading and turns "skip the record" into an auditable decision.
++
++Design rules
++------------
++* Default behaviour is unchanged: ``policy="error"`` raises exactly where the
++  old scripts raised (a ``ValueError`` subclass), so historical results stay
++  reproducible.
++* ``policy="drop_edges"`` may drop *invalid edge annotations only* (negative
++  indices at the start, out-of-range indices at the end).  Invalid annotations
++  in the interior, or a non-monotonic remainder, always exclude the record.
++* A repair is accepted only when an *independent* detector agrees with the
++  remaining reference (alignment check).  A misparsed skip that shifts every
++  later annotation therefore cannot slip through as "cleaned".
++* Every outcome, including exclusions, produces an :class:`AnnotationAudit`
++  that scripts write into their JSON report.
++
++``wfdb`` is imported lazily, so importing this module needs only numpy.
++"""
++from __future__ import annotations
++
++from collections.abc import Callable, Iterable, Sequence
++from dataclasses import asdict, dataclass, field
++from pathlib import Path
++
++import numpy as np
++
++from .validation import DEFAULT_BEAT_SYMBOLS
++
++POLICIES = ("error", "drop_edges")
++DEFAULT_MIN_ALIGNMENT_COVERAGE = 0.5
++
++
++@dataclass(frozen=True)
++class AnnotationAudit:
++    """What was found in one record's reference annotations and what was done."""
++
++    record: str
++    action: str  # "kept_unchanged" | "kept_after_dropping_edges" | "excluded"
++    reason: str | None
++    policy: str
++    signal_length: int
++    fs_hz: float
++    n_annotations_total: int
++    n_beat_annotations: int
++    n_negative_beat: int
++    n_beyond_end_beat: int
++    n_leading_invalid: int
++    n_trailing_invalid: int
++    n_interior_invalid: int
++    raw_beat_order_strictly_increasing: bool
++    first_invalid: list = field(default_factory=list)  # [[sample, symbol], ...]
++    alignment_checked: bool = False
++    alignment_coverage: float | None = None
++    alignment_median_offset_ms: float | None = None
++    n_reference_kept: int = 0
++
++    def to_dict(self) -> dict:
++        return asdict(self)
++
++
++class RecordExcluded(ValueError):
++    """Raised when a record's reference cannot be used; carries the audit."""
++
++    def __init__(self, record: str, reason: str, audit: AnnotationAudit):
++        super().__init__(f"{record}: {reason}")
++        self.record = record
++        self.reason = reason
++        self.audit = audit
++
++
++@dataclass(frozen=True)
++class AnnotatedRecord:
++    record: str
++    fs_hz: float
++    signal: np.ndarray | None
++    reference: np.ndarray
++    audit: AnnotationAudit
++
++
++def estimate_alignment(
++    peaks: Sequence[int],
++    reference: Sequence[int],
++    fs_hz: float,
++    *,
++    tolerance_ms: float = 75.0,
++) -> tuple[float, float | None]:
++    """Compare an independent detector's peaks with a reference.
++
++    Returns ``(coverage, median_offset_ms)``: the fraction of reference beats
++    with any detected peak within ``tolerance_ms``, and the median signed offset
++    (detected minus reference, ms) of those nearest matches.  Reference shifted
++    by a non-multiple of the RR interval gives low coverage (about
++    ``2 * tolerance / RR`` for random phase, roughly 0.2 at 75 ms and 800 ms RR).
++    """
++    p = np.sort(np.asarray(peaks, dtype=np.int64))
++    r = np.asarray(reference, dtype=np.int64)
++    if p.size == 0 or r.size == 0:
++        return 0.0, None
++    idx = np.searchsorted(p, r)
++    left = p[np.clip(idx - 1, 0, p.size - 1)]
++    right = p[np.clip(idx, 0, p.size - 1)]
++    d_left = left - r
++    d_right = right - r
++    nearest = np.where(np.abs(d_left) <= np.abs(d_right), d_left, d_right)
++    tol = float(tolerance_ms) * float(fs_hz) / 1000.0
++    within = np.abs(nearest) <= tol
++    coverage = float(np.mean(within))
++    offset = float(np.median(nearest[within]) * 1000.0 / fs_hz) if within.any() else None
++    return coverage, offset
++
++
++def _resolve_peaks(peaks: Sequence[int] | Callable[[], Sequence[int]] | None) -> np.ndarray | None:
++    if peaks is None:
++        return None
++    value = peaks() if callable(peaks) else peaks
++    return np.asarray(value, dtype=np.int64)
++
++
++def clean_reference_annotations(
++    samples: Sequence[int],
++    symbols: Sequence[str],
++    *,
++    n_samples: int,
++    fs_hz: float,
++    record: str = "",
++    beat_symbols: Iterable[str] | None = None,
++    policy: str = "error",
++    alignment_peaks: Sequence[int] | Callable[[], Sequence[int]] | None = None,
++    tolerance_ms: float = 75.0,
++    min_alignment_coverage: float = DEFAULT_MIN_ALIGNMENT_COVERAGE,
++) -> tuple[np.ndarray, AnnotationAudit]:
++    """Validate (and, if the policy allows, repair) beat annotations.
++
++    ``alignment_peaks`` may be an array or a zero-argument callable; the callable
++    is only invoked when a repair actually needs verifying, so clean records pay
++    nothing.  Raises :class:`RecordExcluded` (a ``ValueError``) when the record
++    cannot be used under ``policy``.
++    """
++    if policy not in POLICIES:
++        raise ValueError(f"policy must be one of {POLICIES}")
++    allowed = set(DEFAULT_BEAT_SYMBOLS if beat_symbols is None else beat_symbols)
++    samples_arr = np.asarray(samples, dtype=np.int64)
++    symbols_arr = np.asarray(list(symbols), dtype=object)
++    if samples_arr.shape != symbols_arr.shape:
++        raise ValueError("samples and symbols must have the same length")
++
++    is_beat = np.array([s in allowed for s in symbols_arr], dtype=bool)
++    beat = samples_arr[is_beat]
++    beat_symbols_kept = symbols_arr[is_beat]
++
++    negative = beat < 0
++    beyond = beat >= int(n_samples)
++    invalid = negative | beyond
++    n_invalid = int(invalid.sum())
++
++    # Edge structure: leading run of negatives, trailing run of beyond-end values.
++    leading = 0
++    while leading < beat.size and negative[leading]:
++        leading += 1
++    trailing = 0
++    while trailing < beat.size - leading and beyond[beat.size - 1 - trailing]:
++        trailing += 1
++    interior = n_invalid - leading - trailing
++
++    valid = beat[~invalid]
++    strictly_increasing = bool(np.all(np.diff(valid) > 0)) if valid.size > 1 else True
++    raw_increasing = bool(np.all(np.diff(beat) > 0)) if beat.size > 1 else True
++
++    first_invalid = [
++        [int(beat[i]), str(beat_symbols_kept[i])] for i in np.flatnonzero(invalid)[:5]
++    ]
++
++    def audit(action, reason, *, checked=False, coverage=None, offset=None, kept=0):
++        return AnnotationAudit(
++            record=record,
++            action=action,
++            reason=reason,
++            policy=policy,
++            signal_length=int(n_samples),
++            fs_hz=float(fs_hz),
++            n_annotations_total=int(samples_arr.size),
++            n_beat_annotations=int(beat.size),
++            n_negative_beat=int(negative.sum()),
++            n_beyond_end_beat=int(beyond.sum()),
++            n_leading_invalid=int(leading),
++            n_trailing_invalid=int(trailing),
++            n_interior_invalid=int(interior),
++            raw_beat_order_strictly_increasing=raw_increasing,
++            first_invalid=first_invalid,
++            alignment_checked=checked,
++            alignment_coverage=coverage,
++            alignment_median_offset_ms=offset,
++            n_reference_kept=int(kept),
++        )
++
++    def exclude(reason, **kw):
++        a = audit("excluded", reason, **kw)
++        raise RecordExcluded(record, reason, a)
++
++    if policy == "error":
++        # Historical behaviour, preserved so locked results reproduce: only a
++        # negative index (or non-increasing order) is an error; annotations
++        # past the end of the signal were never rejected.
++        if negative.any():
++            exclude("negative annotation sample index")
++        if not raw_increasing:
++            exclude("beat annotations not strictly increasing")
++        return beat.astype(np.int64), audit("kept_unchanged", None, kept=beat.size)
++
++    if n_invalid == 0 and strictly_increasing:
++        return valid.astype(np.int64), audit("kept_unchanged", None, kept=valid.size)
++    if n_invalid == 0:
++        exclude("beat annotations not strictly increasing")
++
++    # policy == "drop_edges"
++    if interior > 0:
++        exclude("invalid annotations in the interior of the record")
++    if not strictly_increasing:
++        exclude("beat annotations not strictly increasing after dropping edges")
++    if valid.size == 0:
++        exclude("no valid beat annotations remain")
++
++    peaks = _resolve_peaks(alignment_peaks)
++    if peaks is None or peaks.size == 0:
++        exclude("repair not verified: no independent detector output supplied")
++    coverage, offset = estimate_alignment(
++        peaks, valid, fs_hz, tolerance_ms=tolerance_ms
++    )
++    if coverage < float(min_alignment_coverage):
++        exclude(
++            "repair rejected: reference does not align with independent detector "
++            f"(coverage {coverage:.2f} < {min_alignment_coverage:.2f})",
++            checked=True,
++            coverage=coverage,
++            offset=offset,
++        )
++    return valid.astype(np.int64), audit(
++        "kept_after_dropping_edges",
++        None,
++        checked=True,
++        coverage=coverage,
++        offset=offset,
++        kept=valid.size,
++    )
++
++
++def summarize_audits(audits: Iterable[AnnotationAudit]) -> dict:
++    """Counts suitable for the top level of a validation report."""
++    audits = list(audits)
++    out = {
++        "records": len(audits),
++        "kept_unchanged": 0,
++        "kept_after_dropping_edges": 0,
++        "excluded": 0,
++        "excluded_records": [],
++        "repaired_records": [],
++    }
++    for a in audits:
++        out[a.action] += 1
++        if a.action == "excluded":
++            out["excluded_records"].append({"record": a.record, "reason": a.reason})
++        elif a.action == "kept_after_dropping_edges":
++            out["repaired_records"].append(
++                {
++                    "record": a.record,
++                    "dropped": a.n_leading_invalid + a.n_trailing_invalid,
++                    "alignment_coverage": a.alignment_coverage,
++                }
++            )
++    return out
++
++
++def _default_alignment_peaks(signal: np.ndarray, fs_hz: float) -> Callable[[], np.ndarray]:
++    def run() -> np.ndarray:
++        from .baseline_detectors import pan_tompkins_r_peaks
++
++        return pan_tompkins_r_peaks(signal, fs_hz)
++
++    return run
++
++
++def load_annotated_record(
++    base: str | Path,
++    *,
++    channel: int = 0,
++    extension: str = "atr",
++    beat_symbols: Iterable[str] | None = None,
++    tolerance_ms: float = 75.0,
++    policy: str = "error",
++    load_signal: bool = True,
++    alignment_peaks: Sequence[int] | Callable[[], Sequence[int]] | None = None,
++    min_alignment_coverage: float = DEFAULT_MIN_ALIGNMENT_COVERAGE,
++) -> AnnotatedRecord:
++    """Load one WFDB record plus validated reference beats.
++
++    Signal handling matches the historical scripts (``physical=False`` and
++    ``p_signal`` when present, else ``d_signal``) so numbers do not move.  With
++    ``load_signal=False`` only the header is read; then a repair can only be
++    verified through ``alignment_peaks`` supplied by the caller.
++    """
++    try:
++        import wfdb
++    except ImportError as exc:  # pragma: no cover - exercised only without wfdb
++        raise RuntimeError("wfdb is required to load WFDB records") from exc
++
++    base = str(base)
++    name = Path(base).name
++    signal = None
++    if load_signal:
++        rec = wfdb.rdrecord(base, channels=[int(channel)], physical=False)
++        signal = np.asarray(
++            rec.p_signal[:, 0] if rec.p_signal is not None else rec.d_signal[:, 0],
++            dtype=float,
++        )
++        fs_hz = float(rec.fs)
++        n_samples = int(signal.size)
++    else:
++        header = wfdb.rdheader(base)
++        fs_hz = float(header.fs)
++        n_samples = int(header.sig_len)
++
++    ann = wfdb.rdann(base, extension)
++    if alignment_peaks is None and signal is not None:
++        alignment_peaks = _default_alignment_peaks(signal, fs_hz)
++
++    reference, audit = clean_reference_annotations(
++        ann.sample,
++        ann.symbol,
++        n_samples=n_samples,
++        fs_hz=fs_hz,
++        record=name,
++        beat_symbols=beat_symbols,
++        policy=policy,
++        alignment_peaks=alignment_peaks,
++        tolerance_ms=tolerance_ms,
++        min_alignment_coverage=min_alignment_coverage,
++    )
++    return AnnotatedRecord(
++        record=name, fs_hz=fs_hz, signal=signal, reference=reference, audit=audit
++    )
++
++
++def raw_annotation_dump(
++    base: str | Path, *, extension: str = "atr", head: int = 12
++) -> dict:
++    """Unfiltered view of a record's annotation file, for root-cause diagnosis."""
++    import wfdb
++
++    ann = wfdb.rdann(str(base), extension)
++    sample = np.asarray(ann.sample, dtype=np.int64)
++    symbol = list(ann.symbol)
++    neg = np.flatnonzero(sample < 0)
++    diffs = np.diff(sample) if sample.size > 1 else np.array([], dtype=np.int64)
++    return {
++        "record": Path(str(base)).name,
++        "n_annotations": int(sample.size),
++        "min_sample": int(sample.min()) if sample.size else None,
++        "max_sample": int(sample.max()) if sample.size else None,
++        "first": [[int(s), str(y)] for s, y in zip(sample[:head], symbol[:head])],
++        "negative_positions": [int(i) for i in neg[:20]],
++        "negative_symbols": sorted({str(symbol[i]) for i in neg}),
++        "n_negative": int(neg.size),
++        "n_nonincreasing_steps": int(np.sum(diffs <= 0)),
++        "symbol_counts": {
++            str(s): int(symbol.count(s)) for s in sorted(set(symbol))
++        },
++    }
+diff --git a/tests/test_fp_analysis.py b/tests/test_fp_analysis.py
+new file mode 100644
+index 0000000..4cb52da
+--- /dev/null
++++ b/tests/test_fp_analysis.py
+@@ -0,0 +1,149 @@
++import numpy as np
++import pytest
++
++from electrotrace.fp_analysis import (
++    CATEGORIES,
++    analyze_record,
++    amplitude_context,
++    candidate_scoring_summary,
++    classify_false_positives,
++    match_peaks_detailed,
++    pool_false_positives,
++)
++from electrotrace.validation import match_peaks
++
++FS = 1000.0
++REF = np.array([1000, 2000, 3000])
++
++
++def test_match_peaks_detailed_agrees_with_match_peaks_on_random_inputs():
++    rng = np.random.default_rng(7)
++    for _ in range(200):
++        ref = np.unique(rng.integers(0, 20000, size=rng.integers(1, 60)))
++        det = np.unique(
++            np.concatenate(
++                [
++                    ref[rng.random(ref.size) < 0.8] + rng.integers(-120, 120, size=1),
++                    rng.integers(0, 20000, size=rng.integers(0, 40)),
++                ]
++            )
++        )
++        det = det[det >= 0]
++        m = match_peaks(det, ref, 250.0, 75.0)
++        d = match_peaks_detailed(det, ref, 250.0, 75.0)
++        assert d.true_positive == m.true_positive
++        assert int((~d.detected_matched).sum()) == m.false_positive
++        assert int((~d.reference_matched).sum()) == m.false_negative
++
++
++def test_match_peaks_detailed_validates_like_match_peaks():
++    with pytest.raises(ValueError, match="strictly increasing"):
++        match_peaks_detailed([5, 5], [1], 250.0)
++    with pytest.raises(ValueError, match="non-negative"):
++        match_peaks_detailed([-1], [1], 250.0)
++
++
++def test_false_positive_categories_follow_timing_geometry():
++    fps = [1040, 1100, 1300, 2900, 2750, 2500, 500, 3500]
++    out = classify_false_positives(fps, REF, FS, tolerance_ms=75.0)
++    got = dict(zip(fps, out["category"]))
++    assert got[1040] == "duplicate_within_tolerance"
++    assert got[1100] == "post_qrs_near"
++    assert got[1300] == "post_qrs_t_window"
++    assert got[2900] == "pre_qrs_near"
++    assert got[2750] == "pre_qrs_p_window"
++    assert got[2500] == "mid_interval_other"
++    assert got[500] == "outside_reference_span"
++    assert got[3500] == "outside_reference_span"
++    assert set(out["category"]) <= set(CATEGORIES)
++
++
++def test_false_positive_offsets_phase_and_nearest_index():
++    out = classify_false_positives([1300, 2900], REF, FS)
++    assert out["nearest_offset_ms"][0] == pytest.approx(300.0)  # after ref 1000
++    assert out["nearest_offset_ms"][1] == pytest.approx(-100.0)  # before ref 3000
++    assert out["nearest_ref_index"].tolist() == [0, 2]
++    assert out["rr_ms"][0] == pytest.approx(1000.0)
++    assert out["phase"][0] == pytest.approx(0.3)
++    assert out["dt_prev_ms"][1] == pytest.approx(900.0)
++    assert out["dt_next_ms"][1] == pytest.approx(100.0)
++
++
++def test_classify_handles_empty_inputs():
++    assert classify_false_positives([], REF, FS)["category"].size == 0
++    out = classify_false_positives([10, 20], [], FS)
++    assert list(out["category"]) == ["outside_reference_span"] * 2
++
++
++def test_band_edges_are_configurable():
++    out = classify_false_positives(
++        [1300], REF, FS, bands_ms={"post_qrs_near_max": 400.0}
++    )
++    assert out["category"][0] == "post_qrs_near"
++
++
++def _spiky(n=4000, fs=FS):
++    x = np.zeros(n)
++    for c, a in [(1000, 3.0), (2000, 3.0), (3000, 3.0), (1300, 0.9), (2500, -0.9), (1100, 0.2)]:
++        x[c - 2 : c + 3] += a * np.hanning(5)
++    return x
++
++
++def test_amplitude_context_ratio_and_polarity():
++    x = _spiky()
++    fps = np.array([1300, 2500, 1100])
++    out = classify_false_positives(fps, REF, FS)
++    ctx = amplitude_context(x, FS, fps, REF, out["nearest_ref_index"])
++    assert ctx["amp_ratio"][0] == pytest.approx(0.3, abs=0.05)
++    assert ctx["same_polarity"][0]
++    assert not ctx["same_polarity"][1]  # negative spike beside positive beats
++    assert ctx["amp_ratio"][2] < 0.1  # baseline-blip sized
++
++
++def test_candidate_scoring_summary_perfect_and_single_class():
++    cand = np.array([1000, 1300, 2000, 2500, 3000])
++    good = candidate_scoring_summary(cand, [0.9, 0.1, 0.95, 0.2, 0.85], REF, FS, 0.5)
++    assert good["auc"] == pytest.approx(1.0)
++    assert good["oracle_best_f1"] == pytest.approx(1.0)
++    assert good["false_candidates_retained_at_threshold"] == 0
++    only_true = candidate_scoring_summary(REF, [0.9, 0.9, 0.9], REF, FS, 0.5)
++    assert only_true["auc"] is None
++    with pytest.raises(ValueError, match="same length"):
++        candidate_scoring_summary([1, 2], [0.5], REF, FS, 0.5)
++
++
++def test_candidate_summary_flags_threshold_problem_when_ranking_is_fine():
++    cand = np.array([1000, 1300, 2000, 2500, 3000])
++    prob = [0.45, 0.10, 0.48, 0.20, 0.44]  # ranks perfectly, but all under 0.5
++    s = candidate_scoring_summary(cand, prob, REF, FS, 0.5)
++    assert s["auc"] == pytest.approx(1.0)
++    assert s["true_candidates_dropped_at_threshold"] == 3
++    assert s["oracle_best_threshold"] < 0.45
++
++
++def test_analyze_record_end_to_end_and_pooling():
++    x = _spiky()
++    cand = np.array([1000, 1040, 1300, 2000, 2500, 3000])
++    prob = np.array([0.9, 0.8, 0.7, 0.9, 0.6, 0.9])
++    res = analyze_record(x, FS, cand, prob, REF, threshold=0.5)
++    assert res["metrics"]["false_positive"] == 3
++    assert res["detected_over_reference"] == pytest.approx(2.0)
++    cats = res["false_positive_categories"]
++    assert cats["duplicate_within_tolerance"] == 1
++    assert cats["post_qrs_t_window"] == 1
++    assert cats["mid_interval_other"] == 1
++    table = res["false_positive_table"]
++    assert table["probability"].tolist() == pytest.approx([0.8, 0.7, 0.6])
++
++    pooled = pool_false_positives([table, table])
++    assert pooled["n_false_positives"] == 6
++    assert pooled["category_counts"]["duplicate_within_tolerance"] == 2
++    assert sum(pooled["category_fractions"].values()) == pytest.approx(1.0)
++    assert pooled["signed_offset_to_nearest_reference_ms"]["n"] == 6
++    assert pool_false_positives([])["n_false_positives"] == 0
++
++
++def test_analyze_record_without_signal_leaves_amplitude_unset():
++    cand = np.array([1000, 1300, 2000, 3000])
++    res = analyze_record(None, FS, cand, np.full(4, 0.9), REF, threshold=0.5)
++    assert np.isnan(res["false_positive_table"]["amp_ratio"]).all()
+diff --git a/tests/test_incart_forensics_scripts.py b/tests/test_incart_forensics_scripts.py
+new file mode 100644
+index 0000000..f2ac686
+--- /dev/null
++++ b/tests/test_incart_forensics_scripts.py
+@@ -0,0 +1,187 @@
++import csv
++import json
++import sys
++import types
++
++import numpy as np
++
++from electrotrace.candidate_suppressor import CandidateSuppressor, _candidate_features
++from scripts import diagnose_wfdb_annotations as diag
++from scripts import incart_fp_offsets as fp_script
++
++FS = 360.0
++R_PEAKS = np.arange(900, 6500, 900)
++
++
++def _record(with_t_bumps=True, n=7200):
++    t = np.arange(n) / FS
++    x = 0.05 * np.sin(2 * np.pi * 1.2 * t)
++    for p in R_PEAKS:
++        lo, hi = max(0, p - 4), min(n, p + 5)
++        x[lo:hi] += np.hanning(hi - lo) * 2.0
++        if with_t_bumps:
++            q = p + 150  # ~417 ms after the R peak
++            lo, hi = q - 6, q + 7
++            x[lo:hi] += np.hanning(hi - lo) * 0.9
++    return x
++
++
++def _tiny_model(signal):
++    candidates = np.asarray(R_PEAKS)
++    X, names = _candidate_features(signal, FS, candidates, np.ones(len(candidates)))
++    X_train = np.vstack([X, X + 0.01])
++    y_train = np.array([1] * len(candidates) + [0] * len(candidates))
++    model = CandidateSuppressor().fit(X_train, y_train, target_recall=0.9, n_estimators=20)
++    model.feature_names = names
++    return model
++
++
++def test_analyze_signal_record_reports_false_positive_structure():
++    x = _record()
++    model = _tiny_model(x)
++    result = fp_script.analyze_signal_record(model, x, FS, R_PEAKS, threshold=0.0)
++    assert result["stage1_candidates"] >= len(R_PEAKS)
++    assert result["metrics"]["reference_count"] == len(R_PEAKS)
++    cats = result["false_positive_categories"]
++    assert sum(cats.values()) == result["metrics"]["false_positive"]
++    assert len(result["candidate_probability_true"]) + len(result["candidate_probability_false"]) == (
++        result["stage1_candidates"]
++    )
++    row = fp_script.record_row("X01", FS, result)
++    json.dumps(row, default=fp_script._json_default)
++
++
++def _fake_wfdb(monkeypatch, signal, ann_sample):
++    fake = types.ModuleType("wfdb")
++
++    class Obj:
++        pass
++
++    def rdrecord(base, channels, physical):
++        r = Obj()
++        r.fs = FS
++        r.p_signal = None
++        r.d_signal = signal.reshape(-1, 1)
++        return r
++
++    def rdheader(base):
++        h = Obj()
++        h.fs = FS
++        h.sig_len = len(signal)
++        return h
++
++    def rdann(base, extension):
++        a = Obj()
++        a.sample = np.asarray(ann_sample)
++        a.symbol = ["N"] * len(ann_sample)
++        return a
++
++    fake.rdrecord, fake.rdheader, fake.rdann = rdrecord, rdheader, rdann
++    monkeypatch.setitem(sys.modules, "wfdb", fake)
++
++
++def test_main_writes_report_csv_and_audits_end_to_end(monkeypatch, tmp_path):
++    x = _record()
++    model = _tiny_model(x)
++    data = tmp_path / "incart"
++    data.mkdir()
++    for suffix in (".hea", ".dat", ".atr"):
++        (data / f"I01{suffix}").write_bytes(b"x")
++    model_file = tmp_path / "model.skops"
++    model_file.write_bytes(b"model")
++    out = tmp_path / "out"
++
++    _fake_wfdb(monkeypatch, x, R_PEAKS)
++    monkeypatch.setattr(CandidateSuppressor, "load", staticmethod(lambda path, **kw: model))
++    argv = [
++        "incart_fp_offsets.py",
++        "--incart-dir",
++        str(data),
++        "--model",
++        str(model_file),
++        "--output-dir",
++        str(out),
++        "--threshold",
++        "0.0",
++        "--no-plot",
++    ]
++    monkeypatch.setattr(sys, "argv", argv)
++    assert fp_script.main() == 0
++
++    report = json.loads((out / "incart_fp_forensics.json").read_text())
++    assert report["evidence_status"] == "development_only"
++    assert report["protocol"]["retraining"] is False
++    assert report["annotation_audit"]["summary"]["kept_unchanged"] == 1
++    assert report["groups"]["all"]["n_records"] == 1
++    assert report["model"]["sha256"]
++    assert "numpy" in report["package_versions"]
++
++    with (out / "incart_fp_detail.csv").open() as handle:
++        rows = list(csv.DictReader(handle))
++    assert len(rows) == report["records"][0]["false_positive"]
++    if rows:
++        assert rows[0]["category"] in fp_script.CATEGORIES
++
++
++def test_main_reports_excluded_record_instead_of_silently_dropping(monkeypatch, tmp_path):
++    x = _record()
++    model = _tiny_model(x)
++    data = tmp_path / "incart"
++    data.mkdir()
++    for name in ("I01", "I04"):
++        for suffix in (".hea", ".dat", ".atr"):
++            (data / f"{name}{suffix}").write_bytes(b"x")
++    model_file = tmp_path / "model.skops"
++    model_file.write_bytes(b"model")
++
++    calls = {"n": 0}
++
++    def rdann(base, extension):
++        calls["n"] += 1
++        a = types.SimpleNamespace()
++        bad = str(base).endswith("I04")
++        a.sample = np.concatenate([[-20], R_PEAKS]) if bad else R_PEAKS
++        a.symbol = ["N"] * len(a.sample)
++        return a
++
++    _fake_wfdb(monkeypatch, x, R_PEAKS)
++    sys.modules["wfdb"].rdann = rdann
++    monkeypatch.setattr(CandidateSuppressor, "load", staticmethod(lambda path, **kw: model))
++    monkeypatch.setattr(
++        sys,
++        "argv",
++        [
++            "incart_fp_offsets.py",
++            "--incart-dir",
++            str(data),
++            "--model",
++            str(model_file),
++            "--output-dir",
++            str(tmp_path / "out"),
++            "--threshold",
++            "0.0",
++            "--no-plot",
++        ],
++    )
++    assert fp_script.main() == 0
++    report = json.loads((tmp_path / "out" / "incart_fp_forensics.json").read_text())
++    assert [s["record"] for s in report["skipped_records"]] == ["I04"]
++    assert report["annotation_audit"]["summary"]["excluded"] == 1
++    assert report["annotation_audit"]["summary"]["excluded_records"][0]["reason"] == "negative annotation sample index"
++
++    # The same file under drop_edges is repaired because Pan-Tompkins agrees with the rest.
++    monkeypatch.setattr(sys, "argv", [*sys.argv[:-3], "--annotation-policy", "drop_edges", "--threshold", "0.0", "--no-plot"])
++    assert fp_script.main() == 0
++    repaired = json.loads((tmp_path / "out" / "incart_fp_forensics.json").read_text())
++    assert repaired["skipped_records"] == []
++    assert repaired["annotation_audit"]["summary"]["kept_after_dropping_edges"] == 1
++
++
++def test_diagnose_record_reports_policies_and_alignment(monkeypatch, tmp_path):
++    x = _record(with_t_bumps=False)
++    _fake_wfdb(monkeypatch, x, np.concatenate([[-25], R_PEAKS]))
++    report = diag.diagnose_record(tmp_path / "I04", tolerance_ms=75.0)
++    assert report["policies"]["error"]["action"] == "excluded"
++    assert report["policies"]["drop_edges"]["action"] == "kept_after_dropping_edges"
++    assert report["raw"]["negative_positions"] == [0]
++    assert report["valid_remainder_alignment"]["coverage_vs_pan_tompkins"] > 0.8
+diff --git a/tests/test_wfdb_records.py b/tests/test_wfdb_records.py
+new file mode 100644
+index 0000000..7789430
+--- /dev/null
++++ b/tests/test_wfdb_records.py
+@@ -0,0 +1,238 @@
++import sys
++import types
++
++import numpy as np
++import pytest
++
++from electrotrace.wfdb_records import (
++    RecordExcluded,
++    clean_reference_annotations,
++    estimate_alignment,
++    load_annotated_record,
++    summarize_audits,
++)
++
++FS = 250.0
++
++
++def _beats(n=40, step=200, start=100):
++    return np.arange(start, start + n * step, step)
++
++
++def _peaks_like(ref, jitter=2):
++    return ref + jitter
++
++
++def _clean(samples, symbols=None, **kw):
++    samples = np.asarray(samples)
++    symbols = symbols if symbols is not None else ["N"] * len(samples)
++    kw.setdefault("n_samples", int(samples.max()) + 500 if samples.size else 1000)
++    kw.setdefault("fs_hz", FS)
++    return clean_reference_annotations(samples, symbols, **kw)
++
++
++def test_clean_record_is_kept_unchanged_under_both_policies():
++    ref = _beats()
++    for policy in ("error", "drop_edges"):
++        out, audit = _clean(ref, policy=policy)
++        assert np.array_equal(out, ref)
++        assert audit.action == "kept_unchanged"
++        assert audit.alignment_checked is False
++
++
++def test_error_policy_reproduces_historical_negative_index_failure():
++    ref = np.concatenate([[-40], _beats()])
++    with pytest.raises(RecordExcluded, match="negative annotation sample index") as exc:
++        _clean(ref, policy="error")
++    assert isinstance(exc.value, ValueError)  # old callers catch ValueError
++    assert exc.value.audit.n_negative_beat == 1
++    assert exc.value.audit.first_invalid == [[-40, "N"]]
++
++
++def test_error_policy_does_not_reject_annotations_past_signal_end():
++    # Historical scripts never checked the upper bound; keep results reproducible.
++    ref = _beats()
++    out, audit = _clean(ref, n_samples=int(ref[-1]) - 10, policy="error")
++    assert np.array_equal(out, ref)
++    assert audit.n_beyond_end_beat == 1
++    assert audit.action == "kept_unchanged"
++
++
++def test_non_beat_symbols_are_ignored_even_when_negative():
++    ref = _beats()
++    samples = np.concatenate([[-5], ref])
++    symbols = ["+"] + ["N"] * len(ref)  # rhythm annotation, not a beat
++    out, audit = _clean(samples, symbols, policy="error")
++    assert np.array_equal(out, ref)
++    assert audit.n_negative_beat == 0
++
++
++def test_drop_edges_repairs_leading_negatives_when_alignment_verified():
++    ref = _beats()
++    samples = np.concatenate([[-90, -30], ref])
++    out, audit = _clean(
++        samples, policy="drop_edges", alignment_peaks=_peaks_like(ref)
++    )
++    assert np.array_equal(out, ref)
++    assert audit.action == "kept_after_dropping_edges"
++    assert audit.n_leading_invalid == 2
++    assert audit.alignment_checked is True
++    assert audit.alignment_coverage == pytest.approx(1.0)
++
++
++def test_drop_edges_repairs_trailing_beyond_end():
++    ref = _beats()
++    n = int(ref[-1]) - 10
++    out, audit = _clean(ref, n_samples=n, policy="drop_edges", alignment_peaks=ref)
++    assert np.array_equal(out, ref[:-1])
++    assert audit.n_trailing_invalid == 1
++
++
++def test_drop_edges_refuses_unverified_repair():
++    ref = _beats()
++    samples = np.concatenate([[-30], ref])
++    with pytest.raises(RecordExcluded, match="not verified"):
++        _clean(samples, policy="drop_edges", alignment_peaks=None)
++
++
++def test_drop_edges_rejects_repair_when_reference_is_shifted():
++    # A misparsed skip would shift every annotation; independent peaks expose it.
++    ref = _beats()
++    samples = np.concatenate([[-30], ref + 97])  # ~388 ms shift, half an RR
++    with pytest.raises(RecordExcluded, match="repair rejected") as exc:
++        _clean(samples, policy="drop_edges", alignment_peaks=ref)
++    assert exc.value.audit.alignment_checked is True
++    assert exc.value.audit.alignment_coverage < 0.5
++
++
++def test_drop_edges_rejects_interior_invalid_annotations():
++    ref = _beats()
++    samples = np.concatenate([ref[:10], [-3], ref[10:]])
++    with pytest.raises(RecordExcluded, match="interior"):
++        _clean(samples, policy="drop_edges", alignment_peaks=ref)
++
++
++def test_non_monotonic_reference_is_excluded_not_repaired():
++    ref = _beats()
++    samples = ref.copy()
++    samples[5], samples[6] = samples[6], samples[5]
++    for policy in ("error", "drop_edges"):
++        with pytest.raises(RecordExcluded, match="strictly increasing"):
++            _clean(samples, policy=policy, alignment_peaks=ref)
++
++
++def test_alignment_peaks_callable_only_invoked_when_repair_needed():
++    calls = []
++
++    def factory():
++        calls.append(1)
++        return _beats()
++
++    _clean(_beats(), policy="drop_edges", alignment_peaks=factory)
++    assert calls == []
++    _clean(np.concatenate([[-3], _beats()]), policy="drop_edges", alignment_peaks=factory)
++    assert calls == [1]
++
++
++def test_estimate_alignment_reports_coverage_and_signed_offset():
++    ref = _beats()
++    coverage, offset = estimate_alignment(ref + 5, ref, FS)
++    assert coverage == pytest.approx(1.0)
++    assert offset == pytest.approx(5 * 1000 / FS)
++    assert estimate_alignment([], ref, FS) == (0.0, None)
++
++
++def test_summarize_audits_counts_each_outcome():
++    ref = _beats()
++    _, a = _clean(ref)
++    _, b = _clean(
++        np.concatenate([[-1], ref]), policy="drop_edges", alignment_peaks=ref
++    )
++    with pytest.raises(RecordExcluded) as exc:
++        _clean(np.concatenate([[-1], ref]), record="I04")
++    summary = summarize_audits([a, b, exc.value.audit])
++    assert summary["kept_unchanged"] == 1
++    assert summary["kept_after_dropping_edges"] == 1
++    assert summary["excluded"] == 1
++    assert summary["excluded_records"][0]["record"] == "I04"
++
++
++def test_invalid_policy_and_shape_mismatch():
++    with pytest.raises(ValueError, match="policy"):
++        _clean(_beats(), policy="drop_everything")
++    with pytest.raises(ValueError, match="same length"):
++        clean_reference_annotations([1, 2], ["N"], n_samples=10, fs_hz=FS)
++
++
++def _install_fake_wfdb(monkeypatch, *, signal, fs, ann_sample, ann_symbol):
++    fake = types.ModuleType("wfdb")
++
++    class Rec:
++        pass
++
++    def rdrecord(base, channels, physical):
++        r = Rec()
++        r.fs = fs
++        r.p_signal = None
++        r.d_signal = np.asarray(signal, dtype=float).reshape(-1, 1)
++        return r
++
++    def rdheader(base):
++        h = Rec()
++        h.fs = fs
++        h.sig_len = len(signal)
++        return h
++
++    def rdann(base, extension):
++        a = Rec()
++        a.sample = np.asarray(ann_sample)
++        a.symbol = list(ann_symbol)
++        return a
++
++    fake.rdrecord, fake.rdheader, fake.rdann = rdrecord, rdheader, rdann
++    monkeypatch.setitem(sys.modules, "wfdb", fake)
++
++
++def _ecg(fs=FS, beats=None, n=12000):
++    x = np.zeros(n)
++    for b in beats:
++        lo, hi = max(0, b - 3), min(n, b + 4)
++        x[lo:hi] += np.hanning(hi - lo) * 3.0
++    return x + 0.01 * np.sin(np.arange(n) / 50.0)
++
++
++def test_load_annotated_record_uses_pan_tompkins_to_verify_repair(monkeypatch):
++    ref = np.arange(300, 11000, 250)
++    signal = _ecg(beats=ref)
++    _install_fake_wfdb(
++        monkeypatch,
++        signal=signal,
++        fs=FS,
++        ann_sample=np.concatenate([[-50], ref]),
++        ann_symbol=["N"] * (len(ref) + 1),
++    )
++    with pytest.raises(RecordExcluded):
++        load_annotated_record("/tmp/I99", policy="error")
++    rec = load_annotated_record("/tmp/I99", policy="drop_edges")
++    assert np.array_equal(rec.reference, ref)
++    assert rec.audit.action == "kept_after_dropping_edges"
++    assert rec.audit.alignment_coverage > 0.9
++    assert rec.signal is not None and rec.fs_hz == FS
++
++
++def test_load_annotated_record_header_only_needs_external_peaks(monkeypatch):
++    ref = np.arange(300, 11000, 250)
++    _install_fake_wfdb(
++        monkeypatch,
++        signal=np.zeros(12000),
++        fs=FS,
++        ann_sample=np.concatenate([[-50], ref]),
++        ann_symbol=["N"] * (len(ref) + 1),
++    )
++    with pytest.raises(RecordExcluded, match="not verified"):
++        load_annotated_record("/tmp/I99", policy="drop_edges", load_signal=False)
++    rec = load_annotated_record(
++        "/tmp/I99", policy="drop_edges", load_signal=False, alignment_peaks=ref + 3
++    )
++    assert rec.signal is None
++    assert np.array_equal(rec.reference, ref)
