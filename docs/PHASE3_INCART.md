@@ -16,7 +16,7 @@ The script is scripts/phase3_incart_ablation.py.
 
 ## Colab
 
-The historical pickle model is retrieved from the 201096a source snapshot, while the hardening branch uses skops for new model artifacts. skops is designed for safer scikit-learn model persistence and supports auditing unknown serialized types before loading.
+The historical pickle model is retrieved from the 201096a source snapshot, while main uses skops for new model artifacts. skops is designed for safer scikit-learn model persistence and supports auditing unknown serialized types before loading.
 
 ```python
 # Cell 1: clone the hardening branch
