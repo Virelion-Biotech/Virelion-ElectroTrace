@@ -6,7 +6,7 @@
 
 ## Unit tests
 
-The locked historical validation artifact reports 103 passing tests at the time of the 1.8.1 scientific freeze. The hardening branch adds public-API, detector-registry, and model-persistence regression coverage; current CI is the authoritative result for the new branch.
+The locked historical validation artifact reports 103 passing tests at the time of the 1.8.1 scientific freeze. The release-hardening work added public-API, detector-registry, model-persistence, annotation-audit, forensics, and Step-5 regression coverage; current CI is the authoritative result for `main`.
 
 ## Locked two-stage protocol
 
