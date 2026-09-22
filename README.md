@@ -44,7 +44,7 @@ ElectroTrace is research software. It is not a clinical device and the current m
 
 Python 3.10+ is required.
 
-**PyPI publication is prepared by CI but not yet performed for this hardening branch.** For the current code, install from source:
+**PyPI publication is prepared by CI but not yet performed.** For the current code, install from source:
 
 ~~~bash
 git clone https://github.com/Virelion-Biotech/Virelion-ElectroTrace.git
