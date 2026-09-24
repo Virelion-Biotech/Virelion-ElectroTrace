@@ -14,13 +14,14 @@ labels you are about to report performance on. This script:
   1. Scores every Stage-1 candidate (the RF itself is frozen throughout) on
      the MIT-BIH calibration records (never the 12-record held-out test split)
      and on INCART records passed under --incart-annotation-policy.
-  2. Runs GroupKFold (group = record) over the combined pool, so a record's
-     candidates never appear in both a fold's train and test side.
-  3. Per fold, picks a threshold on training folds with the same F1/min-recall
-     rule as the shipped threshold, then scores held-out records.
-  4. Pools every held-out record exactly once into a macro-average per database.
-  5. Also fits one threshold on the full combined pool as a deployment
-     candidate. That number uses INCART labels and is not a validated result.
+  2. Runs GroupKFold (group = record) over the MIT-BIH calibration pool only, so
+     no INCART label can enter threshold fitting or model selection.
+  3. Per fold, picks a threshold on MIT-BIH training records with the same
+     F1/min-recall rule as the shipped threshold, then scores held-out records.
+  4. Evaluates the frozen development candidate on INCART descriptively, without
+     using INCART labels to choose the threshold.
+  5. Fits the final development candidate on the full MIT-BIH calibration pool
+     only. A fresh third database remains required for validation.
 
 This never touches the MIT-BIH 12-record held-out split and never retrains
 the RF.
@@ -246,6 +247,8 @@ def run_cv(
     seed: int,
     tolerance_ms: float,
 ) -> dict:
+    # This function is intentionally fit-data-only. Callers must not pass
+    # external test/development databases whose labels are under evaluation.
     group_names = np.array([r.record for r in records])
     owner = (
         np.concatenate(
@@ -429,18 +432,19 @@ def main() -> int:
         )
 
     baseline_rows = evaluate_at_threshold(records, current_threshold, args.tolerance_ms)
-    cv = run_cv(records, args.folds, args.seed, args.tolerance_ms)
+    mitdb_records = [r for r in records if r.database == "mitdb_calibration"]
+    incart_records = [r for r in records if r.database == "incart"]
+    cv = run_cv(mitdb_records, args.folds, args.seed, args.tolerance_ms)
 
-    all_prob = np.concatenate([r.probabilities for r in records])
-    all_label = np.concatenate([r.labels for r in records])
-    all_database = np.concatenate(
-        [np.full(len(r.probabilities), r.database) for r in records]
-    )
-    deployment_candidate_threshold, deployment_threshold_by_database = select_balanced_threshold(
+    all_prob = np.concatenate([r.probabilities for r in mitdb_records])
+    all_label = np.concatenate([r.labels for r in mitdb_records])
+    all_database = np.full(len(all_prob), "mitdb_calibration")
+    development_candidate_threshold, development_threshold_by_database = select_balanced_threshold(
         all_label, all_prob, all_database, min_recall=MIN_RECALL
     )
+    # INCART is evaluated only after the threshold is frozen from MIT-BIH.
     candidate_rows = evaluate_at_threshold(
-        records, deployment_candidate_threshold, args.tolerance_ms
+        records, development_candidate_threshold, args.tolerance_ms
     )
 
     input_hashes = {}
@@ -477,6 +481,8 @@ def main() -> int:
             "mitdb_calibration_records": MITDB_CALIBRATION_RECORDS,
             "mitdb_held_out_records_excluded": True,
             "incart_records_requested": incart_names,
+            "incart_labels_used_for_threshold_fitting": False,
+            "threshold_fit_databases": ["mitdb_calibration"],
             "incart_annotation_policy": args.incart_annotation_policy,
             "scale_method": args.scale_method,
             "polarity": "adaptive",
@@ -504,16 +510,14 @@ def main() -> int:
             },
         },
         "grouped_cv": cv,
-        "deployment_candidate_threshold": {
-            "value": deployment_candidate_threshold,
-            "threshold_by_database": deployment_threshold_by_database,
+        "development_candidate_threshold": {
+            "value": development_candidate_threshold,
+            "threshold_by_database": development_threshold_by_database,
             "note": (
-                "Fit one threshold per database and average them. INCART contributes roughly 10x "
-                "the Stage-1 candidates of the 7 MIT-BIH calibration records, so a naive pooled fit "
-                "would let INCART dominate. The per-database values remain visible; a large gap means "
-                "one global threshold may be inappropriate. Uses INCART labels directly -- diagnostic "
-                "only, not a validated setting. Compare against grouped_cv.threshold_mean/std before "
-                "considering any deployment use."
+                "Threshold is fit on the 7 MIT-BIH calibration records only. INCART labels are never "
+                "used for threshold fitting or model selection; INCART is evaluated only after the "
+                "threshold is frozen. The resulting number is still a development candidate and "
+                "requires a fresh third database for validation."
             ),
             "summary_all": macro_summary(candidate_rows),
             "summary_by_database": {
@@ -535,14 +539,14 @@ def main() -> int:
         f"threshold={current_threshold:.4f}",
         json.dumps(report["current_fixed_threshold"]["summary_by_database"]),
     )
-    print("\n===== GROUPED CV (pooled, each record held out once) =====")
+    print("\n===== GROUPED CV (MIT-BIH calibration only; each record held out once) =====")
     print(
         f"{cv['n_folds']} folds, threshold mean={cv['threshold_mean']:.4f} "
         f"std={cv['threshold_std']:.4f} "
         f"range=[{cv['threshold_min']:.4f}, {cv['threshold_max']:.4f}]"
     )
     print(json.dumps(cv["pooled_summary_by_database"]))
-    print("\n===== DEPLOYMENT-CANDIDATE THRESHOLD (diagnostic; needs a fresh database) =====")
+    print("\n===== DEVELOPMENT-CANDIDATE THRESHOLD (MIT-BIH only; needs a fresh database) =====")
     print(
         f"threshold={deployment_candidate_threshold:.4f}",
         json.dumps(report["deployment_candidate_threshold"]["summary_by_database"]),
