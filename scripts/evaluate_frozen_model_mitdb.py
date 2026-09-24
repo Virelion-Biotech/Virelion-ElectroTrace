@@ -39,10 +39,7 @@ from electrotrace.validation import (
     match_peaks,
     summarize_records,
 )
-from electrotrace.validation_detectors import (
-    DEFAULT_WIDTH_OVERRIDE_CONFIDENCE,
-    detect_r_peaks_two_stage,
-)
+from electrotrace.validation_detectors import detect_r_peaks_two_stage
 from electrotrace.wfdb_records import (
     POLICIES,
     RecordExcluded,
@@ -92,8 +89,8 @@ def main() -> int:
     parser.add_argument(
         "--width-override-confidence",
         type=float,
-        default=DEFAULT_WIDTH_OVERRIDE_CONFIDENCE,
-        help="Frozen polarity width-override cutoff. Derive it on MIT-BIH development records before locked scoring.",
+        required=True,
+        help="Frozen polarity width-override cutoff produced from MIT-BIH development data. Required to prevent held-out retuning.",
     )
     parser.add_argument(
         "--polarity", default="adaptive", choices=["adaptive", "positive", "negative"]
