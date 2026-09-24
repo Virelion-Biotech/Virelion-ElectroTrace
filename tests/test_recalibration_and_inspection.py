@@ -223,6 +223,35 @@ def test_group_k_fold_never_splits_a_record_across_folds():
             assert set(all_idx).issubset(set(test_idx.tolist()))
 
 
+def test_select_balanced_threshold_is_not_dominated_by_the_larger_database():
+    """The larger database must not dominate a cross-database threshold fit."""
+    big_true = np.full(1000, 0.9)
+    big_false = np.full(1000, 0.55)
+    small_true = np.full(100, 0.5)
+    small_false = np.full(100, 0.1)
+
+    labels = np.concatenate([np.ones(1000), np.zeros(1000), np.ones(100), np.zeros(100)]).astype(np.int8)
+    probs = np.concatenate([big_true, big_false, small_true, small_false])
+    databases = np.array(["big"] * 2000 + ["small"] * 200)
+
+    balanced, per_db = cv_script.select_balanced_threshold(labels, probs, databases, min_recall=0.9)
+    pooled = cv_script.select_threshold_for_f1(labels, probs, min_recall=0.9)
+
+    assert per_db["big"] == pytest.approx(0.9)
+    assert per_db["small"] == pytest.approx(0.5)
+    assert pooled == pytest.approx(per_db["big"])
+    assert balanced != pytest.approx(pooled)
+    assert abs(balanced - per_db["small"]) < abs(pooled - per_db["small"])
+
+
+def test_select_balanced_threshold_raises_when_no_database_has_positives():
+    labels = np.zeros(10, dtype=np.int8)
+    probs = np.linspace(0, 1, 10)
+    databases = np.array(["a"] * 5 + ["b"] * 5)
+    with pytest.raises(ValueError, match="no database"):
+        cv_script.select_balanced_threshold(labels, probs, databases, min_recall=0.9)
+
+
 def test_run_cv_pools_each_record_exactly_once():
     rng = np.random.default_rng(3)
     records = []
@@ -251,6 +280,8 @@ def test_run_cv_pools_each_record_exactly_once():
     assert tested_records == {r.record for r in records}
     assert len(cv["pooled_record_results"]) == len(records)
     assert set(cv["pooled_summary_by_database"]) == {"incart", "mitdb_calibration"}
+    for fold in cv["folds"]:
+        assert set(fold["threshold_by_database"]) <= {"incart", "mitdb_calibration"}
 
 
 def test_group_k_fold_falls_back_when_shuffle_kwarg_unsupported(monkeypatch):
