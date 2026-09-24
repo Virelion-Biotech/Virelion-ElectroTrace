@@ -118,3 +118,21 @@ On the 10 focus records above, without using INCART labels to fit a model:
 - Changing F1 threshold selection using INCART calibration
 - New network architectures
 - Multi-lead fusion (stay on channel 0 for comparability)
+
+
+## Evaluation-integrity guardrail (Issue #14)
+
+Adaptive-polarity width-override selection is now separated from final scoring.
+Use `scripts/derive_polarity_width_threshold_mitdb.py` on the seven MIT-BIH
+calibration records only. The resulting cutoff must be frozen before running
+`scripts/evaluate_frozen_model_mitdb.py`; the locked 12-record test split and
+INCART are excluded from threshold derivation.
+
+The recalibration workflow also no longer uses INCART labels for threshold
+fitting. INCART is evaluated only after the MIT-BIH development threshold is
+frozen. This satisfies the Issue #16 no-label-fitting constraint while retaining
+INCART as an external diagnostic dataset.
+
+A fresh Colab run is still required to produce the frozen cutoff and locked
+MIT-BIH result artifact. Until that run exists, historical record-207 recovery
+remains legacy validation rather than prospective evidence.
