@@ -461,10 +461,9 @@ def main() -> int:
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "evidence_status": "development_only",
         "evidence_note": (
-            "INCART and the MIT-BIH calibration records are development data for this "
-            "model generation. Pooled CV numbers below are an estimate of how a "
-            "recalibrated threshold generalizes across records it was not tuned on, "
-            "but they are not a substitute for a fresh held-out database."
+            "MIT-BIH calibration records are the only labels used for threshold fitting. "
+            "INCART is scored only after the threshold is frozen; these development "
+            "results are not a substitute for a fresh held-out database."
         ),
         "git_head": git_head(),
         "software_version": __version__,
@@ -548,8 +547,8 @@ def main() -> int:
     print(json.dumps(cv["pooled_summary_by_database"]))
     print("\n===== DEVELOPMENT-CANDIDATE THRESHOLD (MIT-BIH only; needs a fresh database) =====")
     print(
-        f"threshold={deployment_candidate_threshold:.4f}",
-        json.dumps(report["deployment_candidate_threshold"]["summary_by_database"]),
+        f"threshold={development_candidate_threshold:.4f}",
+        json.dumps(report["development_candidate_threshold"]["summary_by_database"]),
     )
     print("\nWritten:", args.output)
     print("Skipped:", len(skipped))
