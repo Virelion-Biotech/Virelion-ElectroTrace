@@ -98,7 +98,7 @@ def _builtin_specs(
             BUILTIN_CITATIONS["electrotrace-two-stage"],
             lambda signal, fs: detect_r_peaks_two_stage(
                 signal, fs, model, polarity=polarity, scale_method=scale_method
-            ),
+            )[0],
         )
     return specs
 
