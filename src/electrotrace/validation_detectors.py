@@ -450,6 +450,7 @@ def detect_r_peaks_two_stage(
     recovery: bool = False,
     recovery_gap_ratio: float = DEFAULT_RECOVERY_GAP_RATIO,
     scale_method: str = DEFAULT_SCALE_METHOD,
+    width_override_confidence: float = DEFAULT_WIDTH_OVERRIDE_CONFIDENCE,
     dual_polarity_merge_window_s: float = DEFAULT_DUAL_POLARITY_MERGE_WINDOW_S,
     merge_feature_scope: str = "per_stream",
     merge_scope: str = "gaps",
@@ -478,7 +479,10 @@ def detect_r_peaks_two_stage(
     if polarity == "merge":
         if recovery:
             raise ValueError("recovery is not supported with polarity='merge'")
-        majority = select_signal_polarity(signal, fs_hz, scale_method=scale_method).polarity
+        majority = select_signal_polarity(
+            signal, fs_hz, scale_method=scale_method,
+            width_override_confidence=width_override_confidence,
+        ).polarity
         major_id = 0 if majority != "negative" else 1
         scored = _score_dual_polarity_streams(
             signal, fs_hz, suppressor, scale_method=scale_method, feature_scope=merge_feature_scope,
@@ -491,7 +495,10 @@ def detect_r_peaks_two_stage(
         )
     chosen_polarity = polarity
     if polarity == "adaptive":
-        chosen_polarity = select_signal_polarity(signal, fs_hz, scale_method=scale_method).polarity
+        chosen_polarity = select_signal_polarity(
+            signal, fs_hz, scale_method=scale_method,
+            width_override_confidence=width_override_confidence,
+        ).polarity
 
     primary_peaks = detect_r_peaks(
         signal, fs_hz, polarity=chosen_polarity, scale_method=scale_method
