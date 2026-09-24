@@ -207,6 +207,39 @@ def group_k_fold(
     return list(splitter.split(np.zeros(len(groups)), groups=groups))
 
 
+def select_balanced_threshold(
+    labels: np.ndarray, probabilities: np.ndarray, databases: np.ndarray, min_recall: float
+) -> tuple[float, dict[str, float]]:
+    """Fit a threshold per database, then average them.
+
+    INCART contributes roughly 10x the Stage-1 candidates the 7 MIT-BIH
+    calibration records do. Pooling every candidate into one threshold fit
+    would therefore let INCART dominate. Fitting one threshold per database
+    and averaging gives both datasets equal influence regardless of candidate
+    volume. Per-database thresholds remain visible so disagreement is not
+    hidden by the average.
+    """
+    labels = np.asarray(labels)
+    probabilities = np.asarray(probabilities, dtype=float)
+    databases = np.asarray(databases)
+    if labels.ndim != 1 or probabilities.ndim != 1 or databases.ndim != 1:
+        raise ValueError("labels, probabilities, and databases must be one-dimensional")
+    if not (len(labels) == len(probabilities) == len(databases)):
+        raise ValueError("labels, probabilities, and databases must have equal length")
+
+    per_database: dict[str, float] = {}
+    for db in sorted(set(databases.tolist())):
+        mask = databases == db
+        if int(labels[mask].sum()) == 0:
+            continue
+        per_database[str(db)] = select_threshold_for_f1(
+            labels[mask], probabilities[mask], min_recall=min_recall
+        )
+    if not per_database:
+        raise ValueError("no database has any positive candidates in this partition")
+    return float(np.mean(list(per_database.values()))), per_database
+
+
 def run_cv(
     records: list[RecordCandidates],
     n_splits: int,
@@ -230,6 +263,8 @@ def run_cv(
         np.concatenate([r.labels for r in records]) if records else np.array([])
     )
     group_per_candidate = group_names[owner] if len(owner) else np.array([])
+    db_names = np.array([r.database for r in records])
+    db_per_candidate = db_names[owner] if len(owner) else np.array([])
 
     folds = group_k_fold(group_names, n_splits, seed)
     fold_reports = []
@@ -241,11 +276,15 @@ def run_cv(
         cand_train = np.isin(group_per_candidate, list(train_records))
         if int(all_label[cand_train].sum()) == 0:
             continue
-        threshold = select_threshold_for_f1(
-            all_label[cand_train],
-            all_prob[cand_train],
-            min_recall=MIN_RECALL,
-        )
+        try:
+            threshold, per_database_threshold = select_balanced_threshold(
+                all_label[cand_train],
+                all_prob[cand_train],
+                db_per_candidate[cand_train],
+                min_recall=MIN_RECALL,
+            )
+        except ValueError:
+            continue
         test_records = [by_index[i] for i in test_record_idx]
         rows = evaluate_at_threshold(test_records, threshold, tolerance_ms)
         pooled_rows.extend(rows)
@@ -253,6 +292,7 @@ def run_cv(
             {
                 "fold": fold_id,
                 "threshold": threshold,
+                "threshold_by_database": per_database_threshold,
                 "n_train_records": len(train_records),
                 "n_test_records": len(test_records),
                 "test_records": sorted(r.record for r in test_records),
@@ -393,8 +433,11 @@ def main() -> int:
 
     all_prob = np.concatenate([r.probabilities for r in records])
     all_label = np.concatenate([r.labels for r in records])
-    deployment_candidate_threshold = select_threshold_for_f1(
-        all_label, all_prob, min_recall=MIN_RECALL
+    all_database = np.concatenate(
+        [np.full(len(r.probabilities), r.database) for r in records]
+    )
+    deployment_candidate_threshold, deployment_threshold_by_database = select_balanced_threshold(
+        all_label, all_prob, all_database, min_recall=MIN_RECALL
     )
     candidate_rows = evaluate_at_threshold(
         records, deployment_candidate_threshold, args.tolerance_ms
@@ -463,11 +506,14 @@ def main() -> int:
         "grouped_cv": cv,
         "deployment_candidate_threshold": {
             "value": deployment_candidate_threshold,
+            "threshold_by_database": deployment_threshold_by_database,
             "note": (
-                "Fit on the full combined pool (MIT-BIH calibration + INCART) using the "
-                "same rule as the shipped threshold. Uses INCART labels directly -- "
-                "diagnostic only, not a validated setting. Compare against "
-                "grouped_cv.threshold_mean/std before considering any deployment use."
+                "Fit one threshold per database and average them. INCART contributes roughly 10x "
+                "the Stage-1 candidates of the 7 MIT-BIH calibration records, so a naive pooled fit "
+                "would let INCART dominate. The per-database values remain visible; a large gap means "
+                "one global threshold may be inappropriate. Uses INCART labels directly -- diagnostic "
+                "only, not a validated setting. Compare against grouped_cv.threshold_mean/std before "
+                "considering any deployment use."
             ),
             "summary_all": macro_summary(candidate_rows),
             "summary_by_database": {
