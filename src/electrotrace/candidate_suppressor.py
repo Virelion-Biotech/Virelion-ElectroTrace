@@ -322,7 +322,7 @@ class CandidateSuppressor:
         selected_threshold = float(self.metadata.threshold if threshold is None else threshold)
         if not 0 <= selected_threshold <= 1: raise ValueError("threshold must be in [0, 1]")
         candidates = np.asarray(candidate_indices, dtype=int); mask = probabilities >= selected_threshold
-        return candidates[mask], probabilities
+        return candidates[mask], probabilities[mask]
 
     def save(self, path: str | Path) -> None:
         """Persist the fitted sklearn model using skops plus a JSON sidecar."""

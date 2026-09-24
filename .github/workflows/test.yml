@@ -27,10 +27,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip
       - run: pip install -e ".[test,dev]"
-      - run: ruff check src/electrotrace/__init__.py src/electrotrace/cli.py src/electrotrace/detectors.py tests/test_public_api.py tests/test_detector_registry.py tests/test_model_persistence.py scripts/convert_model_pickle_to_skops.py scripts/phase3_incart_ablation.py
+      - run: ruff check src/electrotrace/__init__.py src/electrotrace/cli.py src/electrotrace/detectors.py tests/test_public_api.py tests/test_detector_registry.py tests/test_model_persistence.py scripts/convert_model_pickle_to_skops.py scripts/phase3_incart_ablation.py scripts/evaluate_frozen_model_mitdb.py scripts/recalibrate_threshold_grouped_cv.py scripts/inspect_fp_traces.py tests/test_recalibration_and_inspection.py
       - name: Check formatting (advisory)
         run: |
-          if ! ruff format --check src/electrotrace/__init__.py src/electrotrace/cli.py src/electrotrace/detectors.py tests/test_public_api.py tests/test_detector_registry.py tests/test_model_persistence.py scripts/convert_model_pickle_to_skops.py scripts/phase3_incart_ablation.py; then
+          if ! ruff format --check src/electrotrace/__init__.py src/electrotrace/cli.py src/electrotrace/detectors.py tests/test_public_api.py tests/test_detector_registry.py tests/test_model_persistence.py scripts/convert_model_pickle_to_skops.py scripts/phase3_incart_ablation.py scripts/evaluate_frozen_model_mitdb.py scripts/recalibrate_threshold_grouped_cv.py scripts/inspect_fp_traces.py tests/test_recalibration_and_inspection.py; then
             echo "::warning::Ruff formatter reports differences in release-hardening files; lint, build, and tests remain blocking."
           fi
       - run: python -m build --wheel

@@ -46,9 +46,26 @@ def test_suppressor_trains_and_filters_candidates():
     retained, probabilities = model.filter_candidates(np.arange(80), X)
     assert model.fitted
     assert retained.ndim == 1
-    assert probabilities.shape == (80,)
+    assert probabilities.shape == retained.shape
+    assert np.all(probabilities >= model.metadata.threshold)
     assert model.metadata.n_training_candidates == 80
     assert model.metadata.n_positive_candidates == 40
+
+def test_filter_candidates_probabilities_stay_aligned_with_retained_candidates():
+    """Returned probabilities must correspond exactly to thresholded candidates."""
+    rng = np.random.default_rng(0)
+    X = np.vstack([rng.normal(2, 0.2, size=(30, 6)), rng.normal(-2, 0.2, size=(30, 6))])
+    y = np.array([1] * 30 + [0] * 30)
+    model = CandidateSuppressor().fit(X, y, target_recall=0.9, n_estimators=30)
+
+    for threshold in (0.0, 0.1, 0.4, 0.7, 0.99):
+        candidates = np.arange(60)
+        retained, probabilities = model.filter_candidates(candidates, X, threshold=threshold)
+        assert len(retained) == len(probabilities)
+        assert np.all(probabilities >= threshold)
+        full_probabilities = model.predict_proba(X)
+        expected = full_probabilities[full_probabilities >= threshold]
+        assert np.allclose(np.sort(probabilities), np.sort(expected))
 
 
 def test_suppressor_rejects_single_class_training():
