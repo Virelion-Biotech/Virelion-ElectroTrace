@@ -39,7 +39,10 @@ from electrotrace.validation import (
     match_peaks,
     summarize_records,
 )
-from electrotrace.validation_detectors import detect_r_peaks_two_stage
+from electrotrace.validation_detectors import (
+    DEFAULT_WIDTH_OVERRIDE_CONFIDENCE,
+    detect_r_peaks_two_stage,
+)
 from electrotrace.wfdb_records import (
     POLICIES,
     RecordExcluded,
@@ -86,6 +89,12 @@ def main() -> int:
     parser.add_argument("--mitdb-dir", type=Path, required=True)
     parser.add_argument("--model", type=Path, required=True)
     parser.add_argument("--scale-method", default="windowed_std")
+    parser.add_argument(
+        "--width-override-confidence",
+        type=float,
+        default=DEFAULT_WIDTH_OVERRIDE_CONFIDENCE,
+        help="Frozen polarity width-override cutoff. Derive it on MIT-BIH development records before locked scoring.",
+    )
     parser.add_argument(
         "--polarity", default="adaptive", choices=["adaptive", "positive", "negative"]
     )
@@ -140,6 +149,7 @@ def main() -> int:
             polarity=args.polarity,
             recovery=args.recovery,
             scale_method=args.scale_method,
+            width_override_confidence=args.width_override_confidence,
             threshold=threshold,
         )
         metrics = match_peaks(
@@ -184,6 +194,7 @@ def main() -> int:
             "polarity": args.polarity,
             "recovery": args.recovery,
             "scale_method": args.scale_method,
+            "width_override_confidence": args.width_override_confidence,
             "tolerance_ms": args.tolerance_ms,
             "operating_threshold": threshold,
             "threshold_overridden": args.threshold is not None,
@@ -200,7 +211,7 @@ def main() -> int:
         "record_207_note": (
             f"F1={known_207.metrics.f1:.4f}" if known_207 else "not evaluated"
         ) + (
-            "; September's --polarity positive experiments all showed 207 collapsing "
+            "; polarity threshold is frozen before scoring; September's --polarity positive experiments all showed 207 collapsing "
             "to roughly F1 0.26. Check whether adaptive polarity fixes it here."
         ),
     }
