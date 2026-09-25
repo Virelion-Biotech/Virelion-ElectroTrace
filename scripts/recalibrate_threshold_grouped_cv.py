@@ -433,7 +433,6 @@ def main() -> int:
 
     baseline_rows = evaluate_at_threshold(records, current_threshold, args.tolerance_ms)
     mitdb_records = [r for r in records if r.database == "mitdb_calibration"]
-    incart_records = [r for r in records if r.database == "incart"]
     cv = run_cv(mitdb_records, args.folds, args.seed, args.tolerance_ms)
 
     all_prob = np.concatenate([r.probabilities for r in mitdb_records])
