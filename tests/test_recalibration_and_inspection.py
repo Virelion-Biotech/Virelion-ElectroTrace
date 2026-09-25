@@ -104,6 +104,8 @@ def test_evaluate_frozen_model_scores_locked_records_without_retraining(monkeypa
             str(model_file),
             "--records",
             "105",
+            "--width-override-confidence",
+            "0.38",
             "--output",
             str(out),
         ],
@@ -112,6 +114,7 @@ def test_evaluate_frozen_model_scores_locked_records_without_retraining(monkeypa
     report = json.loads(out.read_text())
     assert report["protocol"]["retraining"] is False
     assert report["protocol"]["polarity"] == "adaptive"
+    assert report["protocol"]["width_override_confidence"] == 0.38
     assert report["summary"]["records"] == 1
     assert report["record_results"][0]["record"] == "105"
     assert "numpy" in report["package_versions"]
@@ -140,6 +143,8 @@ def test_evaluate_frozen_model_reports_skipped_records_with_nonzero_exit(monkeyp
             str(model_file),
             "--records",
             "207",
+            "--width-override-confidence",
+            "0.38",
             "--output",
             str(out),
         ],
@@ -172,6 +177,8 @@ def test_evaluate_frozen_model_threshold_override_changes_score(monkeypatch, tmp
             "105",
             "--threshold",
             "0.999",
+            "--width-override-confidence",
+            "0.38",
             "--output",
             str(out),
         ],
@@ -348,9 +355,11 @@ def test_main_writes_report_with_baseline_cv_and_candidate_threshold(monkeypatch
     report = json.loads(out.read_text())
     assert report["evidence_status"] == "development_only"
     assert report["protocol"]["mitdb_held_out_records_excluded"] is True
+    assert report["protocol"]["incart_labels_used_for_threshold_fitting"] is False
+    assert report["protocol"]["threshold_fit_databases"] == ["mitdb_calibration"]
     assert report["grouped_cv"]["n_folds"] <= 3
-    assert "deployment_candidate_threshold" in report
-    assert report["deployment_candidate_threshold"]["note"]
+    assert "development_candidate_threshold" in report
+    assert report["development_candidate_threshold"]["note"]
     n_records = len(calib_records) + len(incart_records)
     assert report["current_fixed_threshold"]["summary_all"]["n_records"] == n_records
 
