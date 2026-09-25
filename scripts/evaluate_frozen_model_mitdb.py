@@ -90,7 +90,10 @@ def main() -> int:
         "--width-override-confidence",
         type=float,
         required=True,
-        help="Frozen polarity width-override cutoff produced from MIT-BIH development data. Required to prevent held-out retuning.",
+        help=(
+            "Frozen polarity width-override cutoff produced from MIT-BIH development data. "
+            "Required to prevent held-out retuning."
+        ),
     )
     parser.add_argument(
         "--polarity", default="adaptive", choices=["adaptive", "positive", "negative"]
@@ -208,8 +211,8 @@ def main() -> int:
         "record_207_note": (
             f"F1={known_207.metrics.f1:.4f}" if known_207 else "not evaluated"
         ) + (
-            "; polarity threshold is frozen before scoring; September's --polarity positive experiments all showed 207 collapsing "
-            "to roughly F1 0.26. Check whether adaptive polarity fixes it here."
+            "; polarity threshold is frozen before scoring; September's --polarity positive experiments "
+            "all showed 207 collapsing to roughly F1 0.26. Check whether adaptive polarity fixes it here."
         ),
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
