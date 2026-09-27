@@ -63,6 +63,24 @@ Seven INCART records were previously excluded for a leading negative annotation 
 `scripts/recalibrate_threshold_grouped_cv.py` is the direct follow-up. It performs record-grouped cross-validation across the MIT-BIH calibration records plus INCART, never reads the locked 12-record MIT-BIH held-out split, and never retrains the RF. It reports both an out-of-fold threshold estimate and a full-pool deployment-candidate threshold; neither is validated until tested on a genuinely fresh database.
 
 
+### Phase-5 consolidated validation (2026-09-27)
+
+The Phase-5 frozen v4 artifact confirms the locked MIT-BIH held-out protocol using windowed-standard-deviation scaling, adaptive polarity, the existing 75 ms tolerance, and the existing operating threshold (0.2752). The 12 locked records had no skipped records. Aggregate sensitivity was 0.9912, PPV 0.9891, and F1 0.9901. This is a confirmation of the locked split, not a new independent test set.
+
+The polarity/width threshold sweep and grouped threshold recalibration are **development-only**. The threshold sweep records a candidate Stage-1 cutoff of 0.05 under its stated selection rule; the grouped CV analysis keeps 0.2752 as the current fixed threshold and observed fold thresholds from 0.1190 to 0.3776. Neither result is validated for deployment until evaluated on a genuinely fresh database.
+
+The consolidated INCART domain-shift analysis classifies the 68-record comparison as 22 candidate-generation failures, 10 over-suppression cases, 17 acceptable cases, and 19 mixed/other cases. The poor-performing cohort is dominated by low Stage-1 candidate coverage; the report therefore directs the next work toward front-end candidate generation and only then threshold-domain-shift analysis. Polarity is predominantly positive and does not explain the split by itself. The accompanying false-positive figure is a manual-inspection aid and is not a metric.
+
+Artifacts:
+- validation_reports/experiments/2026-09-polarity-width/mitdb_frozen_v4_evaluation.json
+- validation_reports/experiments/2026-09-polarity-width/mitdb_polarity_width_threshold.json
+- validation_reports/experiments/2026-09-recalibration/threshold_grouped_cv.json
+- validation_reports/experiments/2026-09-incart-fp-forensics/incart_fp_trace_samples.json
+- validation_reports/experiments/2026-09-incart-fp-forensics/incart_fp_trace_samples.png
+- validation_reports/incart_domain_shift_analysis_2026-09-12.json
+- validation_reports/incart_domain_shift_record_table_2026-09-12.csv
+- validation_reports/experiments/phase5_reproducibility_manifest.json
+
 ## Model artifact policy
 
 The two legacy pickle model files are removed from the current source tree. Historical JSON artifacts may still mention their original paths because those reports are immutable provenance records.

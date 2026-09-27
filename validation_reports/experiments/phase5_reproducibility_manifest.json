@@ -1,0 +1,13 @@
+{
+  "git_head": "040ec8c7bb69980e381821aadc327c140fd8a219",
+  "git_status": "?? validation_reports/experiments/2026-09-incart-fp-forensics/\n?? validation_reports/experiments/2026-09-polarity-width/\n?? validation_reports/experiments/2026-09-recalibration/\n?? validation_reports/incart_domain_shift_analysis_2026-09-12.json\n?? validation_reports/incart_domain_shift_record_table_2026-09-12.csv",
+  "python": "3.13.15 (main, Aug  6 2026, 11:06:22) [GCC 13.3.0]",
+  "platform": "Linux-6.6.122+-x86_64-with-glibc2.39",
+  "model": "/content/Virelion-ElectroTrace/validation_reports/incart_mitbih_model_windowed_std_2026-09-09.skops",
+  "model_sha256": "4b4a7c6dfc7b53edc30bf8224c6f93210b79db27db6bc4a9924e176ff405e575",
+  "model_pkl": "/content/Virelion-ElectroTrace/validation_reports/incart_mitbih_model_windowed_std_2026-09-09.pkl",
+  "model_pkl_sha256": "8732aa47051c76b043bd56e4d9dc82dc01307e0d9bcc6c5ed046fca19a27f5bb",
+  "mitdb_headers": 48,
+  "incart_headers": 75,
+  "frozen_cutoff": 0.05
+}
