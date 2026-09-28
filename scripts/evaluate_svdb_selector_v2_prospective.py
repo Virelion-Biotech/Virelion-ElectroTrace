@@ -263,7 +263,12 @@ def evaluate_record(
     )
 
     # Reference annotations are not read until the channel is irrevocably selected.
-    annotation = wfdb.rdann(str(root / record), str(detector["annotation_extension"]))
+    annotation = wfdb.rdann(
+        str(root / record),
+        str(detector["annotation_extension"]),
+        sampfrom=0,
+        sampto=expected_samples - 1,
+    )
     reference, audit = _reference_from_annotation(
         annotation, frozenset(detector["beat_symbols"]), expected_samples
     )
