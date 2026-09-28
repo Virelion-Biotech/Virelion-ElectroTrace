@@ -240,6 +240,24 @@ def diagnose_channel(
         if stage1_n
         else {}
     )
+    retained_probabilities = probabilities[retained_mask]
+    retained_samples = candidates[retained_mask]
+    retained_rr = (
+        np.diff(retained_samples) / fs_hz
+        if retained_samples.size > 1
+        else np.asarray([], dtype=float)
+    )
+    retained_rr_median = float(np.median(retained_rr)) if retained_rr.size else None
+    retained_rr_mad = (
+        float(np.median(np.abs(retained_rr - np.median(retained_rr))))
+        if retained_rr.size
+        else None
+    )
+    retained_rr_mad_fraction = (
+        float(retained_rr_mad / retained_rr_median)
+        if retained_rr_median is not None and retained_rr_median > 0
+        else None
+    )
 
     return {
         "channel": int(channel),
@@ -256,6 +274,20 @@ def diagnose_channel(
         "stage2_retained_over_reference": float(retained_n / ref_n) if ref_n else None,
         "suppression_rate": float(1.0 - retained_n / stage1_n) if stage1_n else 0.0,
         "operating_threshold": threshold,
+        "label_free_quality": {
+            "duration_s": float(signal.size / fs_hz),
+            "retention_fraction": float(retained_n / stage1_n) if stage1_n else 0.0,
+            "retained_probability": _quantiles(retained_probabilities),
+            "retained_rr_s": _quantiles(retained_rr),
+            "retained_rr_median_s": retained_rr_median,
+            "retained_rr_mad_s": retained_rr_mad,
+            "retained_rr_mad_fraction": retained_rr_mad_fraction,
+            "retained_rate_bpm": (
+                float(retained_n / (signal.size / fs_hz) * 60.0)
+                if signal.size
+                else None
+            ),
+        },
         "metrics": metrics,
         "stage2_candidate_scoring": cand_summary,
         "false_positive_categories": forensic["false_positive_categories"],
