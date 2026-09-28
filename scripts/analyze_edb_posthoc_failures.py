@@ -297,8 +297,6 @@ def main() -> int:
     protocol = first_run["protocol"]["detector"]
     scale_method = str(protocol["stage1_scale_method"])
     tolerance_ms = float(protocol["tolerance_ms"])
-    archived_by = {r["record"]: r for r in first_run["record_results"]}
-
     records = []
     csv_rows = []
     for i, archived in enumerate(low_tail, start=1):
