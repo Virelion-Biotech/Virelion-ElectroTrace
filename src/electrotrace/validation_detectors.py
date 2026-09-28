@@ -63,7 +63,15 @@ def _candidate_set(z: np.ndarray, fs_hz: float, scale: float, *, prominence_frac
 
 
 DEFAULT_WIDTH_OVERRIDE_CONFIDENCE = 0.38
+DEFAULT_V2_GATE_CONFIDENCE = 0.15
 DEFAULT_WIDTH_OVERRIDE_MIN_CANDIDATES = 3
+
+
+def _validate_confidence_gate(name: str, value: float) -> float:
+    value = float(value)
+    if not np.isfinite(value) or not 0.0 <= value <= 1.0:
+        raise ValueError(f"{name} must be finite and between 0 and 1")
+    return value
 
 
 def _width_preferred_polarity(
@@ -84,8 +92,12 @@ def _width_preferred_polarity(
 
 
 def select_signal_polarity(
-    signal: np.ndarray, fs_hz: float, *, scale_method: str = DEFAULT_SCALE_METHOD,
+    signal: np.ndarray,
+    fs_hz: float,
+    *,
+    scale_method: str = DEFAULT_SCALE_METHOD,
     width_override_confidence: float = DEFAULT_WIDTH_OVERRIDE_CONFIDENCE,
+    v2_gate_confidence: float = DEFAULT_V2_GATE_CONFIDENCE,
 ) -> PolarityDecision:
     """Select one polarity per recording without merging positive/negative peaks.
 
@@ -119,6 +131,12 @@ def select_signal_polarity(
     still fixing I19, I13, and I64.
     """
     signal, fs_hz = _validate_signal(signal, fs_hz)
+    width_override_confidence = _validate_confidence_gate(
+        "width_override_confidence", width_override_confidence
+    )
+    v2_gate_confidence = _validate_confidence_gate(
+        "v2_gate_confidence", v2_gate_confidence
+    )
     z = signal - np.median(signal)
     scale = estimate_stage1_scale(z, fs_hz, method=scale_method)
     if not np.isfinite(scale) or scale == 0:
@@ -140,9 +158,10 @@ def select_signal_polarity(
     polarity = "negative" if pos_count > 0 and neg_count > 0 and ratio < DEFAULT_NEGATIVE_COUNT_RATIO else "positive"
     confidence = float(abs(pos_count - neg_count) / max(pos_count, neg_count, 1))
 
-    # Low-confidence count decisions: use QRS-band polarity v2 (MIT-BIH pooled
-    # F1 improves ~+0.01 and record 207 is corrected to negative).
-    if confidence < 0.15:
+    # Low-confidence count decisions: use QRS-band polarity v2. The historical
+    # 0.15 gate was informed by pooled MIT-BIH/record-207 observations and is
+    # therefore exposed as an auditable parameter rather than a hidden constant.
+    if confidence < v2_gate_confidence:
         from .polarity_v2 import select_signal_polarity_v2
         v2 = select_signal_polarity_v2(signal, fs_hz)
         polarity = v2.polarity
@@ -451,6 +470,7 @@ def detect_r_peaks_two_stage(
     recovery_gap_ratio: float = DEFAULT_RECOVERY_GAP_RATIO,
     scale_method: str = DEFAULT_SCALE_METHOD,
     width_override_confidence: float = DEFAULT_WIDTH_OVERRIDE_CONFIDENCE,
+    v2_gate_confidence: float = DEFAULT_V2_GATE_CONFIDENCE,
     dual_polarity_merge_window_s: float = DEFAULT_DUAL_POLARITY_MERGE_WINDOW_S,
     merge_feature_scope: str = "per_stream",
     merge_scope: str = "gaps",
@@ -480,8 +500,11 @@ def detect_r_peaks_two_stage(
         if recovery:
             raise ValueError("recovery is not supported with polarity='merge'")
         majority = select_signal_polarity(
-            signal, fs_hz, scale_method=scale_method,
+            signal,
+            fs_hz,
+            scale_method=scale_method,
             width_override_confidence=width_override_confidence,
+            v2_gate_confidence=v2_gate_confidence,
         ).polarity
         major_id = 0 if majority != "negative" else 1
         scored = _score_dual_polarity_streams(
@@ -496,8 +519,11 @@ def detect_r_peaks_two_stage(
     chosen_polarity = polarity
     if polarity == "adaptive":
         chosen_polarity = select_signal_polarity(
-            signal, fs_hz, scale_method=scale_method,
+            signal,
+            fs_hz,
+            scale_method=scale_method,
             width_override_confidence=width_override_confidence,
+            v2_gate_confidence=v2_gate_confidence,
         ).polarity
 
     primary_peaks = detect_r_peaks(
