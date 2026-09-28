@@ -191,7 +191,9 @@ def test_full_fake_run_scores_all_90_and_marks_dataset_exposed(monkeypatch, tmp_
     assert report["dataset_exposure_after_this_run"].startswith("exposed")
 
 
-def test_record_failure_aborts_without_partial_primary_artifact(monkeypatch, tmp_path):
+def test_record_failure_aborts_without_partial_primary_artifact(
+    monkeypatch, tmp_path, capsys
+):
     protocol = edb.load_locked_protocol()
     fail_record = protocol["dataset"]["records"][4]
     model_path, derivation_path, out, _ = _install_fake_run(
@@ -213,6 +215,11 @@ def test_record_failure_aborts_without_partial_primary_artifact(monkeypatch, tmp
     )
     with pytest.raises(SystemExit, match="no partial primary result is valid"):
         edb.main()
+    captured = capsys.readouterr()
+    assert "f1=" not in captured.out.lower()
+    assert "sens=" not in captured.out.lower()
+    assert "ppv=" not in captured.out.lower()
+    assert "polarity=" not in captured.out.lower()
     assert not out.exists()
 
 
