@@ -1,4 +1,5 @@
 import json
+
 import pytest
 
 from electrotrace.validation import match_peaks
