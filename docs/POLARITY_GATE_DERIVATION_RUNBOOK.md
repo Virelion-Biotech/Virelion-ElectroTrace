@@ -103,7 +103,10 @@ Therefore:
 - keep Issue #14 open until the real-data derivation/audit artifact exists and
   the historical limitation is documented;
 - prospective adaptive-polarity validation requires an independent dataset
-  that was not used to design or tune this mechanism.
+  that was not used to design or tune this mechanism. In particular, neither
+  MIT-BIH nor INCART is prospective for the combined adaptive/width mechanism:
+  MIT-BIH informed the count/v2 polarity work, while INCART informed the width
+  override mechanism.
 
 ## Diagnostic subsets
 
