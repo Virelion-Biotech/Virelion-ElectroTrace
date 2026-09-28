@@ -104,7 +104,17 @@
     "model_version": "rf-candidate-suppressor-v4",
     "feature_schema_version": "candidate-features-v4",
     "operating_threshold_source": "model_metadata_only",
-    "retraining": false
+    "retraining": false,
+    "operating_threshold": 0.2751648051220502,
+    "target_recall": 0.995,
+    "n_training_candidates": 102115,
+    "n_positive_candidates": 63526,
+    "n_negative_candidates": 38589,
+    "random_seed": 42,
+    "n_estimators": 150,
+    "calibration_candidates": 24841,
+    "calibration_method": "locked_MITBIH_calibration_records",
+    "trusted_legacy_pickle_sha256": "8732aa47051c76b043bd56e4d9dc82dc01307e0d9bcc6c5ed046fca19a27f5bb"
   },
   "detector": {
     "channel": 0,
