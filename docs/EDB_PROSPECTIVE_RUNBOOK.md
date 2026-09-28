@@ -10,14 +10,21 @@ protocol file SHA-256 before scoring.
 
 ## Scientific status
 
-EDB was not used to design or tune the current adaptive-polarity mechanism,
-width override, RF suppressor, model threshold, or Stage-1 scale selection.
-That makes the **first scored EDB run** prospective for this frozen model
-generation.
+The first scored EDB run completed successfully on 2026-09-28 as GitHub
+Actions run `36442894752` at commit
+`a610ec3511b5937da683be43dc72711637354e89`. EDB had not been used to
+design or tune the current mechanism before that run, so this first result is
+the project's prospective external evaluation for the frozen v4 generation.
 
-After the first EDB result is inspected, EDB is exposed. Any model/protocol
-change motivated by EDB must treat EDB as development data and use a different
-untouched database for the next prospective validation.
+EDB is now **exposed**. Do not rerun alternative channels, gates, thresholds,
+recovery settings, scale methods, architectures, or model variants and describe
+those EDB results as prospective validation. Any EDB-motivated change must
+treat EDB as development data and use a different untouched database for the
+next prospective validation.
+
+First-run aggregate result: sensitivity 0.9056, PPV 0.9644, F1 0.9341 across
+all 90 records. The result was strongly heterogeneous: macro median record F1
+0.9927, but the minimum record F1 was 0.0269.
 
 ## Locked primary protocol
 
