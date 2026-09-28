@@ -37,7 +37,9 @@ import numpy as np
 
 import electrotrace.polarity_v2 as polarity_v2_module
 import electrotrace.scale_estimation as scale_estimation_module
+import electrotrace.validation as validation_module
 import electrotrace.validation_detectors as validation_detectors_module
+import electrotrace.wfdb_records as wfdb_records_module
 from electrotrace import __version__
 from electrotrace.polarity_v2 import select_signal_polarity_v2
 from electrotrace.scale_estimation import estimate_stage1_scale
@@ -86,7 +88,9 @@ def implementation_hashes() -> dict[str, str]:
         "derive_polarity_thresholds_mitdb_extended.py": Path(__file__).resolve(),
         "electrotrace.polarity_v2": Path(polarity_v2_module.__file__).resolve(),
         "electrotrace.scale_estimation": Path(scale_estimation_module.__file__).resolve(),
+        "electrotrace.validation": Path(validation_module.__file__).resolve(),
         "electrotrace.validation_detectors": Path(validation_detectors_module.__file__).resolve(),
+        "electrotrace.wfdb_records": Path(wfdb_records_module.__file__).resolve(),
     }
     return {name: sha256_file(path) for name, path in sorted(paths.items())}
 
