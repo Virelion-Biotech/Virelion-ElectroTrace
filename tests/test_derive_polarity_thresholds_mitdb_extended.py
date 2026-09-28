@@ -122,6 +122,20 @@ def test_non_identifying_dimension_is_not_mistaken_for_selected_value():
     assert status["recommended_frozen_value"] == pytest.approx(0.15)
 
 
+def test_identified_zero_gate_is_frozen_even_when_it_changes_no_records():
+    status = script._parameter_status(
+        name="width_override_confidence",
+        selected=0.0,
+        historical=0.38,
+        non_identifying=[],
+        changed_records=[],
+    )
+    assert status["identified"] is True
+    assert status["changes_final_polarity"] is False
+    assert status["recommended_frozen_value"] == pytest.approx(0.0)
+    assert "must not be replaced by the historical default" in status["reason"]
+
+
 def test_engagement_distinguishes_reached_from_actual_width_override():
     same = _cache("SAME", 0.20, width_preferred="positive")
     changed = _cache("CHANGED", 0.20, width_preferred="negative")
