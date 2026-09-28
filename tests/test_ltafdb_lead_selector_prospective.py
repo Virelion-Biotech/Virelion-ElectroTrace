@@ -87,7 +87,7 @@ def test_evaluate_record_selects_lead_before_loading_annotations(monkeypatch, tm
 
     def fake_detect(*args, **kwargs):
         calls["n"] += 1
-        events.append(f"detect{calls[\"n\"]}")
+        events.append("detect" + str(calls["n"]))
         probs = np.array([0.90, 0.90, 0.90]) if calls["n"] == 1 else np.array([0.999, 0.999, 0.999])
         return np.array([100, 300, 500], dtype=int), probs
 
@@ -160,7 +160,15 @@ def _install_fake_main(monkeypatch, tmp_path, *, fail_record=None):
         lta,
         "_load_polarity_threshold_report",
         lambda path: (
-            {"schema": protocol["detector"]["polarity_threshold_report_schema"], "git_head": "a" * 40, "recommended_thresholds": {"v2_gate_confidence": 0.0, "width_override_confidence": 0.0}, "implementation_hashes": {}},
+            {
+                "schema": protocol["detector"]["polarity_threshold_report_schema"],
+                "git_head": "a" * 40,
+                "recommended_thresholds": {
+                    "v2_gate_confidence": 0.0,
+                    "width_override_confidence": 0.0,
+                },
+                "implementation_hashes": {},
+            },
             0.0,
             0.0,
         ),
