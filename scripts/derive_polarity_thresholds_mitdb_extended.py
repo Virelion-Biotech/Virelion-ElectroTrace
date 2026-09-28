@@ -324,18 +324,32 @@ def _parameter_status(
     non_identifying: list[str],
     changed_records: list[str],
 ) -> dict:
-    identified = name not in non_identifying and bool(changed_records)
+    # Identification is determined by the development objective, not by whether
+    # the selected gate happens to fire. A selected value of 0.0 intentionally
+    # disables that override; treating "no records changed" as non-identification
+    # would silently replace a development-selected no-op with the historical
+    # default and can move the frozen operating point off the optimum.
+    identified = name not in non_identifying
+    changes_final_polarity = bool(changed_records)
     if identified:
         frozen = selected
-        reason = "development F1 identifies this dimension and it changes final polarity on at least one record"
-    elif name in non_identifying:
-        frozen = historical
-        reason = "global F1 optimum does not identify this dimension; historical default retained"
+        if changes_final_polarity:
+            reason = (
+                "development F1 identifies this dimension; the selected gate "
+                "changes final polarity on at least one development record"
+            )
+        else:
+            reason = (
+                "development F1 identifies this dimension; the selected gate is "
+                "a valid no-op/disable setting under the prespecified tie-break "
+                "and must not be replaced by the historical default"
+            )
     else:
         frozen = historical
-        reason = "selected operating point does not change final polarity; historical default retained"
+        reason = "global F1 optimum does not identify this dimension; historical default retained"
     return {
         "identified": identified,
+        "changes_final_polarity": changes_final_polarity,
         "selected_grid_value": float(selected),
         "historical_default": float(historical),
         "recommended_frozen_value": float(frozen),
@@ -487,7 +501,7 @@ def main() -> int:
     }
 
     report = {
-        "schema": "electrotrace.mitdb_polarity_thresholds_extended_derivation/v2",
+        "schema": "electrotrace.mitdb_polarity_thresholds_extended_derivation/v3",
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "selection_status": selection_status,
         "freeze_eligible": freeze_eligible,
