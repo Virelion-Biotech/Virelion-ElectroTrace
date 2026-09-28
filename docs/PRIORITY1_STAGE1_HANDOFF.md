@@ -122,17 +122,23 @@ On the 10 focus records above, without using INCART labels to fit a model:
 
 ## Evaluation-integrity guardrail (Issue #14)
 
-Adaptive-polarity width-override selection is now separated from final scoring.
-Use `scripts/derive_polarity_width_threshold_mitdb.py` on the seven MIT-BIH
-calibration records only. The resulting cutoff must be frozen before running
-`scripts/evaluate_frozen_model_mitdb.py`; the locked 12-record test split and
-INCART are excluded from threshold derivation.
+The original seven-record width sweep is now treated as non-identifying: its
+objective was flat across the tested width gate, so the tie-broken edge value
+must not be presented as a derived threshold.
 
-The recalibration workflow also no longer uses INCART labels for threshold
-fitting. INCART is evaluated only after the MIT-BIH development threshold is
-frozen. This satisfies the Issue #16 no-label-fitting constraint while retaining
-INCART as an external diagnostic dataset.
+Use `scripts/derive_polarity_thresholds_mitdb_extended.py` instead. In normal
+mode it requires all 36 standard MIT-BIH records outside the locked 12-record
+split, refuses silent record skips, never accepts INCART, and jointly evaluates
+the historical v2 confidence gate and width gate. The report exposes
+`recommended_thresholds`; non-identifying dimensions retain their historical
+defaults rather than a tie-broken grid value.
 
-A fresh Colab run is still required to produce the frozen cutoff and locked
-MIT-BIH result artifact. Until that run exists, historical record-207 recovery
-remains legacy validation rather than prospective evidence.
+For a non-default v2 gate, `scripts/evaluate_frozen_model_mitdb.py` requires
+the freeze-eligible derivation report itself and verifies that held-out and
+INCART labels were excluded. See `docs/POLARITY_GATE_DERIVATION_RUNBOOK.md`.
+
+This closes further threshold-selection leakage but does **not** retroactively
+restore prospective held-out status: record 207 and pooled MIT-BIH behavior
+historically informed the adaptive-polarity mechanism. Full locked-split
+adaptive results remain legacy non-regression evidence until an independent
+dataset that did not inform the mechanism is used.
