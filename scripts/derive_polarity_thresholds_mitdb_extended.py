@@ -35,6 +35,9 @@ from pathlib import Path
 
 import numpy as np
 
+import electrotrace.polarity_v2 as polarity_v2_module
+import electrotrace.scale_estimation as scale_estimation_module
+import electrotrace.validation_detectors as validation_detectors_module
 from electrotrace import __version__
 from electrotrace.polarity_v2 import select_signal_polarity_v2
 from electrotrace.scale_estimation import estimate_stage1_scale
@@ -76,6 +79,16 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def implementation_hashes() -> dict[str, str]:
+    paths = {
+        "derive_polarity_thresholds_mitdb_extended.py": Path(__file__).resolve(),
+        "electrotrace.polarity_v2": Path(polarity_v2_module.__file__).resolve(),
+        "electrotrace.scale_estimation": Path(scale_estimation_module.__file__).resolve(),
+        "electrotrace.validation_detectors": Path(validation_detectors_module.__file__).resolve(),
+    }
+    return {name: sha256_file(path) for name, path in sorted(paths.items())}
 
 
 def package_versions() -> dict[str, str]:
@@ -480,6 +493,7 @@ def main() -> int:
         "platform": platform.platform(),
         "package_versions": package_versions(),
         "input_hashes": input_hashes,
+        "implementation_hashes": implementation_hashes(),
         "protocol": {
             "objective": "mean record-level Stage-1 F1",
             "development_pool_records": [cache.record for cache in caches],
