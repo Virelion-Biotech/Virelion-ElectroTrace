@@ -1,5 +1,11 @@
 # Step 5 runbook: frozen MIT-BIH, threshold CV, trace QA
 
+> **Polarity-gate update (2026-09-28):** for Issue #14, use
+> `docs/POLARITY_GATE_DERIVATION_RUNBOOK.md`. The adaptive-polarity locked
+> MIT-BIH result is a legacy non-regression audit because record 207/pooled
+> MIT-BIH historically informed the mechanism. Do not use this older Step-5
+> sequence to derive or manually tune the v2 gate.
+
 This step closes the remaining evidence gaps around the current v4/windowed-std two-stage model without retraining the Random Forest or touching the locked 12-record MIT-BIH test split during threshold experiments.
 
 ## 1. Verify the frozen v4 model on locked MIT-BIH
@@ -11,9 +17,13 @@ Run:
       --model validation_reports/incart_mitbih_model_windowed_std_2026-09-09.skops \
       --scale-method windowed_std
 
-This evaluates the model file as-is on the exact 12 locked records with adaptive polarity. Pay special attention to record 207. This is the missing matched MIT-BIH number for the v4 model.
+This evaluates the model file as-is on the exact 12 locked records. For adaptive
+polarity, treat the result as legacy non-regression rather than prospective
+held-out evidence. Use the dedicated polarity-gate runbook and a verified
+derivation artifact for any non-default v2 gate.
 
-Do not use this script to retune the model. A threshold override is available for a later, explicitly labelled analysis only.
+Do not use this script to retune the model. A threshold override is diagnostic
+only and is labeled as such in the generated report.
 
 ## 2. Run record-grouped threshold cross-validation
 
