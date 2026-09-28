@@ -141,8 +141,27 @@ jobs:
       - name: Download complete European ST-T Database
         run: |
           python - <<'PY'
+          from pathlib import Path
           import wfdb
-          wfdb.dl_database("edb", dl_dir=".cache/physionet/edb")
+
+          out = Path(".cache/physionet/edb")
+          wfdb.dl_database("edb", dl_dir=str(out))
+
+          # wfdb.dl_database downloads the record payloads but does not
+          # necessarily materialize PhysioNet's root RECORDS metadata file.
+          # The prospective evaluator deliberately requires that manifest so
+          # the local cohort can be checked against the preregistered order.
+          records = list(wfdb.get_record_list("edb"))
+          if len(records) != 90 or len(set(records)) != 90:
+              raise SystemExit(
+                  f"Unexpected PhysioNet EDB record list: {len(records)} records"
+              )
+          out.mkdir(parents=True, exist_ok=True)
+          (out / "RECORDS").write_text(
+              "\n".join(records) + "\n",
+              encoding="utf-8",
+          )
+          print("Materialized canonical EDB RECORDS manifest:", len(records))
           PY
 
       - name: Run one-shot prospective EDB evaluation
