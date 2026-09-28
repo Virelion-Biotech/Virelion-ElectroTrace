@@ -89,6 +89,23 @@ def test_dataset_verifier_checks_manifest_and_header_geometry(monkeypatch, tmp_p
         sv.verify_dataset(tmp_path, protocol)
 
 
+def test_reference_filter_allows_nonbeat_endpoint_marker_but_not_endpoint_beat():
+    symbols = frozenset({"N"})
+    annotation = SimpleNamespace(
+        sample=np.array([100, 230400], dtype=int),
+        symbol=["N", "+"],
+    )
+    reference, audit = sv._reference_from_annotation(annotation, symbols, 230400)
+    assert reference.tolist() == [100]
+    assert audit["out_of_range_nonbeat_annotations_dropped"] == 1
+
+    bad = SimpleNamespace(
+        sample=np.array([100, 230400], dtype=int),
+        symbol=["N", "N"],
+    )
+    with pytest.raises(ValueError, match="reference beat samples fall outside"):
+        sv._reference_from_annotation(bad, symbols, 230400)
+
 def test_evaluate_record_selects_v2_before_annotation_load(monkeypatch, tmp_path):
     protocol = sv.load_locked_protocol()
     model = _Model(protocol)
