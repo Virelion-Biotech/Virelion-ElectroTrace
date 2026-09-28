@@ -68,9 +68,14 @@ def sha256_file(path: Path) -> str:
 
 
 def git_blob_sha(path: Path) -> str:
-    data = path.read_bytes()
-    header = f"blob {len(data)}\0".encode("ascii")
-    return hashlib.sha1(header + data).hexdigest()  # noqa: S324
+    try:
+        return subprocess.check_output(
+            ["git", "hash-object", str(path)],
+            cwd=REPO_ROOT,
+            text=True,
+        ).strip()
+    except Exception as exc:
+        raise SystemExit(f"Unable to verify preregistered protocol Git blob: {exc}") from exc
 
 
 def git_head() -> str:
