@@ -23,16 +23,19 @@ import wfdb
 from electrotrace.candidate_suppressor import CandidateSuppressor
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.analyze_edb_posthoc_failures import (  # noqa: E402
-    diagnose_channel,
-    load_first_run,
-    load_polarity_threshold_report,
-    sha256_file,
-    verify_semantic_model_identity,
-)
+
+def _load_posthoc_helpers():
+    root = str(REPO_ROOT)
+    added = root not in sys.path
+    if added:
+        sys.path.insert(0, root)
+    try:
+        from scripts import analyze_edb_posthoc_failures as posthoc
+        return posthoc
+    finally:
+        if added:
+            sys.path.remove(root)
 
 
 RULE_ORDER = (
@@ -154,10 +157,11 @@ def main() -> int:
     ap.add_argument("--output", type=Path, required=True)
     args = ap.parse_args()
 
-    first_run = load_first_run(args.first_run_report)
+    posthoc = _load_posthoc_helpers()
+    first_run = posthoc.load_first_run(args.first_run_report)
     model = CandidateSuppressor.load(args.model)
-    model_identity = verify_semantic_model_identity(model, first_run)
-    _, width_gate, v2_gate = load_polarity_threshold_report(
+    model_identity = posthoc.verify_semantic_model_identity(model, first_run)
+    _, width_gate, v2_gate = posthoc.load_polarity_threshold_report(
         args.polarity_threshold_report
     )
 
@@ -182,7 +186,7 @@ def main() -> int:
         header = wfdb.rdheader(str(base))
         names = list(header.sig_name or [])
 
-        ch0 = diagnose_channel(
+        ch0 = posthoc.diagnose_channel(
             base,
             channel=0,
             model=model,
@@ -198,7 +202,7 @@ def main() -> int:
                 f"({ch0['metrics']['f1']} != {archived_f1})"
             )
 
-        ch1 = diagnose_channel(
+        ch1 = posthoc.diagnose_channel(
             base,
             channel=1,
             model=model,
@@ -288,11 +292,11 @@ def main() -> int:
         ),
         "inputs": {
             "first_run_report": str(args.first_run_report),
-            "first_run_sha256": sha256_file(args.first_run_report),
+            "first_run_sha256": posthoc.sha256_file(args.first_run_report),
             "polarity_derivation": str(args.polarity_threshold_report),
-            "polarity_derivation_sha256": sha256_file(args.polarity_threshold_report),
+            "polarity_derivation_sha256": posthoc.sha256_file(args.polarity_threshold_report),
             "model_semantic_identity": model_identity,
-            "reconstructed_model_sha256": sha256_file(args.model),
+            "reconstructed_model_sha256": posthoc.sha256_file(args.model),
         },
         "candidate_rule_family": list(RULE_ORDER),
         "selection_method": (
