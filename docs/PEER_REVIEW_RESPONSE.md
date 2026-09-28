@@ -40,8 +40,13 @@ pooled MIT-BIH performance.
 | two-stage adaptive **1.8.1** | ~0.92 | ~0.91 | ~0.91 |
 
 Polarity selection is a fixed rule in code. The confidence threshold 0.15 was
-chosen on full-pool polarity strategy comparisons; the held-out two-stage
-metrics are the locked primary claim.
+chosen on full-pool polarity strategy comparisons, including behavior of record
+207. Therefore the 12-record split remains a locked data partition, but the
+adaptive-polarity result on that partition is **legacy validation/non-regression
+evidence rather than prospective held-out evidence for the polarity mechanism**.
+Issue #14 tracks development-only re-derivation of the gate. Re-deriving the
+numeric threshold can prevent further tuning; it cannot erase the historical
+mechanism-selection exposure.
 
 ### 4. Evaluation is retrospective full-record, not streaming
 
@@ -79,7 +84,7 @@ enforced. Full-record normalization is retrospective design, not sample mixing.
 
 | Field | Value |
 |-------|--------|
-| Primary endpoint | Held-out test records only (seed=42, test_fraction=0.25) |
+| Primary endpoint | Locked 12-record split for model comparison; adaptive-polarity interpretation is legacy non-regression because of historical mechanism exposure |
 | Matching tolerance | 75 ms |
 | Stage-1 polarity | adaptive count + v2 if confidence < 0.15 |
 | Stage-2 | RF n_estimators=200 |

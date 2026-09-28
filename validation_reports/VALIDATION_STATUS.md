@@ -14,7 +14,7 @@ The locked historical validation artifact reports 103 passing tests at the time 
 |---|---|
 | Split | seed=42, test_fraction=0.25 -> 12 held-out / 36 train |
 | Tolerance | 75 ms |
-| Polarity | adaptive count; v2 if confidence < 0.15 |
+| Polarity | adaptive count; historical v2 fallback default 0.15 (mechanism/gate historically informed by pooled MIT-BIH; adaptive locked-split results are legacy non-regression) |
 | Stage-2 RF | n_estimators=200 |
 | Threshold | F1-max on calibration, min_recall=0.97 |
 | Evaluation mode | retrospective full-record (not streaming) |
@@ -29,6 +29,12 @@ The locked historical validation artifact reports 103 passing tests at the time 
 | ElectroTrace Stage-1 adaptive | 0.9931 | 0.7553 | 0.8580 |
 
 Record 207 remains a known difficult record for the ElectroTrace two-stage path.
+
+The table above preserves historical locked-split results for reproducibility.
+Because adaptive-polarity mechanism selection used information from record 207 /
+pooled MIT-BIH, those adaptive rows must not be described as prospective
+held-out validation of that mechanism. Issue #14's clean derivation prevents
+additional tuning but cannot undo that historical exposure.
 
 Artifacts:
 - mitdb_two_stage_locked_1.8.1.json
@@ -65,9 +71,9 @@ Seven INCART records were previously excluded for a leading negative annotation 
 
 ### Phase-5 consolidated validation (2026-09-27)
 
-The Phase-5 frozen v4 artifact confirms the locked MIT-BIH held-out protocol using windowed-standard-deviation scaling, adaptive polarity, the existing 75 ms tolerance, and the existing operating threshold (0.2752). The 12 locked records had no skipped records. Aggregate sensitivity was 0.9912, PPV 0.9891, and F1 0.9901. This is a confirmation of the locked split, not a new independent test set.
+The Phase-5 frozen v4 artifact scores the locked 12-record MIT-BIH partition using windowed-standard-deviation scaling, adaptive polarity, the existing 75 ms tolerance, and the existing operating threshold (0.2752). The 12 records had no skips; aggregate sensitivity was 0.9912, PPV 0.9891, and F1 0.9901. **Interpret this as legacy non-regression, not prospective held-out validation of adaptive polarity**: the v2 fallback/gate was historically informed by pooled MIT-BIH behavior including record 207.
 
-The polarity/width threshold sweep and grouped threshold recalibration are **development-only**. The threshold sweep records a candidate Stage-1 cutoff of 0.05 under its stated selection rule; the grouped CV analysis keeps 0.2752 as the current fixed threshold and observed fold thresholds from 0.1190 to 0.3776. Neither result is validated for deployment until evaluated on a genuinely fresh database.
+The original seven-record polarity-width sweep is **non-identifying** for the width gate: its Stage-1 objective is flat over the tested values, so the reported 0.05 is a deterministic tie-break artifact rather than a derived biological/algorithmic cutoff and must not be promoted. `scripts/derive_polarity_thresholds_mitdb_extended.py` is the replacement development-only procedure; it requires the complete 36-record non-held-out MIT-BIH pool in normal mode and reports explicit non-identifying dimensions. Grouped threshold recalibration remains development-only. None of these results establishes deployment validity; prospective adaptive-polarity validation still requires a genuinely independent database that did not inform the mechanism.
 
 The consolidated INCART domain-shift analysis classifies the 68-record comparison as 22 candidate-generation failures, 10 over-suppression cases, 17 acceptable cases, and 19 mixed/other cases. The poor-performing cohort is dominated by low Stage-1 candidate coverage; the report therefore directs the next work toward front-end candidate generation and only then threshold-domain-shift analysis. Polarity is predominantly positive and does not explain the split by itself. The accompanying false-positive figure is a manual-inspection aid and is not a metric.
 
