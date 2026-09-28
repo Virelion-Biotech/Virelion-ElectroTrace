@@ -208,7 +208,26 @@ def test_evaluator_threads_verified_report_gate_and_records_provenance(monkeypat
     assert report["protocol"]["v2_gate_confidence_is_historical_default"] is False
     assert report["protocol"]["polarity_threshold_derivation"]["sha256"]
     assert report["evaluation_integrity"]["threshold_derivation_report_verified"] is True
-    assert report["evidence_status"] == "diagnostic_locked_subset_or_operating_point_override"
+    assert report["evidence_status"] == "diagnostic_protocol_override"
+    assert report["evaluation_integrity"]["protocol_override_reasons"] == ["locked_record_subset"]
+
+
+def test_nondefault_width_gate_requires_derivation_report(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "evaluate_frozen_model_mitdb.py",
+            "--mitdb-dir",
+            str(tmp_path),
+            "--model",
+            str(tmp_path / "model.skops"),
+            "--width-override-confidence",
+            "0.05",
+        ],
+    )
+    with pytest.raises(SystemExit, match="requires --polarity-threshold-report"):
+        eval_script.main()
 
 
 def test_cli_values_must_match_authoritative_derivation_report(monkeypatch, tmp_path):
@@ -294,6 +313,46 @@ def test_full_locked_adaptive_run_is_labeled_legacy_not_prospective(monkeypatch,
     assert report["evidence_status"] == "legacy_validation_non_regression"
     assert report["evaluation_integrity"]["full_locked_split"] is True
     assert report["evaluation_integrity"]["prospective_adaptive_validation"] is False
+
+
+def test_full_locked_protocol_override_is_diagnostic(monkeypatch, tmp_path):
+    peaks = _peaks()
+    signal = _record(peaks)
+    model = _tiny_model(signal, peaks)
+    records = {}
+    for name in eval_script.LOCKED_HELDOUT_RECORDS:
+        _write_stub_record(tmp_path, name)
+        records[name] = (signal, FS, peaks)
+    _fake_wfdb(monkeypatch, records)
+    monkeypatch.setattr(CandidateSuppressor, "load", staticmethod(lambda path, **kwargs: model))
+    model_file = tmp_path / "model.skops"
+    model_file.write_bytes(b"model")
+
+    out = tmp_path / "diagnostic.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "evaluate_frozen_model_mitdb.py",
+            "--mitdb-dir",
+            str(tmp_path),
+            "--model",
+            str(model_file),
+            "--width-override-confidence",
+            "0.38",
+            "--polarity",
+            "positive",
+            "--output",
+            str(out),
+        ],
+    )
+    assert eval_script.main() == 0
+    report = json.loads(out.read_text())
+    assert report["evidence_status"] == "diagnostic_protocol_override"
+    assert report["evaluation_integrity"]["protocol_override_reasons"] == [
+        "polarity_override:positive"
+    ]
+    assert "do not promote" in report["evaluation_integrity"]["interpretation"]
 
 
 def test_records_cannot_escape_locked_split(monkeypatch, tmp_path):
