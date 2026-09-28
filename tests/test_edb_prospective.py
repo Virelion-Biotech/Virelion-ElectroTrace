@@ -5,8 +5,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from scripts import evaluate_frozen_model_edb_prospective as edb
 from electrotrace.validation import match_peaks
+from scripts import evaluate_frozen_model_edb_prospective as edb
 
 
 class _Metadata:
