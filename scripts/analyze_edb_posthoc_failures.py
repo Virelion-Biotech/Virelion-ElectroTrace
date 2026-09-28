@@ -25,9 +25,10 @@ import numpy as np
 from electrotrace.candidate_suppressor import CandidateSuppressor, _candidate_features
 from electrotrace.fp_analysis import analyze_record
 from electrotrace.scale_estimation import estimate_stage1_scale
-from electrotrace.validation import DEFAULT_BEAT_SYMBOLS
+from electrotrace.validation import DEFAULT_BEAT_SYMBOLS, match_peaks
 from electrotrace.validation_detectors import (
     _candidate_set,
+    detect_r_peaks_two_stage,
     select_signal_polarity,
 )
 from electrotrace.wfdb_records import load_annotated_record
@@ -219,12 +220,40 @@ def diagnose_channel(
         threshold=threshold,
         tolerance_ms=tolerance_ms,
     )
-    metrics = forensic["metrics"]
     cand_summary = forensic["candidates"]
-    retained_mask = probabilities >= threshold
+
+    # The final detector output must come from the exact production path used by
+    # the archived prospective run. The hand-built all-candidate table above is
+    # diagnostic only: it is useful for AUC/feature analysis but must never
+    # substitute for detect_r_peaks_two_stage() when reproducing final metrics.
+    retained_samples, retained_probabilities = detect_r_peaks_two_stage(
+        signal,
+        fs_hz,
+        model,
+        polarity="adaptive",
+        recovery=False,
+        scale_method=scale_method,
+        width_override_confidence=width_gate,
+        v2_gate_confidence=v2_gate,
+    )
+    metrics = match_peaks(
+        retained_samples,
+        reference,
+        fs_hz,
+        tolerance_ms=tolerance_ms,
+    ).to_dict()
+
+    # Canonical retained samples should belong to the Stage-1 stream reconstructed
+    # for diagnostics. Keep this explicit so a future implementation divergence
+    # fails loudly instead of producing misleading feature summaries.
+    if retained_samples.size and not np.all(np.isin(retained_samples, candidates)):
+        raise RuntimeError(
+            "canonical two-stage output contains samples absent from diagnostic Stage-1 candidates"
+        )
+    retained_mask = np.isin(candidates, retained_samples)
     ref_n = int(len(reference))
     stage1_n = int(len(candidates))
-    retained_n = int(retained_mask.sum())
+    retained_n = int(len(retained_samples))
 
     rr = np.diff(reference) / fs_hz if len(reference) > 1 else np.asarray([])
     candidate_reference_coverage = (
@@ -290,6 +319,10 @@ def diagnose_channel(
         },
         "metrics": metrics,
         "stage2_candidate_scoring": cand_summary,
+        "diagnostic_manual_threshold_metrics": forensic["metrics"],
+        "manual_threshold_matches_canonical": bool(
+            np.array_equal(candidates[probabilities >= threshold], retained_samples)
+        ),
         "false_positive_categories": forensic["false_positive_categories"],
         "signal": {
             "stage1_scale": float(scale),
