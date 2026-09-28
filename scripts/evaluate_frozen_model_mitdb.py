@@ -38,13 +38,12 @@ import math
 import platform
 import subprocess
 import sys
+from datetime import datetime, timezone
+from pathlib import Path
 
 import electrotrace.polarity_v2 as polarity_v2_module
 import electrotrace.scale_estimation as scale_estimation_module
 import electrotrace.validation_detectors as validation_detectors_module
-from datetime import datetime, timezone
-from pathlib import Path
-
 from electrotrace import __version__
 from electrotrace.candidate_suppressor import CandidateSuppressor
 from electrotrace.validation import (
@@ -305,6 +304,8 @@ def main() -> int:
             "sha256": sha256_file(args.polarity_threshold_report),
             "schema": derivation_report["schema"],
             "selection_status": derivation_report.get("selection_status"),
+            "git_head": derivation_report.get("git_head"),
+            "implementation_hashes": derivation_report.get("implementation_hashes"),
             "recommended_thresholds": derivation_report.get("recommended_thresholds"),
         }
     else:
