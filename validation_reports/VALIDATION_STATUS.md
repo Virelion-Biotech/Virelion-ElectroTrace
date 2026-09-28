@@ -124,6 +124,57 @@ Artifacts:
 - validation_reports/incart_domain_shift_record_table_2026-09-12.csv
 - validation_reports/experiments/phase5_reproducibility_manifest.json
 
+## Prospective European ST-T external validation (2026-09-28)
+
+Issue #26 preregistered a one-shot external evaluation on all 90 canonical
+European ST-T Database (EDB) records before any EDB detector outcome was
+inspected. The successful first scored run was GitHub Actions run
+`36442894752` at code commit
+`a610ec3511b5937da683be43dc72711637354e89`.
+
+The frozen protocol used channel 0, `atr` reference annotations, the existing
+75 ms ElectroTrace matcher, `windowed_std` Stage-1 scaling, adaptive polarity,
+the corrected v3 frozen polarity gates (v2=0.0, width=0.0), recovery disabled,
+the stored v4 model threshold, and no retraining. All **90/90** preregistered
+records scored; none were skipped or repaired.
+
+Primary prospective result:
+
+| Records | Sensitivity | PPV | F1 | Macro mean record F1 | Macro median record F1 |
+|---:|---:|---:|---:|---:|---:|
+| 90 | **0.9056** | **0.9644** | **0.9341** | **0.9094** | **0.9927** |
+
+Counts were 790,560 reference beats, 715,963 true positives, 74,597 false
+negatives, and 26,411 false positives.
+
+Performance was heterogeneous rather than uniformly mediocre: 79/90 records
+had F1 >= 0.90 and 48/90 had F1 >= 0.99, but 11/90 fell below 0.80 and 8/90
+fell below 0.50. The worst records were `e0106` (F1 0.0269), `e0133`
+(0.0707), `e0501` (0.2594), `e0817` (0.2768), `e1302` (0.2982),
+`e0205` (0.3656), `e0403` (0.3936), and `e0415` (0.4663). These
+outcomes are now exposed development information and must not be used to alter
+the detector and then re-label EDB as prospective validation.
+
+All 90 polarity selections were positive. That observation is descriptive of
+the frozen first run only; it must not be used to perform post-hoc lead or
+polarity selection while preserving a prospective EDB claim.
+
+Important scope: this was a prospective external ElectroTrace evaluation under
+the preregistered 75 ms full-record matching protocol. It is **not** an
+ANSI/AAMI `bxb` compliance analysis and supports no clinical-validation,
+population-generalization, or regulatory-performance claim.
+
+Permanent first-run provenance:
+- protocol SHA-256: `05a1aa75069f21fb80ac649da9a800aa60c32d80a12e01ea17fce22c63cd3e8f`
+- regenerated v3 derivation SHA-256: `1d9d3966e7c3ab157d5ccf69c6770ec7db7ef29ebd6a59e623c2e45fc19d3369`
+- first-run result SHA-256: `fc9a3cb0833bce7ad15ba32098ebd328835eb72f133cb73550e6f6a1057aa491`
+- GitHub Actions artifact ID: `10978828919` (`electrotrace-edb-prospective-first-run`)
+- model SHA-256 recorded by the report: `2ba0c6945352522c52a80ec3371ea3d60ce576c4c711100e391090270b2b5fe4`
+- model sidecar SHA-256: `71c6cf759551d51cb112a033cb904c14c4f82f5f32314937b0e62debdd92c589`
+
+EDB is now exposed for this project. Any EDB-motivated model/protocol change
+must use a different untouched database for the next prospective evaluation.
+
 ## Model artifact policy
 
 The two legacy pickle model files are removed from the current source tree. Historical JSON artifacts may still mention their original paths because those reports are immutable provenance records.

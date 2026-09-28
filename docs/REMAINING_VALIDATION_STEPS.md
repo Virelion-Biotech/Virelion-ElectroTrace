@@ -72,12 +72,22 @@ Extend `scripts/validate_qtdb.py` → `validation_reports/qtdb_delineation_toler
 
 ---
 
-## 5. Optional second external DB
+## 5. Prospective EDB external validation — completed
 
-- SVDB: `wfdb.dl_database('svdb', ...)`
-- EDB: verify annotation types first
+The one-shot European ST-T Database evaluation was preregistered in Issue #26
+and completed on all 90 records on 2026-09-28. Frozen aggregate result:
+sensitivity 0.9056, PPV 0.9644, F1 0.9341. EDB is now exposed and may only be
+used for post-hoc development/diagnostics, not as prospective evidence for a
+changed model.
 
-Same scoring harness as INCART.
+## 6. Next untouched external database
+
+Before making any EDB-motivated detector change, select and preregister a
+different database that was not used in the current detector's development.
+Do not use QTDB blindly as a prospective benchmark because it contains records
+drawn from other databases, including historically exposed sources. Verify
+source independence, annotation suitability, cohort definition, channel choice,
+and scoring protocol before opening the next one-shot validation.
 
 ---
 
