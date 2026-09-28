@@ -52,6 +52,33 @@ jobs:
           mkdir -p validation_reports
           python scripts/convert_model_pickle_to_skops.py             "${PKL}"             "${SKOPS}"             --allow-pickle
 
+          python - <<'PY'
+          from pathlib import Path
+          import numpy as np
+
+          from electrotrace.candidate_suppressor import CandidateSuppressor
+
+          name = "incart_mitbih_model_windowed_std_2026-09-09"
+          pkl = Path("/tmp") / f"{name}.pkl"
+          skops = Path("validation_reports") / f"{name}.skops"
+
+          legacy = CandidateSuppressor.load(pkl, allow_pickle=True)
+          safe = CandidateSuppressor.load(skops)
+
+          assert legacy.metadata.to_dict() == safe.metadata.to_dict()
+          assert legacy.feature_names == safe.feature_names
+
+          rng = np.random.default_rng(20260928)
+          X = rng.normal(size=(128, safe.model.n_features_in_))
+          np.testing.assert_allclose(
+              legacy.predict_proba(X),
+              safe.predict_proba(X),
+              rtol=1e-12,
+              atol=1e-15,
+          )
+          print("Trusted-pickle semantic reconstruction verified.")
+          PY
+
       - name: Recover immutable prospective first-run inputs
         env:
           GH_TOKEN: ${{ github.token }}
