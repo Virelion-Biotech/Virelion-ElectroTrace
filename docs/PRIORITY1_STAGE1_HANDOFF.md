@@ -130,8 +130,11 @@ Use `scripts/derive_polarity_thresholds_mitdb_extended.py` instead. In normal
 mode it requires all 36 standard MIT-BIH records outside the locked 12-record
 split, refuses silent record skips, never accepts INCART, and jointly evaluates
 the historical v2 confidence gate and width gate. The report exposes
-`recommended_thresholds`; non-identifying dimensions retain their historical
-defaults rather than a tie-broken grid value.
+`recommended_thresholds`. Dimensions that are non-identifying across the full
+tested range retain their historical defaults. Otherwise the prespecified
+development selection rule is authoritative, including a selected value of
+`0.0`, which explicitly disables that override. Derivation schema v3 enforces
+this rule; legacy v2 artifacts must not authorize a frozen non-default gate.
 
 For a non-default v2 gate, `scripts/evaluate_frozen_model_mitdb.py` requires
 the freeze-eligible derivation report itself and verifies that held-out and
