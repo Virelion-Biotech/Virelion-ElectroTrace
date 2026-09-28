@@ -104,7 +104,6 @@ def channel_quality(
     else:
         features = np.empty((0, 0), dtype=float)
         names = []
-        probabilities = np.empty(0, dtype=float)
 
     retained, retained_probabilities = detect_r_peaks_two_stage(
         x,
