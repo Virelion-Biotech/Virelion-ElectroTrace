@@ -77,6 +77,43 @@ The original seven-record polarity-width sweep is **non-identifying** for the wi
 
 The consolidated INCART domain-shift analysis classifies the 68-record comparison as 22 candidate-generation failures, 10 over-suppression cases, 17 acceptable cases, and 19 mixed/other cases. The poor-performing cohort is dominated by low Stage-1 candidate coverage; the report therefore directs the next work toward front-end candidate generation and only then threshold-domain-shift analysis. Polarity is predominantly positive and does not explain the split by itself. The accompanying false-positive figure is a manual-inspection aid and is not a metric.
 
+### Issue #14 leakage-safe polarity freeze (v3, 2026-09-28)
+
+The corrected v3 derivation used all 36 canonical MIT-BIH development records and no
+locked held-out or INCART labels. Its prespecified selection rule froze
+`v2_gate_confidence=0.0` and `width_override_confidence=0.0`. The exact zero
+values are deterministic lower-gate tie-break choices within a broad best-F1
+plateau, not uniquely identified biological/algorithmic thresholds: global-best
+development points include v2 gates 0.00-0.21 and width gates 0.00-0.20.
+
+The subsequent full 12-record locked audit used those frozen values without
+retraining or protocol overrides. Aggregate sensitivity was **0.9390**, PPV
+**0.9913**, and F1 **0.9644** (25,286 TP, 221 FP, 1,644 FN). Record 207 fell to
+F1 **0.2512** (sensitivity 0.1511, PPV 0.7454). This degradation is retained
+rather than tuned away: it is the leakage-safe outcome of the development-only
+selection procedure.
+
+For comparison, the historical-default 0.15/0.38 audit had F1 0.9901 and record
+207 F1 0.9080. That earlier result remains useful as legacy non-regression
+history but cannot be used to select gates after seeing the locked split.
+
+The v3 locked report is explicitly labeled
+`legacy_validation_non_regression`, not prospective validation. Historical
+mechanism-selection exposure remains: MIT-BIH informed the adaptive polarity
+mechanism and INCART informed the width override. Prospective validation still
+requires a database that informed neither mechanism.
+
+Provenance hashes from the completed run:
+- v3 derivation SHA-256: `7c69699c6dcc0cce5745d90c77806a8377ba98e28cc5a49dec415ec64eaf7ca7`
+- v3 locked audit SHA-256: `23803a8d9e0ee891fac4ba91d678873a48a993608437ff0440a0d5c2ca863c9e`
+- code commit used by both artifacts: `3dde141153c4f559b054aa57020a3c7da38b63a6`
+
+Issue #14 is considered complete once these results are recorded because the
+threshold-selection procedure was fixed before v3 scoring, the locked labels
+were excluded from threshold selection, frozen aggregate/per-record results
+were reproduced, and the unavoidable historical exposure remains explicitly
+labeled as legacy validation.
+
 Artifacts:
 - validation_reports/experiments/2026-09-polarity-width/mitdb_frozen_v4_evaluation.json
 - validation_reports/experiments/2026-09-polarity-width/mitdb_polarity_width_threshold.json
