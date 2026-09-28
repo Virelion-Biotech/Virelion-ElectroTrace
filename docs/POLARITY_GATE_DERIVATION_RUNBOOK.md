@@ -21,6 +21,31 @@ pytest -q
 
 Do not proceed to data derivation unless the repository tests are green.
 
+### Colab editable-install note
+
+In an already-running Colab/IPython kernel, `pip install -e` can succeed while
+a subsequent notebook Python cell still cannot import `electrotrace`. Editable
+installs use a `.pth` file, and an already-running interpreter may not
+re-process that newly-created file until restart.
+
+For notebook Python cells, either restart the runtime after the editable install
+or explicitly add the source tree once:
+
+```python
+import sys
+from pathlib import Path
+
+repo_src = Path("/content/Virelion-ElectroTrace/src").resolve()
+if str(repo_src) not in sys.path:
+    sys.path.insert(0, str(repo_src))
+
+import electrotrace
+print(electrotrace.__file__)
+```
+
+This changes only the current kernel's import path; it does not alter or install
+another ElectroTrace distribution.
+
 ## 2. Restore the historical v4 model locally
 
 The model artifacts are intentionally not stored on current `main`. The
