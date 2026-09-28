@@ -525,7 +525,8 @@ def main() -> int:
                 "held-out status for the already-designed adaptive-polarity mechanism"
             ),
             "prospective_validation_requires": (
-                "an independent dataset not used to design or tune the adaptive-polarity mechanism, including neither MIT-BIH nor INCART"
+                "an independent dataset not used to design or tune the adaptive-polarity "
+                "mechanism, including neither MIT-BIH nor INCART"
             ),
         },
         "historical_defaults": {
