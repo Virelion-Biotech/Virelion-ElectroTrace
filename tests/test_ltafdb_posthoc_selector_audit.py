@@ -1,6 +1,4 @@
 import json
-from types import SimpleNamespace
-
 import pytest
 
 from electrotrace.validation import match_peaks
