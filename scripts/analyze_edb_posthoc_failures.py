@@ -82,6 +82,48 @@ def load_first_run(path: Path) -> dict:
     return report
 
 
+def verify_semantic_model_identity(
+    model: CandidateSuppressor,
+    first_run: dict,
+) -> dict:
+    """Verify model semantics while treating skops bytes as serialization detail.
+
+    The trusted legacy pickle is checksum-gated and prediction-equivalence-tested
+    by the workflow before this script runs. A fresh skops dump may have different
+    bytes from the archived first-run dump, so byte identity is recorded but is
+    not a scientific identity criterion.
+    """
+    archived_model = first_run.get("model", {})
+    archived_metadata = archived_model.get("metadata")
+    if not isinstance(archived_metadata, dict):
+        raise SystemExit("archived first-run report is missing model metadata")
+
+    current_metadata = model.metadata.to_dict()
+    if current_metadata != archived_metadata:
+        mismatches = {
+            key: {
+                "archived": archived_metadata.get(key),
+                "current": current_metadata.get(key),
+            }
+            for key in sorted(set(archived_metadata) | set(current_metadata))
+            if archived_metadata.get(key) != current_metadata.get(key)
+        }
+        raise SystemExit(
+            "model semantic metadata does not match archived prospective run: "
+            + json.dumps(mismatches, sort_keys=True)
+        )
+
+    if not model.fitted:
+        raise SystemExit("reconstructed model is not fitted")
+
+    return {
+        "semantic_metadata_match": True,
+        "archived_metadata": archived_metadata,
+        "archived_serialized_model_sha256": archived_model.get("sha256"),
+        "archived_serialized_sidecar_sha256": archived_model.get("sidecar_sha256"),
+    }
+
+
 def select_low_tail(first_run: dict, cutoff: float) -> list[dict]:
     rows = [
         row
@@ -300,8 +342,12 @@ def main() -> int:
         raise SystemExit("no low-tail records selected")
 
     model = CandidateSuppressor.load(args.model)
-    if sha256_file(args.model) != first_run["model"]["sha256"]:
-        raise SystemExit("model SHA-256 does not match the archived prospective run")
+    model_identity = verify_semantic_model_identity(model, first_run)
+    current_model_sha = sha256_file(args.model)
+    current_sidecar = Path(str(args.model) + ".json")
+    if not current_sidecar.is_file():
+        raise SystemExit(f"missing reconstructed model sidecar: {current_sidecar}")
+    current_sidecar_sha = sha256_file(current_sidecar)
 
     derivation, width_gate, v2_gate = load_polarity_threshold_report(
         args.polarity_threshold_report
@@ -403,7 +449,20 @@ def main() -> int:
             "first_run_report": str(args.first_run_report),
             "first_run_sha256": sha256_file(args.first_run_report),
             "model": str(args.model),
-            "model_sha256": sha256_file(args.model),
+            "model_semantic_identity": model_identity,
+            "reconstructed_model_sha256": current_model_sha,
+            "reconstructed_sidecar_sha256": current_sidecar_sha,
+            "serialized_model_sha_matches_archived": (
+                current_model_sha == first_run["model"].get("sha256")
+            ),
+            "serialized_sidecar_sha_matches_archived": (
+                current_sidecar_sha == first_run["model"].get("sidecar_sha256")
+            ),
+            "serialization_note": (
+                "Fresh skops bytes may differ across equivalent reconstructions; "
+                "semantic model identity is established by archived metadata plus "
+                "checksum-gated trusted-pickle prediction equivalence in the workflow."
+            ),
             "polarity_derivation": str(args.polarity_threshold_report),
             "polarity_derivation_sha256": sha256_file(args.polarity_threshold_report),
         },

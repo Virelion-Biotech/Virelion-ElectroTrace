@@ -14,12 +14,53 @@ def _first_run():
             "records_skipped": 0,
             "retraining": False,
         },
+        "model": {
+            "metadata": {
+                "model_version": "rf-candidate-suppressor-v4",
+                "feature_schema_version": "candidate-features-v4",
+                "threshold": 0.2751648051220502,
+                "sklearn_version": "",
+            },
+            "sha256": "a" * 64,
+            "sidecar_sha256": "b" * 64,
+        },
         "record_results": [
             {"record": "good", "f1": 0.95},
             {"record": "bad2", "f1": 0.10},
             {"record": "bad1", "f1": 0.40},
         ],
     }
+
+
+class _Metadata:
+    def __init__(self, payload):
+        self._payload = dict(payload)
+
+    def to_dict(self):
+        return dict(self._payload)
+
+
+class _Model:
+    fitted = True
+
+    def __init__(self, metadata):
+        self.metadata = _Metadata(metadata)
+
+
+def test_semantic_model_identity_ignores_serialized_byte_hash():
+    first = _first_run()
+    model = _Model(first["model"]["metadata"])
+    identity = edb.verify_semantic_model_identity(model, first)
+    assert identity["semantic_metadata_match"] is True
+    assert identity["archived_serialized_model_sha256"] == "a" * 64
+
+
+def test_semantic_model_identity_rejects_metadata_drift():
+    first = _first_run()
+    changed = dict(first["model"]["metadata"])
+    changed["threshold"] = 0.5
+    with pytest.raises(SystemExit, match="semantic metadata"):
+        edb.verify_semantic_model_identity(_Model(changed), first)
 
 
 def _primary(*, f1=0.3, sens=0.2, ppv=0.9, stage1=0.2, coverage=0.2, suppression=0.3):
