@@ -43,7 +43,9 @@ from pathlib import Path
 
 import electrotrace.polarity_v2 as polarity_v2_module
 import electrotrace.scale_estimation as scale_estimation_module
+import electrotrace.validation as validation_module
 import electrotrace.validation_detectors as validation_detectors_module
+import electrotrace.wfdb_records as wfdb_records_module
 from electrotrace import __version__
 from electrotrace.candidate_suppressor import CandidateSuppressor
 from electrotrace.validation import (
@@ -108,7 +110,9 @@ def _current_derivation_implementation_hashes() -> dict[str, str]:
         "derive_polarity_thresholds_mitdb_extended.py": derivation_script,
         "electrotrace.polarity_v2": Path(polarity_v2_module.__file__).resolve(),
         "electrotrace.scale_estimation": Path(scale_estimation_module.__file__).resolve(),
+        "electrotrace.validation": Path(validation_module.__file__).resolve(),
         "electrotrace.validation_detectors": Path(validation_detectors_module.__file__).resolve(),
+        "electrotrace.wfdb_records": Path(wfdb_records_module.__file__).resolve(),
     }
     missing = [name for name, path in paths.items() if not path.is_file()]
     if missing:
