@@ -129,7 +129,7 @@ def _perfect_result(record):
         reference_count=3, detected_count=3, true_positive=3, false_positive=0, false_negative=0,
         sensitivity=1.0, positive_predictive_value=1.0, f1=1.0,
         mean_timing_error_ms=0.0, median_timing_error_ms=0.0,
-        timing_error_sd_ms=0.0, mean_absolute_timing_error_ms=0.0,
+        timing_sd_ms=0.0, mean_absolute_timing_error_ms=0.0,
         median_absolute_timing_error_ms=0.0, p95_absolute_timing_error_ms=0.0,
         max_absolute_timing_error_ms=0.0,
     )
