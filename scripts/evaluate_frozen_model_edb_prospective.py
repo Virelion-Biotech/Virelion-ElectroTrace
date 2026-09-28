@@ -26,10 +26,6 @@ from pathlib import Path
 
 import numpy as np
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
 from electrotrace import __version__
 from electrotrace.candidate_suppressor import CandidateSuppressor
 from electrotrace.validation import (
@@ -43,8 +39,8 @@ from electrotrace.validation_detectors import (
     select_signal_polarity,
 )
 from electrotrace.wfdb_records import load_annotated_record
-from scripts.evaluate_frozen_model_mitdb import _load_polarity_threshold_report
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL_PATH = REPO_ROOT / "validation_protocols" / "edb_prospective_v1.json"
 EXPECTED_PROTOCOL_SHA256 = "6607e27c5369ccb89b8c5a90219c9bbde6fa81839dabc0634cae18166d1d2b18"
 OUTPUT_PATH = (
@@ -55,6 +51,23 @@ OUTPUT_PATH = (
     / "edb_frozen_v4_prospective_first_run.json"
 )
 REQUIRED_SUFFIXES = (".hea", ".dat", ".atr")
+
+
+def _load_polarity_threshold_report(path: Path):
+    # Imported lazily so direct execution of this sibling script remains robust
+    # without violating module-level import ordering.
+    root = str(REPO_ROOT)
+    added = root not in sys.path
+    if added:
+        sys.path.insert(0, root)
+    try:
+        from scripts.evaluate_frozen_model_mitdb import (
+            _load_polarity_threshold_report as loader,
+        )
+        return loader(path)
+    finally:
+        if added:
+            sys.path.remove(root)
 
 
 def sha256_file(path: Path) -> str:
