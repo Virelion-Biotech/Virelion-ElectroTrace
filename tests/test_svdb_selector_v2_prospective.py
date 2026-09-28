@@ -137,6 +137,8 @@ def test_evaluate_record_selects_v2_before_annotation_load(monkeypatch, tmp_path
 
     def fake_rdann(*args, **kwargs):
         events.append("annotation")
+        assert kwargs["sampfrom"] == 0
+        assert kwargs["sampto"] == 230399
         return SimpleNamespace(
             sample=np.array([100, 300, 500]),
             symbol=["N", "N", "N"],
