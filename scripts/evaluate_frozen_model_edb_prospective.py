@@ -339,14 +339,10 @@ def main() -> int:
         audits.append(annotated.audit.to_dict())
         polarity_counts[polarity.polarity] += 1
 
-        print(
-            f"[{index:02d}/90] {record}: "
-            f"polarity={polarity.polarity} "
-            f"sens={metrics.sensitivity:.4f} "
-            f"ppv={metrics.positive_predictive_value:.4f} "
-            f"f1={metrics.f1:.4f}",
-            flush=True,
-        )
+        # Do not emit any per-record outcome before the full 90-record run
+        # succeeds. Otherwise a late failure would expose partial EDB results
+        # and compromise a clean retry of the one-shot prospective protocol.
+        print(f"[{index:02d}/90] {record}: scored", flush=True)
 
     if len(results) != 90:
         raise SystemExit("Prospective EDB primary report requires exactly 90 records")
