@@ -131,13 +131,6 @@ def test_nondefault_v2_gate_requires_derivation_report(monkeypatch, tmp_path):
         eval_script.main()
 
 
-@pytest.mark.parametrize(
-    ("freeze_eligible", "incart_used", "message"),
-    [
-        (False, False, "not freeze_eligible"),
-        (True, True, "used INCART"),
-    ],
-)
 def test_derivation_report_must_match_current_code_revision(tmp_path):
     path = _derivation_report(tmp_path / "derive.json")
     report = json.loads(path.read_text())
@@ -156,6 +149,13 @@ def test_derivation_report_must_contain_complete_input_hash_set(tmp_path):
         eval_script._load_polarity_threshold_report(path)
 
 
+@pytest.mark.parametrize(
+    ("freeze_eligible", "incart_used", "message"),
+    [
+        (False, False, "not freeze_eligible"),
+        (True, True, "used INCART"),
+    ],
+)
 def test_derivation_report_must_prove_evaluation_separation(
     tmp_path, freeze_eligible, incart_used, message
 ):
