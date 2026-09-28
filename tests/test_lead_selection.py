@@ -4,8 +4,8 @@ import pytest
 
 from electrotrace.lead_selection import (
     EDB_DEVELOPMENT_PRIMARY_P50_FLOOR,
-    LEAD_SELECTOR_VERSION,
     LEAD_SELECTOR_V2_VERSION,
+    LEAD_SELECTOR_VERSION,
     choose_two_lead_channel,
     choose_two_lead_channel_v2,
 )
