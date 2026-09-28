@@ -8,7 +8,7 @@ on:
 
 concurrency:
   group: prospective-edb-first-run
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -106,10 +106,22 @@ jobs:
 
       - name: Download complete MIT-BIH development source
         run: |
-          python - <<'PY'
+          set -euo pipefail
+          mkdir -p .cache/physionet/mitdb
+          if command -v aws >/dev/null 2>&1; then
+            aws s3 sync --no-sign-request \
+              s3://physionet-open/mitdb/1.0.0/ \
+              .cache/physionet/mitdb/ \
+              --exclude "*" \
+              --include "*.hea" \
+              --include "*.dat" \
+              --include "*.atr"
+          else
+            python - <<'PY'
           import wfdb
           wfdb.dl_database("mitdb", dl_dir=".cache/physionet/mitdb")
           PY
+          fi
 
       - name: Re-derive corrected v3 frozen polarity gates
         run: |
@@ -140,17 +152,24 @@ jobs:
 
       - name: Download complete European ST-T Database
         run: |
-          python - <<'PY'
+          set -euo pipefail
+          mkdir -p .cache/physionet/edb
+          if command -v aws >/dev/null 2>&1; then
+            aws s3 sync --no-sign-request \
+              s3://physionet-open/edb/1.0.0/ \
+              .cache/physionet/edb/ \
+              --exclude "*" \
+              --include "*.hea" \
+              --include "*.dat" \
+              --include "*.atr" \
+              --include "RECORDS"
+          else
+            python - <<'PY'
           from pathlib import Path
           import wfdb
 
           out = Path(".cache/physionet/edb")
           wfdb.dl_database("edb", dl_dir=str(out))
-
-          # wfdb.dl_database downloads the record payloads but does not
-          # necessarily materialize PhysioNet's root RECORDS metadata file.
-          # The prospective evaluator deliberately requires that manifest so
-          # the local cohort can be checked against the preregistered order.
           records = list(wfdb.get_record_list("edb"))
           if len(records) != 90 or len(set(records)) != 90:
               raise SystemExit(
@@ -161,8 +180,11 @@ jobs:
               "\n".join(records) + "\n",
               encoding="utf-8",
           )
-          print("Materialized canonical EDB RECORDS manifest:", len(records))
           PY
+          fi
+
+          test -s .cache/physionet/edb/RECORDS
+          test "$(wc -l < .cache/physionet/edb/RECORDS)" -eq 90
 
       - name: Run one-shot prospective EDB evaluation
         run: |
