@@ -1,0 +1,117 @@
+name: edb-label-free-lead-selector-development
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/edb-label-free-lead-selector-development.yml'
+      - 'scripts/develop_edb_label_free_lead_selector.py'
+      - 'scripts/analyze_edb_posthoc_failures.py'
+      - 'tests/test_edb_lead_selector_development.py'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  develop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install pinned development runtime
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[test]"
+          python -m pip install             "numpy==2.1.3"             "pandas==2.2.3"             "scipy==1.16.3"             "scikit-learn==1.6.1"             "skops==0.16.0"             "wfdb==4.3.1"
+          python -m pip install -e . --no-deps
+
+      - name: Test lead-selector development code
+        run: |
+          pytest -q             tests/test_edb_posthoc_failures.py             tests/test_edb_lead_selector_development.py             tests/test_fp_analysis.py
+
+      - name: Restore trusted frozen v4 model
+        run: |
+          set -euo pipefail
+          NAME="incart_mitbih_model_windowed_std_2026-09-09"
+          PKL="/tmp/${NAME}.pkl"
+          SKOPS="validation_reports/${NAME}.skops"
+          EXPECTED_PKL_SHA="8732aa47051c76b043bd56e4d9dc82dc01307e0d9bcc6c5ed046fca19a27f5bb"
+          HISTORICAL_COMMIT="201096a7eeb2c93f991851266903d0342b08c64b"
+
+          git cat-file -e "${HISTORICAL_COMMIT}^{commit}"
+          git show "${HISTORICAL_COMMIT}:validation_reports/${NAME}.pkl" > "${PKL}"
+          echo "${EXPECTED_PKL_SHA}  ${PKL}" | sha256sum -c -
+
+          mkdir -p validation_reports
+          python scripts/convert_model_pickle_to_skops.py             "${PKL}"             "${SKOPS}"             --allow-pickle
+
+          python - <<'PY'
+          from pathlib import Path
+          import numpy as np
+          from electrotrace.candidate_suppressor import CandidateSuppressor
+
+          name = "incart_mitbih_model_windowed_std_2026-09-09"
+          pkl = Path("/tmp") / f"{name}.pkl"
+          skops = Path("validation_reports") / f"{name}.skops"
+          legacy = CandidateSuppressor.load(pkl, allow_pickle=True)
+          safe = CandidateSuppressor.load(skops)
+          assert legacy.metadata.to_dict() == safe.metadata.to_dict()
+          assert legacy.feature_names == safe.feature_names
+          rng = np.random.default_rng(20260928)
+          X = rng.normal(size=(128, safe.model.n_features_in_))
+          np.testing.assert_allclose(
+              legacy.predict_proba(X),
+              safe.predict_proba(X),
+              rtol=1e-12,
+              atol=1e-15,
+          )
+          PY
+
+      - name: Recover immutable prospective first-run inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/edb-first
+          gh run download 36442894752             --repo "${GITHUB_REPOSITORY}"             --name electrotrace-edb-prospective-first-run             --dir /tmp/edb-first
+
+          echo "fc9a3cb0833bce7ad15ba32098ebd328835eb72f133cb73550e6f6a1057aa491  /tmp/edb-first/2026-09-edb-prospective/edb_frozen_v4_prospective_first_run.json" | sha256sum -c -
+          echo "1d9d3966e7c3ab157d5ccf69c6770ec7db7ef29ebd6a59e623c2e45fc19d3369  /tmp/edb-first/2026-09-polarity-thresholds/mitdb_extended_derivation_v3.json" | sha256sum -c -
+
+      - name: Download exposed European ST-T development data
+        run: |
+          set -euo pipefail
+          mkdir -p .cache/physionet/edb
+          aws s3 sync --no-sign-request             s3://physionet-open/edb/1.0.0/             .cache/physionet/edb/             --exclude "*"             --include "*.hea"             --include "*.dat"             --include "*.atr"             --include "RECORDS"
+          test -s .cache/physionet/edb/RECORDS
+          test "$(wc -l < .cache/physionet/edb/RECORDS)" -eq 90
+
+      - name: Evaluate label-free selector candidates on exposed EDB
+        run: |
+          python -u scripts/develop_edb_label_free_lead_selector.py             --edb-dir .cache/physionet/edb             --model validation_reports/incart_mitbih_model_windowed_std_2026-09-09.skops             --first-run-report               /tmp/edb-first/2026-09-edb-prospective/edb_frozen_v4_prospective_first_run.json             --polarity-threshold-report               /tmp/edb-first/2026-09-polarity-thresholds/mitdb_extended_derivation_v3.json             --output               validation_reports/experiments/2026-09-edb-posthoc/edb_label_free_lead_selector_development.json
+
+      - name: Hash selector-development output
+        run: |
+          set -euo pipefail
+          {
+            echo "git_head=$(git rev-parse HEAD)"
+            sha256sum               validation_reports/experiments/2026-09-edb-posthoc/edb_label_free_lead_selector_development.json
+          } | tee validation_reports/experiments/2026-09-edb-posthoc/LEAD_SELECTOR_SHA256.txt
+
+      - name: Upload selector-development artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: electrotrace-edb-label-free-lead-selector-development
+          retention-days: 90
+          if-no-files-found: error
+          path: |
+            validation_reports/experiments/2026-09-edb-posthoc/edb_label_free_lead_selector_development.json
+            validation_reports/experiments/2026-09-edb-posthoc/LEAD_SELECTOR_SHA256.txt
