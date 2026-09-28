@@ -185,18 +185,25 @@ def _reference_from_annotation(annotation, beat_symbols: frozenset[str], stop_sa
     symbols = list(annotation.symbol)
     if samples.ndim != 1 or len(symbols) != len(samples):
         raise ValueError("invalid WFDB annotation structure")
-    if np.any(samples < 0) or np.any(samples >= stop_sample):
-        raise ValueError("annotation samples fall outside frozen record")
-    mask = np.asarray([symbol in beat_symbols for symbol in symbols], dtype=bool)
-    reference = samples[mask]
+
+    beat_mask = np.asarray([symbol in beat_symbols for symbol in symbols], dtype=bool)
+    reference = samples[beat_mask]
     if reference.size == 0:
         raise ValueError("no frozen-symbol reference beats remain")
+    if np.any(reference < 0) or np.any(reference >= stop_sample):
+        raise ValueError("reference beat samples fall outside frozen record")
     if reference.size > 1 and np.any(np.diff(reference) <= 0):
         raise ValueError("reference beats are not strictly increasing")
+
+    nonbeat_samples = samples[~beat_mask]
+    out_of_range_nonbeat = int(
+        np.count_nonzero((nonbeat_samples < 0) | (nonbeat_samples >= stop_sample))
+    )
     audit = {
         "total_annotations": int(samples.size),
         "reference_beats_kept": int(reference.size),
-        "nonbeat_annotations_dropped": int((~mask).sum()),
+        "nonbeat_annotations_dropped": int((~beat_mask).sum()),
+        "out_of_range_nonbeat_annotations_dropped": out_of_range_nonbeat,
     }
     return reference, audit
 
