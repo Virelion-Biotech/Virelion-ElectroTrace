@@ -134,7 +134,7 @@ def package_versions() -> dict:
     return versions
 
 
-DERIVATION_SCHEMA = "electrotrace.mitdb_polarity_thresholds_extended_derivation/v2"
+DERIVATION_SCHEMA = "electrotrace.mitdb_polarity_thresholds_extended_derivation/v3"
 EXPECTED_DEVELOPMENT_POOL_SIZE = 36
 EXPECTED_DERIVATION_CORE_HASHES = EXPECTED_DEVELOPMENT_POOL_SIZE * 3
 
