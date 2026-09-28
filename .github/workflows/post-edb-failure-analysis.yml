@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/post-edb-failure-analysis.yml'
+      - 'scripts/analyze_edb_posthoc_failures.py'
+      - 'tests/test_edb_posthoc_failures.py'
 
 permissions:
   contents: read
