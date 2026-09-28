@@ -419,6 +419,7 @@ def main() -> int:
             "full_locked_split": full_locked_split,
             "retraining": False,
             "adaptive_polarity_historically_informed_by_locked_data": args.polarity == "adaptive",
+            "width_override_historically_informed_by_incart": args.polarity == "adaptive",
             "threshold_derivation_report_verified": derivation_metadata is not None,
             "protocol_override_reasons": protocol_override_reasons,
             "prospective_adaptive_validation": False if args.polarity == "adaptive" else None,
