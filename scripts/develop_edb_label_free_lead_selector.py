@@ -21,6 +21,11 @@ import numpy as np
 import wfdb
 
 from electrotrace.candidate_suppressor import CandidateSuppressor
+from electrotrace.lead_selection import (
+    EDB_DEVELOPMENT_PRIMARY_P50_FLOOR,
+    LEAD_SELECTOR_VERSION,
+    choose_two_lead_channel,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -213,6 +218,12 @@ def main() -> int:
         )
 
         selectors = {rule: choose_channel(rule, ch0, ch1) for rule in RULE_ORDER}
+        scores0 = label_free_scores(ch0)
+        scores1 = label_free_scores(ch1)
+        selectors["guarded_retained_probability_p50_v1"] = choose_two_lead_channel(
+            scores0["retained_probability_p50"],
+            scores1["retained_probability_p50"],
+        )
         selectors["channel0_baseline"] = 0
         selectors["channel1_always"] = 1
         selectors["oracle_by_f1_development_only"] = (
@@ -226,8 +237,8 @@ def main() -> int:
                 "channel0": ch0,
                 "channel1": ch1,
                 "label_free_scores": {
-                    "channel0": label_free_scores(ch0),
-                    "channel1": label_free_scores(ch1),
+                    "channel0": scores0,
+                    "channel1": scores1,
                 },
                 "selectors": selectors,
                 "channel1_minus_channel0_f1": (
@@ -246,6 +257,9 @@ def main() -> int:
         "channel0_baseline": summarize_selected(rows, "channel0_baseline"),
         "channel1_always": summarize_selected(rows, "channel1_always"),
         **{rule: summarize_selected(rows, rule) for rule in RULE_ORDER},
+        "guarded_retained_probability_p50_v1": summarize_selected(
+            rows, "guarded_retained_probability_p50_v1"
+        ),
         "oracle_by_f1_development_only": summarize_selected(
             rows, "oracle_by_f1_development_only"
         ),
@@ -306,6 +320,23 @@ def main() -> int:
         "rule_summaries": summaries,
         "selected_development_rule": best_rule,
         "selected_rule_summary": summaries[best_rule],
+        "frozen_conservative_selector": {
+            "version": LEAD_SELECTOR_VERSION,
+            "primary_retained_probability_p50_floor": EDB_DEVELOPMENT_PRIMARY_P50_FLOOR,
+            "runtime_rule": (
+                "preserve channel 0 unless primary retained-probability p50 is below "
+                "0.995 and channel 1 retained-probability p50 is strictly higher"
+            ),
+            "development_summary": summaries["guarded_retained_probability_p50_v1"],
+            "selection_rationale": (
+                "Safety-first post-hoc EDB development choice. The unguarded p50 "
+                "argmax produced a catastrophic false switch on e0166. The frozen "
+                "0.995 floor preserves the historical primary channel when its "
+                "retained probabilities are already very high while still rescuing "
+                "the catastrophic EDB low-tail records."
+            ),
+            "prospective_validation_required": True,
+        },
         "selected_rule_regressions_vs_channel0": regressions,
         "records": rows,
         "non_claims": [
