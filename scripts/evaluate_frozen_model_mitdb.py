@@ -90,6 +90,8 @@ def package_versions() -> dict:
 
 
 DERIVATION_SCHEMA = "electrotrace.mitdb_polarity_thresholds_extended_derivation/v2"
+EXPECTED_DEVELOPMENT_POOL_SIZE = 36
+EXPECTED_DERIVATION_CORE_HASHES = EXPECTED_DEVELOPMENT_POOL_SIZE * 3
 
 
 def _confidence_arg(raw: str) -> float:
@@ -115,8 +117,29 @@ def _load_polarity_threshold_report(path: Path) -> tuple[dict, float, float]:
         )
     if report.get("freeze_eligible") is not True:
         raise SystemExit("polarity threshold report is not freeze_eligible")
+    if report.get("selection_status") != "development_only_full_pool":
+        raise SystemExit("polarity threshold report was not derived from the full development pool")
+
+    report_head = str(report.get("git_head") or "")
+    current_head = git_head()
+    if not report_head or report_head == "unknown" or current_head == "unknown":
+        raise SystemExit("polarity threshold report/current checkout lacks a verifiable git commit")
+    if report_head != current_head:
+        raise SystemExit(
+            f"polarity threshold report git_head {report_head} does not match current checkout {current_head}"
+        )
+
+    input_hashes = report.get("input_hashes")
+    if not isinstance(input_hashes, dict) or len(input_hashes) != EXPECTED_DERIVATION_CORE_HASHES:
+        raise SystemExit(
+            "polarity threshold report does not contain the complete 36-record core input hash set"
+        )
 
     protocol = report.get("protocol") or {}
+    if protocol.get("development_pool_size") != EXPECTED_DEVELOPMENT_POOL_SIZE:
+        raise SystemExit(
+            f"polarity threshold report development_pool_size must be {EXPECTED_DEVELOPMENT_POOL_SIZE}"
+        )
     if protocol.get("locked_heldout_labels_used") is not False:
         raise SystemExit("polarity threshold report does not prove locked held-out exclusion")
     if protocol.get("incart_used") is not False:
