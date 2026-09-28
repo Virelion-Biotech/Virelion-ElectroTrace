@@ -8,10 +8,10 @@ from scipy import signal as sps
 
 from .candidate_suppressor import CandidateSuppressor, _candidate_features
 from .scale_estimation import (
-    DEFAULT_ADAPTIVE_INFLATION_RATIO,
+    DEFAULT_ADAPTIVE_INFLATION_RATIO,  # noqa: F401 - compatibility re-export
     DEFAULT_SCALE_METHOD,
-    DEFAULT_SCALE_WINDOW_S,
-    estimate_scale,
+    DEFAULT_SCALE_WINDOW_S,  # noqa: F401 - compatibility re-export
+    estimate_scale,  # noqa: F401 - compatibility re-export
     estimate_stage1_scale,
 )
 
@@ -55,7 +55,13 @@ def _validate_signal(signal: np.ndarray, fs_hz: float) -> tuple[np.ndarray, floa
     return signal, fs_hz
 
 
-def _candidate_set(z: np.ndarray, fs_hz: float, scale: float, *, prominence_fraction: float = 0.5) -> tuple[np.ndarray, np.ndarray]:
+def _candidate_set(
+    z: np.ndarray,
+    fs_hz: float,
+    scale: float,
+    *,
+    prominence_fraction: float = 0.5,
+) -> tuple[np.ndarray, np.ndarray]:
     distance = max(1, int(round(fs_hz * 0.25)))
     peaks, properties = sps.find_peaks(z, distance=distance, prominence=scale * prominence_fraction)
     prominences = properties.get("prominences", np.zeros(len(peaks), dtype=float))
@@ -357,7 +363,12 @@ def _score_dual_polarity_streams(
         order = np.argsort(peaks, kind="stable")
         peaks, prom, stream = peaks[order], prom[order], stream[order]
         features, _ = _candidate_features(signal, fs_hz, peaks, prom, scale_method=scale_method)
-        return {"peaks": peaks, "probabilities": suppressor.predict_proba(features), "stream": stream, "prominences": prom}
+        return {
+            "peaks": peaks,
+            "probabilities": suppressor.predict_proba(features),
+            "stream": stream,
+            "prominences": prom,
+        }
 
     out_peaks, out_prob, out_stream, out_prom = [], [], [], []
     for stream_id, peaks, prom in streams:
