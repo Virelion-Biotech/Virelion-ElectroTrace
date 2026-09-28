@@ -105,7 +105,7 @@ def test_evaluate_record_selects_v2_before_annotation_load(monkeypatch, tmp_path
 
     def fake_quality(*args, **kwargs):
         calls["n"] += 1
-        events.append(f"quality{calls[\"n\"]}")
+        events.append("quality" + str(calls["n"]))
         if calls["n"] == 1:
             return np.array([100, 300, 500]), np.array([0.8, 0.9, 0.9]), _quality(0.90, 0.2, 0.4)
         return np.array([100, 300, 500]), np.array([0.9, 0.95, 0.99]), _quality(0.95, 0.5, 0.6)
