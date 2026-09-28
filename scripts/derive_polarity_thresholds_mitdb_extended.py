@@ -515,12 +515,13 @@ def main() -> int:
             "threshold_selection_uses_locked_heldout_labels": False,
             "threshold_selection_uses_incart_labels": False,
             "adaptive_polarity_mechanism_was_historically_informed_by_locked_data": True,
+            "width_override_mechanism_was_historically_informed_by_incart": True,
             "heldout_interpretation_after_freeze": (
                 "legacy non-regression only; threshold re-derivation does not restore prospective "
                 "held-out status for the already-designed adaptive-polarity mechanism"
             ),
             "prospective_validation_requires": (
-                "an independent dataset not used to design or tune the adaptive-polarity mechanism"
+                "an independent dataset not used to design or tune the adaptive-polarity mechanism, including neither MIT-BIH nor INCART"
             ),
         },
         "historical_defaults": {
