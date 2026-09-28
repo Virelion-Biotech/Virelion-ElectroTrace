@@ -101,9 +101,11 @@ def select_signal_polarity(
 ) -> PolarityDecision:
     """Select one polarity per recording without merging positive/negative peaks.
 
-    Primary rule: candidate-count ratio (validated on full MIT-BIH).
-    When count confidence is low (<0.15), fall back to QRS-band polarity v2
-    (fixes inverted-lead cases such as MIT-BIH 207 without pooled regression).
+    Primary rule: candidate-count ratio. Historical full-MIT-BIH analysis
+    informed this rule and the v2 fallback, including behavior of record 207;
+    those data should not be treated as prospective validation of this
+    mechanism. When count confidence is below v2_gate_confidence, fall back to
+    QRS-band polarity v2.
 
     Real-data validation on full INCART (2026-09-13): the count-ratio rule
     picks correctly on 61/68 records; oracle ceiling (always picking
