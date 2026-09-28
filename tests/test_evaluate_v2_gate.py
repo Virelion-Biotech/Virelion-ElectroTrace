@@ -80,12 +80,13 @@ def _derivation_report(path, *, v2=0.07, width=0.38, freeze_eligible=True, incar
         "freeze_eligible": freeze_eligible,
         "git_head": eval_script.git_head(),
         "input_hashes": {
-            f"R{i:02d}{suffix}": f"hash-{i}-{suffix}"
-            for i in range(eval_script.EXPECTED_DEVELOPMENT_POOL_SIZE)
-            for suffix in (".hea", ".dat", ".atr")
+            key: "0" * 64
+            for key in sorted(eval_script.EXPECTED_DERIVATION_INPUT_HASH_KEYS)
         },
+        "implementation_hashes": eval_script._current_derivation_implementation_hashes(),
         "protocol": {
             "development_pool_size": eval_script.EXPECTED_DEVELOPMENT_POOL_SIZE,
+            "development_pool_records": list(eval_script.EXPECTED_DEVELOPMENT_RECORDS),
             "locked_heldout_labels_used": False,
             "incart_used": incart_used,
             "diagnostic_subset": False,
@@ -131,12 +132,23 @@ def test_nondefault_v2_gate_requires_derivation_report(monkeypatch, tmp_path):
         eval_script.main()
 
 
-def test_derivation_report_must_match_current_code_revision(tmp_path):
+def test_derivation_report_can_survive_unrelated_git_commit_when_implementation_matches(tmp_path):
     path = _derivation_report(tmp_path / "derive.json")
     report = json.loads(path.read_text())
     report["git_head"] = "0" * 40
     path.write_text(json.dumps(report), encoding="utf-8")
-    with pytest.raises(SystemExit, match="does not match current checkout"):
+    loaded, width, v2 = eval_script._load_polarity_threshold_report(path)
+    assert loaded["git_head"] == "0" * 40
+    assert width == pytest.approx(0.38)
+    assert v2 == pytest.approx(0.07)
+
+
+def test_derivation_report_rejects_changed_implementation_hash(tmp_path):
+    path = _derivation_report(tmp_path / "derive.json")
+    report = json.loads(path.read_text())
+    report["implementation_hashes"]["electrotrace.validation_detectors"] = "f" * 64
+    path.write_text(json.dumps(report), encoding="utf-8")
+    with pytest.raises(SystemExit, match="implementation hashes do not match"):
         eval_script._load_polarity_threshold_report(path)
 
 
@@ -145,7 +157,16 @@ def test_derivation_report_must_contain_complete_input_hash_set(tmp_path):
     report = json.loads(path.read_text())
     report["input_hashes"].pop(next(iter(report["input_hashes"])))
     path.write_text(json.dumps(report), encoding="utf-8")
-    with pytest.raises(SystemExit, match="complete 36-record core input hash set"):
+    with pytest.raises(SystemExit, match="exact 36-record core input hash set"):
+        eval_script._load_polarity_threshold_report(path)
+
+
+def test_derivation_report_must_name_exact_canonical_development_pool(tmp_path):
+    path = _derivation_report(tmp_path / "derive.json")
+    report = json.loads(path.read_text())
+    report["protocol"]["development_pool_records"][0] = "999"
+    path.write_text(json.dumps(report), encoding="utf-8")
+    with pytest.raises(SystemExit, match="exact canonical 36-record development pool"):
         eval_script._load_polarity_threshold_report(path)
 
 
