@@ -78,7 +78,14 @@ def _derivation_report(path, *, v2=0.07, width=0.38, freeze_eligible=True, incar
         "schema": eval_script.DERIVATION_SCHEMA,
         "selection_status": "development_only_full_pool",
         "freeze_eligible": freeze_eligible,
+        "git_head": eval_script.git_head(),
+        "input_hashes": {
+            f"R{i:02d}{suffix}": f"hash-{i}-{suffix}"
+            for i in range(eval_script.EXPECTED_DEVELOPMENT_POOL_SIZE)
+            for suffix in (".hea", ".dat", ".atr")
+        },
         "protocol": {
+            "development_pool_size": eval_script.EXPECTED_DEVELOPMENT_POOL_SIZE,
             "locked_heldout_labels_used": False,
             "incart_used": incart_used,
             "diagnostic_subset": False,
@@ -131,6 +138,24 @@ def test_nondefault_v2_gate_requires_derivation_report(monkeypatch, tmp_path):
         (True, True, "used INCART"),
     ],
 )
+def test_derivation_report_must_match_current_code_revision(tmp_path):
+    path = _derivation_report(tmp_path / "derive.json")
+    report = json.loads(path.read_text())
+    report["git_head"] = "0" * 40
+    path.write_text(json.dumps(report), encoding="utf-8")
+    with pytest.raises(SystemExit, match="does not match current checkout"):
+        eval_script._load_polarity_threshold_report(path)
+
+
+def test_derivation_report_must_contain_complete_input_hash_set(tmp_path):
+    path = _derivation_report(tmp_path / "derive.json")
+    report = json.loads(path.read_text())
+    report["input_hashes"].pop(next(iter(report["input_hashes"])))
+    path.write_text(json.dumps(report), encoding="utf-8")
+    with pytest.raises(SystemExit, match="complete 36-record core input hash set"):
+        eval_script._load_polarity_threshold_report(path)
+
+
 def test_derivation_report_must_prove_evaluation_separation(
     tmp_path, freeze_eligible, incart_used, message
 ):
