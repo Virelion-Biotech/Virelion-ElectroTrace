@@ -38,6 +38,10 @@ import math
 import platform
 import subprocess
 import sys
+
+import electrotrace.polarity_v2 as polarity_v2_module
+import electrotrace.scale_estimation as scale_estimation_module
+import electrotrace.validation_detectors as validation_detectors_module
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -61,10 +65,25 @@ from electrotrace.wfdb_records import (
     summarize_audits,
 )
 
+MITDB_RECORDS = (
+    "100", "101", "102", "103", "104", "105", "106", "107", "108", "109",
+    "111", "112", "113", "114", "115", "116", "117", "118", "119", "121",
+    "122", "123", "124", "200", "201", "202", "203", "205", "207", "208",
+    "209", "210", "212", "213", "214", "215", "217", "219", "220", "221",
+    "222", "223", "228", "230", "231", "232", "233", "234",
+)
 LOCKED_HELDOUT_RECORDS = [
     "105", "118", "122", "201", "207", "209",
     "214", "219", "230", "231", "232", "234",
 ]
+EXPECTED_DEVELOPMENT_RECORDS = tuple(
+    name for name in MITDB_RECORDS if name not in set(LOCKED_HELDOUT_RECORDS)
+)
+EXPECTED_DERIVATION_INPUT_HASH_KEYS = frozenset(
+    f"{name}{suffix}"
+    for name in EXPECTED_DEVELOPMENT_RECORDS
+    for suffix in (".hea", ".dat", ".atr")
+)
 
 
 def git_head() -> str:
@@ -80,6 +99,25 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _current_derivation_implementation_hashes() -> dict[str, str]:
+    derivation_script = Path(__file__).resolve().with_name(
+        "derive_polarity_thresholds_mitdb_extended.py"
+    )
+    paths = {
+        "derive_polarity_thresholds_mitdb_extended.py": derivation_script,
+        "electrotrace.polarity_v2": Path(polarity_v2_module.__file__).resolve(),
+        "electrotrace.scale_estimation": Path(scale_estimation_module.__file__).resolve(),
+        "electrotrace.validation_detectors": Path(validation_detectors_module.__file__).resolve(),
+    }
+    missing = [name for name, path in paths.items() if not path.is_file()]
+    if missing:
+        raise SystemExit(
+            "cannot verify polarity derivation implementation; missing: "
+            + ", ".join(sorted(missing))
+        )
+    return {name: sha256_file(path) for name, path in sorted(paths.items())}
 
 
 def package_versions() -> dict:
@@ -125,24 +163,36 @@ def _load_polarity_threshold_report(path: Path) -> tuple[dict, float, float]:
         raise SystemExit("polarity threshold report was not derived from the full development pool")
 
     report_head = str(report.get("git_head") or "")
-    current_head = git_head()
-    if not report_head or report_head == "unknown" or current_head == "unknown":
-        raise SystemExit("polarity threshold report/current checkout lacks a verifiable git commit")
-    if report_head != current_head:
-        raise SystemExit(
-            f"polarity threshold report git_head {report_head} does not match current checkout {current_head}"
-        )
+    if not report_head or report_head == "unknown":
+        raise SystemExit("polarity threshold report lacks a verifiable git commit")
 
     input_hashes = report.get("input_hashes")
-    if not isinstance(input_hashes, dict) or len(input_hashes) != EXPECTED_DERIVATION_CORE_HASHES:
+    if not isinstance(input_hashes, dict):
+        raise SystemExit("polarity threshold report input_hashes must be an object")
+    if frozenset(input_hashes) != EXPECTED_DERIVATION_INPUT_HASH_KEYS:
         raise SystemExit(
-            "polarity threshold report does not contain the complete 36-record core input hash set"
+            "polarity threshold report does not contain the exact 36-record core input hash set"
+        )
+    if not all(isinstance(value, str) and len(value) == 64 for value in input_hashes.values()):
+        raise SystemExit("polarity threshold report contains malformed core input hashes")
+
+    report_impl = report.get("implementation_hashes")
+    if not isinstance(report_impl, dict):
+        raise SystemExit("polarity threshold report lacks implementation_hashes")
+    current_impl = _current_derivation_implementation_hashes()
+    if report_impl != current_impl:
+        raise SystemExit(
+            "polarity threshold report implementation hashes do not match the current derivation/runtime code"
         )
 
     protocol = report.get("protocol") or {}
     if protocol.get("development_pool_size") != EXPECTED_DEVELOPMENT_POOL_SIZE:
         raise SystemExit(
             f"polarity threshold report development_pool_size must be {EXPECTED_DEVELOPMENT_POOL_SIZE}"
+        )
+    if tuple(protocol.get("development_pool_records") or ()) != EXPECTED_DEVELOPMENT_RECORDS:
+        raise SystemExit(
+            "polarity threshold report does not contain the exact canonical 36-record development pool"
         )
     if protocol.get("locked_heldout_labels_used") is not False:
         raise SystemExit("polarity threshold report does not prove locked held-out exclusion")
