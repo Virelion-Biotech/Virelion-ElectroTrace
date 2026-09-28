@@ -15,6 +15,7 @@ import csv
 import hashlib
 import json
 import subprocess
+import sys
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,9 +31,26 @@ from electrotrace.validation_detectors import (
     select_signal_polarity,
 )
 from electrotrace.wfdb_records import load_annotated_record
-from scripts.evaluate_frozen_model_mitdb import _load_polarity_threshold_report
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CUTOFF = 0.80
+
+
+def load_polarity_threshold_report(path: Path):
+    """Load the sibling MIT-BIH verifier in both import and direct-exec modes."""
+    root = str(REPO_ROOT)
+    added = root not in sys.path
+    if added:
+        sys.path.insert(0, root)
+    try:
+        from scripts.evaluate_frozen_model_mitdb import (
+            _load_polarity_threshold_report as loader,
+        )
+        return loader(path)
+    finally:
+        if added:
+            sys.path.remove(root)
+
 
 
 def sha256_file(path: Path) -> str:
@@ -285,7 +303,7 @@ def main() -> int:
     if sha256_file(args.model) != first_run["model"]["sha256"]:
         raise SystemExit("model SHA-256 does not match the archived prospective run")
 
-    derivation, width_gate, v2_gate = _load_polarity_threshold_report(
+    derivation, width_gate, v2_gate = load_polarity_threshold_report(
         args.polarity_threshold_report
     )
     archived_thresholds = first_run["polarity_threshold_derivation"]["recommended_thresholds"]
