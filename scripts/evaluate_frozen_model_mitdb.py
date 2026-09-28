@@ -21,10 +21,13 @@ Usage:
   python -u scripts/evaluate_frozen_model_mitdb.py \
       --mitdb-dir .cache/physionet/mitdb \
       --model validation_reports/incart_mitbih_model_windowed_std_2026-09-09.skops \
+      --width-override-confidence 0.38 \
       --scale-method windowed_std
 
-Pass --threshold to score at a different operating point without touching the
-model file's own stored threshold.
+For a derived non-default polarity gate, prefer --polarity-threshold-report;
+the evaluator verifies and loads that artifact's frozen recommended values.
+Any protocol override is recorded as diagnostic rather than promoted as a
+validation result.
 """
 from __future__ import annotations
 
@@ -48,6 +51,7 @@ from electrotrace.validation import (
 )
 from electrotrace.validation_detectors import (
     DEFAULT_V2_GATE_CONFIDENCE,
+    DEFAULT_WIDTH_OVERRIDE_CONFIDENCE,
     detect_r_peaks_two_stage,
 )
 from electrotrace.wfdb_records import (
@@ -264,6 +268,10 @@ def main() -> int:
             if args.v2_gate_confidence is None
             else args.v2_gate_confidence
         )
+        if not _same_gate(width_override_confidence, DEFAULT_WIDTH_OVERRIDE_CONFIDENCE):
+            raise SystemExit(
+                "A non-default --width-override-confidence requires --polarity-threshold-report"
+            )
         if not _same_gate(v2_gate_confidence, DEFAULT_V2_GATE_CONFIDENCE):
             raise SystemExit(
                 "A non-default --v2-gate-confidence requires --polarity-threshold-report"
@@ -330,12 +338,22 @@ def main() -> int:
     summary = summarize_records(results)
     known_207 = next((r for r in results if r.record == "207"), None)
 
-    if not full_locked_split or args.threshold is not None:
-        evidence_status = "diagnostic_locked_subset_or_operating_point_override"
-    elif args.polarity == "adaptive":
-        evidence_status = "legacy_validation_non_regression"
+    protocol_override_reasons: list[str] = []
+    if not full_locked_split:
+        protocol_override_reasons.append("locked_record_subset")
+    if args.threshold is not None:
+        protocol_override_reasons.append("stage2_threshold_override")
+    if args.polarity != "adaptive":
+        protocol_override_reasons.append(f"polarity_override:{args.polarity}")
+    if args.recovery:
+        protocol_override_reasons.append("recovery_enabled")
+    if args.scale_method != "windowed_std":
+        protocol_override_reasons.append(f"scale_method_override:{args.scale_method}")
+
+    if protocol_override_reasons:
+        evidence_status = "diagnostic_protocol_override"
     else:
-        evidence_status = "locked_heldout_model_evaluation"
+        evidence_status = "legacy_validation_non_regression"
 
     report = {
         "schema": "electrotrace.mitdb_frozen_model_evaluation/v1",
@@ -351,11 +369,12 @@ def main() -> int:
             "retraining": False,
             "adaptive_polarity_historically_informed_by_locked_data": args.polarity == "adaptive",
             "threshold_derivation_report_verified": derivation_metadata is not None,
+            "protocol_override_reasons": protocol_override_reasons,
             "prospective_adaptive_validation": False if args.polarity == "adaptive" else None,
             "interpretation": (
-                "legacy non-regression only for adaptive polarity"
-                if args.polarity == "adaptive"
-                else "model evaluation on the locked split; no adaptive-polarity claim"
+                "diagnostic protocol override; do not promote as validation evidence"
+                if protocol_override_reasons
+                else "legacy non-regression only for adaptive polarity"
             ),
         },
         "git_head": git_head(),
