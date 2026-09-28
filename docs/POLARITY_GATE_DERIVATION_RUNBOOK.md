@@ -167,9 +167,17 @@ Read these fields before looking at the selected grid point:
 7. Inspect `parameter_status` and `engagement_summary` to see what the data
    actually identified and which records changed final polarity.
 
-If a dimension is non-identifying, the report automatically keeps its
-historical default in `recommended_thresholds` rather than exposing a
-tie-broken edge value as the frozen recommendation.
+If a dimension is non-identifying across the full tested range, the report
+keeps its historical default in `recommended_thresholds`. Otherwise the
+prespecified development selection rule is authoritative, including when it
+selects `0.0`. A zero gate is a valid "disable this override" setting and must
+not be replaced merely because it changes no records at the selected point.
+
+Only derivation schema
+`electrotrace.mitdb_polarity_thresholds_extended_derivation/v3` may authorize
+a frozen non-default gate. Earlier v2 reports are retained only as historical
+diagnostic/provenance artifacts because v2 could incorrectly restore a
+historical default after the development objective selected a zero/no-op gate.
 
 ## 5. Run the locked non-regression audit
 

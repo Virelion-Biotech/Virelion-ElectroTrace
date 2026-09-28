@@ -132,6 +132,15 @@ def test_nondefault_v2_gate_requires_derivation_report(monkeypatch, tmp_path):
         eval_script.main()
 
 
+def test_legacy_v2_derivation_report_is_rejected(tmp_path):
+    path = _derivation_report(tmp_path / "derive.json")
+    report = json.loads(path.read_text())
+    report["schema"] = "electrotrace.mitdb_polarity_thresholds_extended_derivation/v2"
+    path.write_text(json.dumps(report), encoding="utf-8")
+    with pytest.raises(SystemExit, match="unsupported polarity threshold report schema"):
+        eval_script._load_polarity_threshold_report(path)
+
+
 def test_derivation_report_can_survive_unrelated_git_commit_when_implementation_matches(tmp_path):
     path = _derivation_report(tmp_path / "derive.json")
     report = json.loads(path.read_text())
