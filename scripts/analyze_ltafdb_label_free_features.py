@@ -100,7 +100,6 @@ def channel_quality(
         features, names = _candidate_features(
             x, fs_hz, candidates, prominences, scale_method=scale_method
         )
-        probabilities = model.predict_proba(features)
     else:
         features = np.empty((0, 0), dtype=float)
         names = []
