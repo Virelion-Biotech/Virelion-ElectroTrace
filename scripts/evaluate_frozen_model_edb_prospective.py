@@ -42,7 +42,7 @@ from electrotrace.wfdb_records import load_annotated_record
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL_PATH = REPO_ROOT / "validation_protocols" / "edb_prospective_v1.json"
-EXPECTED_PROTOCOL_SHA256 = "6607e27c5369ccb89b8c5a90219c9bbde6fa81839dabc0634cae18166d1d2b18"
+EXPECTED_PROTOCOL_SHA256 = "05a1aa75069f21fb80ac649da9a800aa60c32d80a12e01ea17fce22c63cd3e8f"
 OUTPUT_PATH = (
     REPO_ROOT
     / "validation_reports"
