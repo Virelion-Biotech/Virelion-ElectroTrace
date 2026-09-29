@@ -261,6 +261,57 @@ is not a fully institutionally independent clinical-validation cohort. Any
 selector v3 informed by SVDB requires another untouched record set for
 prospective evaluation.
 
+
+### Selector v3: conservative starvation-rescue rule
+
+Selector v3 (`edb-ltafdb-svdb-informed-starvation-rescue-v3`) was frozen only
+after EDB, LTAFDB and SVDB were exposed. It switches from channel 0 to channel 1
+only when the primary retained rate is below 30 bpm, the alternate is above
+30 bpm, and the alternate is more than 2x the primary. No annotation, diagnosis,
+rhythm, reference-count, probability, QRS-band or third-channel information is
+used for that decision.
+
+Its first prospective external evaluation used the preregistered 18-record,
+three-channel Zymed subset of the Long-Term ST Database, with only channels 0
+and 1 available to the selector and a fixed first-30-minute window. The run
+completed all 18 records with no skips, loaded reference annotations only after
+lead selection, never loaded channel 2, and did not retrain or override the
+frozen detector.
+
+Prospective Zymed LTSTDB selector-v3 result:
+
+| Records | Sensitivity | PPV | F1 | Macro mean F1 | Macro median F1 | Min F1 | Max F1 |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 18 | 0.8718 | 0.9650 | **0.9160** | 0.9031 | 0.9807 | 0.3344 | 1.0000 |
+
+Counts were 46,777 reference beats, 40,779 TP, 1,480 FP and 5,998 FN.
+Channel 0 was selected on **18/18** records; channel 1 was selected on **0/18**.
+Therefore selector v3 made **no prospective switches** in this cohort.
+
+That null-switch outcome is scientifically informative but narrow. It shows that
+the conservative rule did not create a false switch in these 18 untouched
+records, but it does not prospectively demonstrate the benefit of a starvation
+rescue because the rescue condition never fired. In particular, two low-F1
+records (`s30761` and `s30771`) still had primary retained rates above the
+frozen 30-bpm ceiling, so the preregistered rule correctly remained inactive.
+Those exposed outcomes must not be used to retune v3 while preserving a
+prospective claim.
+
+Permanent first-run provenance:
+- Actions run: `36532383204`
+- head commit: `0028d4773deb523b04b8cdea99fa9a97488543fb`
+- artifact ID: `11025074694` (`electrotrace-ltstdb-zymed-selector-v3-first-run`)
+- artifact ZIP digest: `sha256:946e79c7fa366e590ddb1ef480820ac96f3aedc9e80c4012cf1f376169cb8e37`
+- first-run JSON SHA-256: `853051f9c8921f053b72b52b418c79d33a01f642f254cea6b22ea6c694c46dd0`
+- protocol Git blob SHA: `c0caa0a83da12ba6176cc19f46a9fe3616d1397f`
+- protocol file SHA-256: `543f95763d7a3b1003e8e434ba0cc7a8e0f926fa7f076454fd37b8f5660623d1`
+- frozen model SHA-256: `5fd8675103137b6adbd2188c11c002d022d80399797f628c22e82118c2fa8e94`
+- model sidecar SHA-256: `963ad2213561aa422a14d7d7b22f603b7f4c6675433c4439e29829436a07150f`
+- polarity derivation SHA-256: `1d9d3966e7c3ab157d5ccf69c6770ec7db7ef29ebd6a59e623c2e45fc19d3369`
+
+The Zymed LTSTDB subset is now exposed development data. It cannot be reused as
+prospective evidence for any selector changed after this run.
+
 ## Model artifact policy
 
 The two legacy pickle model files are removed from the current source tree. Historical JSON artifacts may still mention their original paths because those reports are immutable provenance records.
