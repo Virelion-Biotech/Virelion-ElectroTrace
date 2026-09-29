@@ -100,14 +100,26 @@ jobs:
             s30721 s30731 s30732 s30741 s30742 s30751
             s30752 s30761 s30771 s30781 s30791 s30801
           )
+
+          JOBS="/tmp/ltstdb-zymed-downloads.tsv"
+          : > "${JOBS}"
           for record in "${RECORDS[@]}"; do
             for suffix in hea dat atr; do
-              echo "Downloading ${record}.${suffix}"
-              wget -q --https-only --retry-connrefused --waitretry=2 --tries=5 \
-                -O "${OUT}/${record}.${suffix}" \
-                "${BASE}/${record}.${suffix}"
+              printf '%s\t%s\n' "${BASE}/${record}.${suffix}" "${OUT}/${record}.${suffix}" >> "${JOBS}"
             done
           done
+
+          # Transfer only the same preregistered files, but in parallel. This
+          # changes transport latency only; the scientific protocol is untouched.
+          xargs -P 8 -n 2 bash -c '
+            set -euo pipefail
+            url="$1"
+            dest="$2"
+            echo "Downloading ${url##*/}"
+            wget -q --https-only --retry-connrefused --waitretry=2 --tries=5 \
+              -O "${dest}" "${url}"
+            test -s "${dest}"
+          ' _ < "${JOBS}"
 
           test -s "${OUT}/RECORDS"
           test "$(find "${OUT}" -maxdepth 1 -name 's3*.hea' | wc -l)" -eq 18
