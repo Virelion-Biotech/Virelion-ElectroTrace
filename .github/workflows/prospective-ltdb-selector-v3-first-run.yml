@@ -159,5 +159,5 @@ jobs:
           retention-days: 90
           if-no-files-found: error
           path: |
-            validation_reports/experiments/2026-09-ltdb-prospective/ltdb_selector_v2_first_run.json
+            validation_reports/experiments/2026-09-ltdb-prospective/ltdb_selector_v3_first_run.json
             validation_reports/experiments/2026-09-ltdb-prospective/FIRST_RUN_SHA256.txt
