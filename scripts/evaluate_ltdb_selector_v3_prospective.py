@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the preregistered first prospective SVDB selector-v2 evaluation."""
+"""Run the preregistered first prospective LTDB selector-v3 evaluation."""
 from __future__ import annotations
 
 import argparse
