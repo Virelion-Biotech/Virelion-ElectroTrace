@@ -17,6 +17,11 @@ import math
 EDB_DEVELOPMENT_PRIMARY_P50_FLOOR = 0.995
 LEAD_SELECTOR_VERSION = "edb-informed-retained-probability-v1"
 LEAD_SELECTOR_V2_VERSION = "edb-ltafdb-informed-quality-consensus-v2"
+LEAD_SELECTOR_V3_VERSION = "edb-ltafdb-svdb-informed-starvation-rescue-v3"
+STARVATION_PRIMARY_MAX_RATE_BPM = 30.0
+STARVATION_PRIMARY_MAX_RETENTION = 0.30
+STARVATION_ALTERNATE_MIN_RATE_BPM = 30.0
+STARVATION_ALTERNATE_MIN_RATE_RATIO = 2.0
 
 
 def _validate_probability(name: str, value: float) -> float:
@@ -108,5 +113,79 @@ def choose_two_lead_channel_v2(
         primary_p50 < floor
         and alternate_p50 > primary_p50
         and alternate_qrs > primary_qrs
+        and alternate_retention > primary_retention
+    )
+
+
+def _validate_nonnegative_finite(name: str, value: float) -> float:
+    value = float(value)
+    if not math.isfinite(value) or value < 0.0:
+        raise ValueError(f"{name} must be finite and non-negative")
+    return value
+
+
+def choose_two_lead_channel_v3(
+    primary_retained_rate_bpm: float,
+    alternate_retained_rate_bpm: float,
+    primary_retention_fraction: float,
+    alternate_retention_fraction: float,
+    primary_retained_probability_p50: float,
+    alternate_retained_probability_p50: float,
+    *,
+    primary_max_rate_bpm: float = STARVATION_PRIMARY_MAX_RATE_BPM,
+    primary_max_retention: float = STARVATION_PRIMARY_MAX_RETENTION,
+    alternate_min_rate_bpm: float = STARVATION_ALTERNATE_MIN_RATE_BPM,
+    alternate_min_rate_ratio: float = STARVATION_ALTERNATE_MIN_RATE_RATIO,
+) -> int:
+    """Return a narrow label-free detector-starvation rescue decision.
+
+    Selector v3 was developed after EDB, LTAFDB, and SVDB were exposed.
+    Channel 0 remains primary unless its detector output is simultaneously
+    sparse in absolute rate and Stage-2 retention, while channel 1 has a much
+    denser retained stream plus higher retained-probability confidence.
+
+    The rate thresholds are detector-output heuristics, not physiologic heart-
+    rate validity bounds. In particular, genuine profound bradycardia remains
+    a known safety concern that requires prospective validation.
+    """
+    primary_rate = _validate_nonnegative_finite(
+        "primary_retained_rate_bpm", primary_retained_rate_bpm
+    )
+    alternate_rate = _validate_nonnegative_finite(
+        "alternate_retained_rate_bpm", alternate_retained_rate_bpm
+    )
+    primary_retention = _validate_probability(
+        "primary_retention_fraction", primary_retention_fraction
+    )
+    alternate_retention = _validate_probability(
+        "alternate_retention_fraction", alternate_retention_fraction
+    )
+    primary_p50 = _validate_probability(
+        "primary_retained_probability_p50", primary_retained_probability_p50
+    )
+    alternate_p50 = _validate_probability(
+        "alternate_retained_probability_p50", alternate_retained_probability_p50
+    )
+    max_primary_rate = _validate_nonnegative_finite(
+        "primary_max_rate_bpm", primary_max_rate_bpm
+    )
+    max_primary_retention = _validate_probability(
+        "primary_max_retention", primary_max_retention
+    )
+    min_alternate_rate = _validate_nonnegative_finite(
+        "alternate_min_rate_bpm", alternate_min_rate_bpm
+    )
+    min_rate_ratio = _validate_nonnegative_finite(
+        "alternate_min_rate_ratio", alternate_min_rate_ratio
+    )
+    if min_rate_ratio <= 1.0:
+        raise ValueError("alternate_min_rate_ratio must be > 1")
+
+    return int(
+        primary_rate < max_primary_rate
+        and primary_retention < max_primary_retention
+        and alternate_rate > min_alternate_rate
+        and alternate_rate > min_rate_ratio * primary_rate
+        and alternate_p50 > primary_p50
         and alternate_retention > primary_retention
     )
