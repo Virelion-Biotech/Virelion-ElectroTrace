@@ -15,7 +15,7 @@ permissions:
 jobs:
   audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
@@ -90,48 +90,10 @@ jobs:
           grep -Fx "git_head=0028d4773deb523b04b8cdea99fa9a97488543fb" "${FIRST_SHA}"
           grep -F "853051f9c8921f053b72b52b418c79d33a01f642f254cea6b22ea6c694c46dd0" "${FIRST_SHA}"
 
-      - name: Download exposed Zymed LTSTDB subset
-        run: |
-          set -euo pipefail
-          OUT=".cache/physionet/ltstdb"
-          BASE="https://physionet.org/files/ltstdb/1.0.0"
-          mkdir -p "${OUT}"
-
-          wget -q --https-only -O "${OUT}/RECORDS" "${BASE}/RECORDS"
-
-          RECORDS=(
-            s30661 s30671 s30681 s30691 s30701 s30711
-            s30721 s30731 s30732 s30741 s30742 s30751
-            s30752 s30761 s30771 s30781 s30791 s30801
-          )
-
-          JOBS="/tmp/ltstdb-zymed-downloads.tsv"
-          : > "${JOBS}"
-          for record in "${RECORDS[@]}"; do
-            for suffix in hea dat atr; do
-              printf '%s\t%s\n' "${BASE}/${record}.${suffix}" "${OUT}/${record}.${suffix}" >> "${JOBS}"
-            done
-          done
-
-          xargs -P 8 -n 2 bash -c '
-            set -euo pipefail
-            url="$1"
-            dest="$2"
-            echo "Downloading ${url##*/}"
-            wget -q --https-only --retry-connrefused --waitretry=2 --tries=5 \
-              -O "${dest}" "${url}"
-            test -s "${dest}"
-          ' _ < "${JOBS}"
-
-          test -s "${OUT}/RECORDS"
-          test "$(find "${OUT}" -maxdepth 1 -name 's3*.hea' | wc -l)" -eq 18
-          test "$(find "${OUT}" -maxdepth 1 -name 's3*.dat' | wc -l)" -eq 18
-          test "$(find "${OUT}" -maxdepth 1 -name 's3*.atr' | wc -l)" -eq 18
-
       - name: Run exposed comparator audit
         run: |
           python -u scripts/analyze_ltstdb_zymed_selector_v3_posthoc.py \
-            --ltstdb-dir .cache/physionet/ltstdb \
+            --pn-dir ltstdb/1.0.0 \
             --model validation_reports/incart_mitbih_model_windowed_std_2026-09-09.skops \
             --polarity-threshold-report \
               /tmp/edb-first/2026-09-polarity-thresholds/mitdb_extended_derivation_v3.json \
