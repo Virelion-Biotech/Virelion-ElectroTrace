@@ -20,6 +20,8 @@ permissions:
 jobs:
   benchmark:
     runs-on: ubuntu-latest
+    env:
+      WFDB_TOOLKIT_SOURCE_RELEASE: "10.7.0"
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
