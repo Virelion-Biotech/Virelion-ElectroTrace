@@ -8,11 +8,11 @@ The repository also ships its own Stage-1 and two-stage Random Forest detector, 
 
 ## Current evidence
 
-**Two distinct model generations exist for the two-stage detector and must not be conflated** (see `validation_reports/VALIDATION_STATUS.md` for the full history). The MIT-BIH row below is the `candidate-features-v3` model locked at 1.8.1; no adaptive-polarity MIT-BIH number for the current `candidate-features-v4` (windowed-std) model exists yet (`scripts/evaluate_frozen_model_mitdb.py` produces one without retraining anything).
+**Two distinct model generations exist for the two-stage detector and must not be conflated** (see `validation_reports/VALIDATION_STATUS.md` for the full history). The original locked MIT-BIH row below is the `candidate-features-v3` model from 1.8.1. The current `candidate-features-v4` / windowed-std model now also has explicit MIT-BIH legacy non-regression audits, including the leakage-safe 0.0/0.0 polarity-gate result (F1 0.9644). Those audits do not become clean prospective evidence because MIT-BIH historically informed the adaptive-polarity mechanism.
 
 | Protocol | Detector | Model generation | Records | Sensitivity | PPV | F1 |
 |---|---|---|---:|---:|---:|---:|
-| Locked MIT-BIH held-out | ElectroTrace two-stage | v3 (1.8.1 lock) | 12 | 0.9924 | 0.9879 | 0.9902 |
+| Locked MIT-BIH held-out | ElectroTrace two-stage | v3 (1.8.1 lock) | 12 | 0.9924 | 0.9879 | 0.9902 |\n| MIT-BIH leakage-safe gate audit | ElectroTrace two-stage | v4 (legacy non-regression) | 12 | 0.9390 | 0.9913 | 0.9644 |
 | Locked MIT-BIH held-out | Pan-Tompkins reimplementation | — | 12 | 0.9908 | 0.9954 | 0.9931 |
 | Locked MIT-BIH held-out | Hamilton reimplementation | — | 12 | 0.9990 | 0.9303 | 0.9634 |
 | Locked MIT-BIH held-out | ElectroTrace Stage-1 | — | 12 | 0.9931 | 0.7553 | 0.8580 |
@@ -93,7 +93,7 @@ The two-stage Random Forest is opt-in. New model persistence uses .skops plus a 
 
 A model records its feature schema and training scikit-learn major version. Loading stops when the runtime major version is incompatible or when the .skops file contains unknown serialized types.
 
-The current INCART result is therefore part of the evidence surface: cross-database behavior must be measured instead of inferred from MIT-BIH.
+The current INCART result is therefore part of the evidence surface: cross-database behavior must be measured instead of inferred from MIT-BIH. The research-use policy for unseen domains is documented in `docs/CROSS_DATABASE_POLICY.md`; ElectroTrace does not silently infer that a new database is in-domain or automatically promote the RF path over established reference baselines.
 
 ## Validation philosophy
 
