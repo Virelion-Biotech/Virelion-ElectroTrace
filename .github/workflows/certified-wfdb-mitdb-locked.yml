@@ -30,10 +30,25 @@ jobs:
 
       - name: Install certified WFDB applications
         run: |
+          set -euo pipefail
+          WFDB_VERSION="10.7.0"
           sudo apt-get update
-          sudo apt-get install -y wfdb
+          sudo apt-get install -y --no-install-recommends \
+            build-essential libcurl4-openssl-dev libflac-dev
+          wget -q \
+            "https://github.com/bemoody/wfdb/archive/refs/tags/${WFDB_VERSION}.tar.gz" \
+            -O /tmp/wfdb.tar.gz
+          mkdir -p /tmp/wfdb-src
+          tar -xzf /tmp/wfdb.tar.gz -C /tmp/wfdb-src --strip-components=1
+          cd /tmp/wfdb-src
+          ./configure --prefix=/usr/local
+          make -j2
+          sudo make install
+          sudo ldconfig
+          command -v wfdb-config
           command -v gqrs
           command -v sqrs
+          wfdb-config --version
           gqrs -h 2>&1 | head -40 || true
           sqrs -h 2>&1 | head -40 || true
 
