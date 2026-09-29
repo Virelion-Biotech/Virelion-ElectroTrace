@@ -141,7 +141,7 @@ def test_annotation_window_excludes_nominal_endpoint(monkeypatch, tmp_path):
         ),
     )
     monkeypatch.setattr(
-        sv,
+        ltd,
         "compute_lead_quality",
         lambda *args, **kwargs: (
             np.array([100, 300, 500]),
@@ -269,7 +269,7 @@ def _install_fake_main(monkeypatch, tmp_path, *, fail_record=None):
     derivation.write_text("{}", encoding="utf-8")
     monkeypatch.setattr(ltd, "verify_dataset", lambda root, p: {"RECORDS": "0" * 64})
     monkeypatch.setattr(
-        sv,
+        ltd,
         "_load_polarity_threshold_report",
         lambda path: (
             {
