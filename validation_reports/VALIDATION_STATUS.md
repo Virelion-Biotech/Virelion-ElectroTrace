@@ -40,6 +40,31 @@ Artifacts:
 - mitdb_two_stage_locked_1.8.1.json
 - mitdb_baseline_comparison_locked.json
 
+### Certified WFDB reference binaries on the locked 12-record split
+
+A no-tuning reference-binary benchmark was completed with the WFDB application
+source pinned to release **10.7.0**, channel 0, the same frozen 12-record split,
+the ElectroTrace beat-symbol whitelist, and 75 ms matching.
+
+| Certified detector | Sensitivity | PPV | F1 |
+|---|---:|---:|---:|
+| WFDB gqrs (default threshold 1.00) | **0.9971** | **0.9826** | **0.9898** |
+| WFDB sqrs (default threshold 500) | 0.1970 | 0.1976 | 0.1973 |
+
+The poor default-`sqrs` result is retained as observed; its threshold was not
+tuned on the locked records. These are retrospective reference-binary
+comparisons, not clinical validation or prospective evidence for ElectroTrace
+mechanisms.
+
+Permanent provenance:
+- workflow run: `36605114898`
+- workflow head: `8f960ec41cf80dce3ef8862198ccefacc16f10d1`
+- artifact ID: `11050866718`
+- artifact ZIP digest: `sha256:bca937fb2983407fa3f3e970cdb687dbdcdc27bfb83ae1c44254527a0ca541aa`
+- full result JSON SHA-256: `57a922bfea41a8a5f799d739105d62d46dd91d31a3ca0f63ae0f0986c0da838e`
+- repository archive: `validation_reports/experiments/2026-09-mitdb-certified-wfdb/ARCHIVED_RESULT.json`
+
+
 ## INCART external comparison
 
 Two model generations are present in the immutable validation history and must be kept distinct:
