@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import platform
 import shutil
 import subprocess
@@ -204,6 +205,7 @@ def main() -> None:
         "python": sys.version.split()[0],
         "platform": platform.platform(),
         "wfdb_python_version": getattr(wfdb, "__version__", "unknown"),
+        "wfdb_toolkit_source_release": os.environ.get("WFDB_TOOLKIT_SOURCE_RELEASE", "unknown"),
         "protocol": {
             "dataset": "PhysioNet INCART",
             "database": "incartdb",
