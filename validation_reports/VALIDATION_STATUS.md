@@ -89,7 +89,7 @@ Interpretation: the Phase-3 ablation does not support resampling or robust scali
 
 `scripts/incart_fp_offsets.py` classifies every false positive on the 68-record windowed-std run by its position relative to neighbouring reference beats. 74% sit 150-450 ms after the preceding true beat (the post-QRS T-wave window); approximately 0% are duplicate detections. Stage-2 ranking AUC is 0.998 even on the 13 worst over-detecting records, so the candidate ranking is strong and the remaining error is concentrated in operating-threshold calibration rather than simple ranking failure. These are development-data diagnostics, not held-out test results.
 
-Seven INCART records were previously excluded for a leading negative annotation index. Six repair cleanly under `--annotation-policy drop_edges`; I57 remains excluded pending a second reference-detector check.
+Seven INCART records were historically excluded because each contains one leading invalid beat annotation. A later certified-reference repair audit ran the edge-only `drop_edges` policy on all seven records (`I04 I17 I35 I44 I57 I72 I74`) with both WFDB `gqrs` and `sqrs`. **All 7/7 repairs were independently authorized and no record was excluded**, including I57. Each repair dropped exactly one leading invalid beat; no interior-invalid beat was accepted. The archived audit is `validation_reports/experiments/2026-09-incart-reference-repair/ARCHIVED_RESULT.json` (Actions run `36605115005`, full JSON SHA-256 `3080d71530fd9bf154ca8b9cc7ef68406b4ae8bf3cc6754091682ca1ba7fcc86`).
 
 `scripts/recalibrate_threshold_grouped_cv.py` is the direct follow-up. The corrected workflow fits candidate thresholds **only on the seven MIT-BIH calibration records**, never reads the locked 12-record MIT-BIH held-out split, never uses INCART labels for threshold fitting/model selection, and never retrains the RF. INCART is evaluated only after the candidate threshold is frozen and remains exposed development data. Any candidate threshold still requires a genuinely fresh database before it can be described as externally validated.
 
@@ -351,6 +351,37 @@ Permanent first-run provenance:
 
 The Zymed LTSTDB subset is now exposed development data. It cannot be reused as
 prospective evidence for any selector changed after this run.
+
+
+### Zymed LTSTDB exposed-data fixed-lead comparator
+
+After the immutable prospective selector-v3 run had completed and the Zymed
+subset was exposed, a separate post-hoc comparator re-evaluated fixed channel 0,
+fixed channel 1, the frozen prospective selector v3, and a best-lead oracle.
+The successful main-branch audit reproduced **all 18 archived selected-channel
+decisions, all 18 selected-lead outcome metrics, and all label-free selector
+inputs exactly**. Channel 2 remained unloaded.
+
+| Post-hoc strategy | Sensitivity | PPV | F1 | Macro mean F1 | Min record F1 |
+|---|---:|---:|---:|---:|---:|
+| Fixed channel 0 | 0.8718 | 0.9650 | 0.9160 | 0.9031 | 0.3344 |
+| Fixed channel 1 | 0.9373 | 0.9686 | **0.9527** | 0.9481 | 0.6799 |
+| Prospective selector v3 reproduced | 0.8718 | 0.9650 | 0.9160 | 0.9031 | 0.3344 |
+| Post-hoc oracle best lead | 0.9916 | 0.9842 | **0.9879** | 0.9861 | 0.8798 |
+
+This does **not** alter the prospective conclusion. The frozen selector selected
+channel 0 on 18/18 records because its starvation-rescue condition never fired.
+The stronger post-hoc fixed-channel-1 and oracle results are exposed-data
+hypothesis-generating comparisons only and cannot be used to retroactively claim
+that v3 should have switched.
+
+Permanent post-hoc provenance:
+- workflow run: `36605159238`
+- head commit: `82bd6d13e9eb53e891109c35276a9a55dffe5327`
+- artifact ID: `11051356654`
+- artifact ZIP digest: `sha256:e1e8f94c2d3e730f02895a7c68072e102d3155332f054a682a36bc36a4e0459c`
+- full result JSON SHA-256: `10263d252fa4dcb938b07534ff03ea01db55c6c721c1314787ec9eca39a4c38b`
+- repository archive: `validation_reports/experiments/2026-09-ltstdb-zymed-posthoc/ARCHIVED_RESULT.json`
 
 
 ## QT Database QRS-boundary characterization (2026-09-29)
