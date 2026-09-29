@@ -7,6 +7,12 @@ on:
       - '.github/workflows/incart-invalid-reference-repair-audit.yml'
       - 'scripts/benchmark_certified_wfdb_incart.py'
       - 'src/electrotrace/wfdb_records.py'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/incart-invalid-reference-repair-audit.yml'
+      - 'scripts/benchmark_certified_wfdb_incart.py'
+      - 'src/electrotrace/wfdb_records.py'
 
 permissions:
   contents: read
@@ -14,6 +20,8 @@ permissions:
 jobs:
   audit:
     runs-on: ubuntu-latest
+    env:
+      WFDB_TOOLKIT_SOURCE_RELEASE: "10.7.0"
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
