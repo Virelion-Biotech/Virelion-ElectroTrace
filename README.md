@@ -85,6 +85,13 @@ electrotrace bench .cache/physionet/mitdb --detectors pan-tompkins,hamilton --to
 
 Bench currently operates on local WFDB records. The repository does not vendor PhysioNet data.
 
+The frozen experimental QRS boundary locator has also completed a 105-record QT
+Database tolerance-curve study. Reference-centered joint onset/offset success
+was 0.589 at 20 ms, 0.845 at 40 ms, 0.925 at 60 ms, 0.954 at 80 ms, and 0.994
+at 100 ms, with record-level bootstrap uncertainty. This is delineation
+characterization, not an end-to-end detector or clinical-performance claim;
+see `docs/QTDB_VALIDATION.md` and `docs/QRS_DELINEATION.md`.
+
 The detector plugin interface is already present. The next benchmark phase will add external package adapters and a regenerated multi-database leaderboard rather than a single scalar ranking.
 
 ## Model artifacts
