@@ -149,7 +149,7 @@ def test_annotation_window_excludes_nominal_endpoint(monkeypatch, tmp_path):
             _quality(0.99, 0.5, 0.6),
         ),
     )
-    monkeypatch.setattr(sv, "choose_two_lead_channel_v3", lambda *args, **kwargs: 0)
+    monkeypatch.setattr(ltd, "choose_two_lead_channel_v3", lambda *args, **kwargs: 0)
 
     def fake_rdann(*args, **kwargs):
         assert kwargs == {"sampfrom": 0, "sampto": 230399}
@@ -267,7 +267,7 @@ def _install_fake_main(monkeypatch, tmp_path, *, fail_record=None):
     (tmp_path / "model.skops.json").write_text("{}", encoding="utf-8")
     derivation = tmp_path / "derive.json"
     derivation.write_text("{}", encoding="utf-8")
-    monkeypatch.setattr(sv, "verify_dataset", lambda root, p: {"RECORDS": "0" * 64})
+    monkeypatch.setattr(ltd, "verify_dataset", lambda root, p: {"RECORDS": "0" * 64})
     monkeypatch.setattr(
         sv,
         "_load_polarity_threshold_report",
@@ -276,7 +276,7 @@ def _install_fake_main(monkeypatch, tmp_path, *, fail_record=None):
                 "schema": protocol["detector"]["polarity_threshold_report_schema"],
                 "git_head": "a" * 40,
                 "recommended_thresholds": {
-                    "v3_gate_confidence": 0.0,
+                    "v2_gate_confidence": 0.0,
                     "width_override_confidence": 0.0,
                 },
                 "implementation_hashes": {},
@@ -292,9 +292,9 @@ def _install_fake_main(monkeypatch, tmp_path, *, fail_record=None):
             raise ValueError("synthetic failure")
         return _perfect_result(record)
 
-    monkeypatch.setattr(sv, "evaluate_record", fake_eval)
+    monkeypatch.setattr(ltd, "evaluate_record", fake_eval)
     out = tmp_path / "out.json"
-    monkeypatch.setattr(sv, "OUTPUT_PATH", out)
+    monkeypatch.setattr(ltd, "OUTPUT_PATH", out)
     return model_path, derivation, out, protocol
 
 
