@@ -1,12 +1,9 @@
-import json
-import sys
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
 from electrotrace.lead_quality import LeadQuality
-from electrotrace.validation import match_peaks, RecordValidation
 from scripts import evaluate_ltstdb_zymed_selector_v3_prospective as lt
 
 
