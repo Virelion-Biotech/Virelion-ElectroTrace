@@ -17,6 +17,10 @@ import math
 EDB_DEVELOPMENT_PRIMARY_P50_FLOOR = 0.995
 LEAD_SELECTOR_VERSION = "edb-informed-retained-probability-v1"
 LEAD_SELECTOR_V2_VERSION = "edb-ltafdb-informed-quality-consensus-v2"
+LEAD_SELECTOR_V3_VERSION = "edb-ltafdb-svdb-informed-starvation-rescue-v3"
+STARVATION_PRIMARY_RATE_BPM = 30.0
+STARVATION_ALTERNATE_RATE_BPM = 30.0
+STARVATION_RATE_RATIO = 2.0
 
 
 def _validate_probability(name: str, value: float) -> float:
@@ -109,4 +113,57 @@ def choose_two_lead_channel_v2(
         and alternate_p50 > primary_p50
         and alternate_qrs > primary_qrs
         and alternate_retention > primary_retention
+    )
+
+
+def _validate_nonnegative_finite(name: str, value: float) -> float:
+    value = float(value)
+    if not math.isfinite(value) or value < 0.0:
+        raise ValueError(f"{name} must be finite and >= 0")
+    return value
+
+
+def choose_two_lead_channel_v3(
+    primary_retained_rate_bpm: float,
+    alternate_retained_rate_bpm: float,
+    *,
+    primary_rate_ceiling_bpm: float = STARVATION_PRIMARY_RATE_BPM,
+    alternate_rate_floor_bpm: float = STARVATION_ALTERNATE_RATE_BPM,
+    minimum_rate_ratio: float = STARVATION_RATE_RATIO,
+) -> int:
+    """Return a starvation-rescue lead choice using label-free detected rates.
+
+    Selector v3 was developed only after EDB, LTAFDB, and SVDB were exposed.
+    It preserves channel 0 unless the primary detector output is grossly sparse
+    while channel 1 produces a physiologically plausible and substantially
+    denser stream:
+
+    * primary retained rate < 30 bpm;
+    * alternate retained rate > 30 bpm;
+    * alternate retained rate > 2x primary retained rate.
+
+    The rule is intentionally narrow. It sacrifices smaller post-hoc gains to
+    avoid opportunistic lead switching when the primary lead already produces a
+    plausible beat stream. Reference annotations are not accepted or required.
+    """
+    primary = _validate_nonnegative_finite(
+        "primary_retained_rate_bpm", primary_retained_rate_bpm
+    )
+    alternate = _validate_nonnegative_finite(
+        "alternate_retained_rate_bpm", alternate_retained_rate_bpm
+    )
+    primary_ceiling = _validate_nonnegative_finite(
+        "primary_rate_ceiling_bpm", primary_rate_ceiling_bpm
+    )
+    alternate_floor = _validate_nonnegative_finite(
+        "alternate_rate_floor_bpm", alternate_rate_floor_bpm
+    )
+    ratio = _validate_nonnegative_finite("minimum_rate_ratio", minimum_rate_ratio)
+    if ratio <= 1.0:
+        raise ValueError("minimum_rate_ratio must be > 1")
+
+    return int(
+        primary < primary_ceiling
+        and alternate > alternate_floor
+        and alternate > ratio * primary
     )
