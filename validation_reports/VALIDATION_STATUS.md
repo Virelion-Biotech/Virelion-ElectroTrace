@@ -327,6 +327,53 @@ Permanent first-run provenance:
 The Zymed LTSTDB subset is now exposed development data. It cannot be reused as
 prospective evidence for any selector changed after this run.
 
+
+## QT Database QRS-boundary characterization (2026-09-29)
+
+The frozen `qrs-edge-energy-v1` signal-only boundary locator completed the
+prespecified QT Database v1.0.0 tolerance-curve study on **105/105 records**
+with no primary exclusions. The primary endpoint intentionally supplies the
+midpoint of each manual `.q1c` QRS onset/offset pair as the center so that
+boundary localization is measured separately from R-peak event detection.
+There were **3,623** manual QRS pairs; onset and offset searches reported a
+boundary on all 3,623.
+
+Primary reference-centered success fractions:
+
+| Tolerance | Onset | Offset | Both boundaries | 95% record-bootstrap interval for both |
+|---:|---:|---:|---:|---:|
+| 20 ms | 0.8029 | 0.6969 | **0.5893** | 0.5169–0.6660 |
+| 40 ms | 0.9246 | 0.8802 | **0.8454** | 0.7852–0.9009 |
+| 60 ms | 0.9520 | 0.9431 | **0.9249** | 0.8762–0.9683 |
+| 80 ms | 0.9661 | 0.9685 | **0.9542** | 0.9177–0.9879 |
+| 100 ms | 0.9967 | 0.9970 | **0.9945** | 0.9866–1.0000 |
+
+The 11 records with independent `.q2c` annotations provided a confirmatory
+inter-observer reference. Among 404 matched observer-2 QRS events, joint
+onset+offset agreement was 0.7698 at 20 ms, 0.9629 at 40 ms, 0.9950 at 60 ms,
+and 0.9975 at both 80 and 100 ms. Observer-event coverage was 404/487 relative
+to q1c and 404/404 relative to q2c under the frozen 75 ms center-matching rule.
+
+The secondary end-to-end path deliberately used the frozen raw Stage-1 detector,
+not the two-stage suppressor. It matched 3,591/3,623 manual QRS events
+(sensitivity **0.9912**) but emitted 172,505 detections, for PPV **0.0208**.
+QTDB marks selected beats for waveform delineation rather than every ECG beat,
+so this low PPV must not be interpreted as a conventional full-beat detector
+benchmark. Conditional joint-boundary success among the 3,591 matched events
+rose from 0.5937 at 20 ms to 0.9669 at 100 ms.
+
+Permanent provenance:
+- workflow run: `36592730416`
+- head commit: `e8b8331e5f0e604f7f4869c4d2d6dbf23e312f14`
+- artifact ID: `11044358209` (`electrotrace-qtdb-qrs-delineation-tolerance-curve`)
+- artifact ZIP digest: `sha256:ecdebd6acfffc06396246b5144d4ebaaa4dc0483e433e9c1f3f8c2068297ae55`
+- result JSON SHA-256: `e7c827b2df1cf808c9ccf717dcc54153d1bd425898e4c75576f4e38326cadb94`
+- frozen protocol SHA-256: `745ef90cfe20400ff4355d3546acf0980d45b7a1c5279ac4e65b03755fae3dd1`
+
+This is confirmatory algorithmic characterization of QRS boundary localization,
+not clinical validation, and QTDB's mixed source provenance does not make it a
+fresh institutionally independent R-peak generalization cohort.
+
 ## Model artifact policy
 
 The two legacy pickle model files are removed from the current source tree. Historical JSON artifacts may still mention their original paths because those reports are immutable provenance records.
