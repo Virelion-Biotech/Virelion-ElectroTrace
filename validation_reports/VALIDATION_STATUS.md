@@ -175,6 +175,92 @@ Permanent first-run provenance:
 EDB is now exposed for this project. Any EDB-motivated model/protocol change
 must use a different untouched database for the next prospective evaluation.
 
+## Multi-lead selector development and prospective transfer (2026-09-28 to 2026-09-29)
+
+The first prospective EDB run exposed a small but severe fixed-channel failure
+tail. Post-hoc EDB diagnostics showed that the catastrophic records generally
+had abundant Stage-1 candidates on channel 0 but candidates aligned to the
+wrong deflections; channel 1 post-hoc rescued the 11 records below F1 0.80.
+EDB became exposed development data at that point.
+
+### Selector v1: EDB-informed retained-probability fallback
+
+Selector v1 (`edb-informed-retained-probability-v1`) preserved channel 0
+unless channel-0 median retained Stage-2 probability was below 0.995 and
+channel 1 had a higher median. It was prospectively evaluated on the first
+30 minutes of all 84 Long-Term AF Database records before LTAFDB was exposed.
+
+Prospective LTAFDB result:
+
+| Records | Sensitivity | PPV | F1 | Macro mean F1 | Macro median F1 |
+|---:|---:|---:|---:|---:|---:|
+| 84 | 0.9551 | 0.9021 | **0.9279** | 0.9180 | 0.9755 |
+
+Channel 1 was selected on 4/84 records. The immutable first-run result SHA-256
+is `72ecf37dba63c4fd0c5771710f08961c5283ea11ef9461d7ed72dcc52b3fe1fd`
+(Actions run `36463413708`).
+
+A post-hoc comparator showed that selector v1 only slightly improved aggregate
+F1 over fixed channel 0 (0.9279 vs 0.9266). Two of four switches helped
+(records 105 and 203), while two hurt (45 and 53); record 53 dropped from
+F1 0.5257 on channel 0 to 0.1695 on the selected channel. LTAFDB is therefore
+exposed development data, and selector v1 should not be described as a robustly
+validated general lead selector.
+
+### Selector v2: EDB+LTAFDB-informed quality consensus
+
+Selector v2 (`edb-ltafdb-informed-quality-consensus-v2`) was frozen after
+EDB and LTAFDB were exposed. It retained the v1 p50 gate and required channel 1
+also to have higher retained QRS-band fraction and higher Stage-2 retention
+fraction. The exact rule was preregistered before any SVDB outcome was
+inspected.
+
+The first two SVDB executions aborted before completion on annotation-window
+boundary handling. Neither produced a result artifact or exposed
+sensitivity/PPV/F1. After correcting WFDB's inclusive annotation-`sampto`
+plumbing without changing the scientific protocol, the first completed run
+scored all 78 canonical SVDB records.
+
+Prospective SVDB selector-v2 result:
+
+| Records | Sensitivity | PPV | F1 | Macro mean F1 | Macro median F1 |
+|---:|---:|---:|---:|---:|---:|
+| 78 | **0.9680** | **0.9878** | **0.9778** | **0.9752** | **0.9962** |
+
+Counts were 184,581 reference beats, 178,678 TP, 2,206 FP and 5,903 FN.
+Channel 0 was selected on 66/78 records and channel 1 on 12/78. Minimum
+record F1 was 0.6124. The immutable first-run JSON SHA-256 is
+`6e02fe1c2591fb2789e82eaac5bd5087e52a7f477bba20d5ad94fc63b6dd916f`
+(Actions run `36501118072`, commit
+`f1784519f720ddcb9c877db490e80655752f8068`, artifact ID
+`11005980780`).
+
+Post-hoc fixed-lead comparison reproduced all 78 archived selected channels,
+quality inputs and selected-lead metrics before comparison:
+
+| Strategy | Sensitivity | PPV | F1 | Macro mean F1 | Min record F1 |
+|---|---:|---:|---:|---:|---:|
+| Fixed channel 0 | 0.9050 | 0.9892 | 0.9452 | 0.9278 | 0.0489 |
+| Fixed channel 1 | 0.6945 | 0.9280 | 0.7945 | 0.7315 | 0.0022 |
+| Prospective selector v2 | **0.9680** | 0.9878 | **0.9778** | **0.9752** | 0.6124 |
+| Post-hoc oracle best lead | 0.9802 | 0.9934 | 0.9868 | 0.9849 | 0.6480 |
+
+Ten of the 12 prospective channel-1 switches improved record F1. Two
+regressed: record 862 by 0.0023 F1 and record 801 substantially, from
+channel-0 F1 0.9845 to selected-channel F1 0.6124. Thus selector v2 provides
+strong prospective aggregate transfer but is not a perfect record-level
+lead-quality oracle and should not be silently retuned on SVDB.
+
+The post-hoc comparator JSON SHA-256 is
+`94aa1cf8ac3b749133743b5977e099347933f016cf5696828c8e18f3c1a64cad`
+(Actions run `36501839556`, artifact ID `11005747805`).
+
+SVDB is now exposed. It is an untouched record set for the v2 prospective
+evaluation, but belongs to the same broader MIT-BIH/Beth Israel ecosystem; this
+is not a fully institutionally independent clinical-validation cohort. Any
+selector v3 informed by SVDB requires another untouched record set for
+prospective evaluation.
+
 ## Model artifact policy
 
 The two legacy pickle model files are removed from the current source tree. Historical JSON artifacts may still mention their original paths because those reports are immutable provenance records.
