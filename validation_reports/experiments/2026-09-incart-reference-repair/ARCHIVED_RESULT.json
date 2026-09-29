@@ -1,0 +1,81 @@
+{
+  "schema": "electrotrace.incart_reference_repair_audit_archive/v1",
+  "archived_at_utc": "2026-09-29",
+  "source_workflow": {
+    "run_id": 36605115005,
+    "branch_head_sha": "8f960ec41cf80dce3ef8862198ccefacc16f10d1",
+    "executed_checkout_sha": "522f00717919c170185a521fa11f8f5f6f726f94",
+    "artifact_id": 11050812178,
+    "artifact_name": "electrotrace-incart-invalid-reference-repair-audit",
+    "artifact_zip_digest": "sha256:eefb7c424fa19d69e94bc03e4018bea7da29df13f2c083b97129c5a6d2d8fe8c",
+    "result_json_sha256": "3080d71530fd9bf154ca8b9cc7ef68406b4ae8bf3cc6754091682ca1ba7fcc86"
+  },
+  "protocol": {
+    "records": [
+      "I04",
+      "I17",
+      "I35",
+      "I44",
+      "I57",
+      "I72",
+      "I74"
+    ],
+    "annotation_policy": "drop_edges",
+    "channel": 0,
+    "tolerance_ms": 75,
+    "wfdb_toolkit_source_release": "10.7.0"
+  },
+  "results": {
+    "gqrs": {
+      "records": 7,
+      "skipped": 0,
+      "sensitivity": 0.9799517043859156,
+      "positive_predictive_value": 0.9705228031145717,
+      "f1": 0.9752144633526141
+    },
+    "sqrs": {
+      "records": 7,
+      "skipped": 0,
+      "sensitivity": 0.8754983995058123,
+      "positive_predictive_value": 0.9726121404953522,
+      "f1": 0.9215037238444261
+    }
+  },
+  "repair_audit": {
+    "records_repaired": 7,
+    "records_excluded": 0,
+    "dropped_annotations_per_record": 1,
+    "records": [
+      "I04",
+      "I17",
+      "I35",
+      "I44",
+      "I57",
+      "I72",
+      "I74"
+    ],
+    "gqrs_alignment_coverage": {
+      "I04": 0.9954601733388362,
+      "I17": 0.9629186602870813,
+      "I35": 0.9877551020408163,
+      "I44": 1,
+      "I57": 0.9968641114982578,
+      "I72": 0.9012780960775673,
+      "I74": 0.997504159733777
+    },
+    "sqrs_alignment_coverage": {
+      "I04": 0.9273627734213784,
+      "I17": 0.5849282296650717,
+      "I35": 0.8340136054421768,
+      "I44": 0.9767441860465116,
+      "I57": 0.9853658536585366,
+      "I72": 0.757602468047598,
+      "I74": 0.9638103161397671
+    }
+  },
+  "interpretation": [
+    "All seven historically excluded INCART records contain a single invalid edge annotation and pass the audited edge-only repair policy.",
+    "I57 is independently supported by both certified WFDB detectors and is no longer a pending reference-integrity exclusion.",
+    "This audit authorizes source-reference repair; it does not itself establish ElectroTrace detector performance on the complete 75-record cohort."
+  ]
+}
