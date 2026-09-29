@@ -1,0 +1,110 @@
+{
+  "schema": "electrotrace.qtdb_qrs_delineation_protocol/v1",
+  "protocol_id": "qtdb-qrs-delineation-tolerance-curve-v1-2026-09-29",
+  "issue": "https://github.com/Virelion-Biotech/Virelion-ElectroTrace/issues/15",
+  "evidence_status": "confirmatory_external_delineation_characterization",
+  "dataset": {
+    "name": "QT Database",
+    "physionet_database": "qtdb",
+    "version": "1.0.0",
+    "expected_records": 105,
+    "signal_channel": 0,
+    "primary_manual_annotation": "q1c",
+    "expected_primary_manual_records": 105,
+    "interobserver_manual_annotation": "q2c",
+    "expected_interobserver_records": 11
+  },
+  "delineator": {
+    "version": "qrs-edge-energy-v1",
+    "parameters": {
+      "search_s": 0.16,
+      "low_hz": 5,
+      "high_hz": 25,
+      "smooth_s": 0.012,
+      "envelope_threshold": 0.15,
+      "amplitude_threshold": 0.1,
+      "sustained_samples": 3
+    },
+    "annotation_tuning": false
+  },
+  "primary_endpoint": {
+    "name": "reference_centered_joint_qrs_boundary_tolerance_curve",
+    "description": "Delineate around the midpoint of each q1c manual QRS onset/offset pair so boundary localization is assessed separately from R-peak detection.",
+    "tolerances_ms": [
+      20,
+      40,
+      60,
+      80,
+      100
+    ],
+    "criteria": [
+      "onset",
+      "offset",
+      "both"
+    ],
+    "metric": "success_fraction",
+    "annotator": "q1c"
+  },
+  "secondary_end_to_end": {
+    "detector": "electrotrace.validation_detectors:detect_r_peaks",
+    "detector_kwargs": {
+      "polarity": "adaptive",
+      "scale_method": "windowed_std"
+    },
+    "event_match_tolerance_ms": 75,
+    "annotator": "q1c",
+    "metrics": [
+      "event_sensitivity",
+      "event_positive_predictive_value",
+      "conditional_boundary_success_fraction",
+      "end_to_end_boundary_sensitivity",
+      "end_to_end_boundary_positive_predictive_value"
+    ],
+    "tolerances_ms": [
+      20,
+      40,
+      60,
+      80,
+      100
+    ]
+  },
+  "confirmatory_interobserver": {
+    "annotators": [
+      "q1c",
+      "q2c"
+    ],
+    "event_match_tolerance_ms": 75,
+    "tolerances_ms": [
+      20,
+      40,
+      60,
+      80,
+      100
+    ],
+    "criteria": [
+      "onset",
+      "offset",
+      "both"
+    ]
+  },
+  "uncertainty": {
+    "bootstrap_unit": "record",
+    "bootstrap_replicates": 2000,
+    "seed": 42,
+    "interval_percent": [
+      2.5,
+      97.5
+    ]
+  },
+  "exclusions": {
+    "allowed_primary_records": 0,
+    "policy": "Fail closed if the exact 105-record cohort or required q1c files are incomplete or any manual QRS boundary stream is malformed. q2c is required on exactly 11 records."
+  },
+  "nonclaims": [
+    "not clinical validation",
+    "not regulatory validation",
+    "not a fresh R-peak generalization cohort",
+    "QTDB includes excerpts from other source databases",
+    "primary reference-centered analysis isolates delineation and is not end-to-end detection performance"
+  ]
+}
