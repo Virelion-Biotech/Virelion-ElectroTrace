@@ -24,13 +24,28 @@ jobs:
 
       - name: Install runtime and certified WFDB tools
         run: |
+          set -euo pipefail
+          WFDB_VERSION="10.7.0"
           python -m pip install --upgrade pip
           python -m pip install -e .
           python -m pip install "numpy==2.1.3" "wfdb==4.3.1"
           sudo apt-get update
-          sudo apt-get install -y wfdb
+          sudo apt-get install -y --no-install-recommends \
+            build-essential libcurl4-openssl-dev libflac-dev
+          wget -q \
+            "https://github.com/bemoody/wfdb/archive/refs/tags/${WFDB_VERSION}.tar.gz" \
+            -O /tmp/wfdb.tar.gz
+          mkdir -p /tmp/wfdb-src
+          tar -xzf /tmp/wfdb.tar.gz -C /tmp/wfdb-src --strip-components=1
+          cd /tmp/wfdb-src
+          ./configure --prefix=/usr/local
+          make -j2
+          sudo make install
+          sudo ldconfig
+          command -v wfdb-config
           command -v gqrs
           command -v sqrs
+          wfdb-config --version
 
       - name: Download only the seven historically malformed INCART records
         run: |
