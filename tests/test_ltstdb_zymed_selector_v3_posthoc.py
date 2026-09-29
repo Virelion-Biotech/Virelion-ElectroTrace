@@ -81,3 +81,30 @@ def test_assert_selected_metrics_rejects_drift():
     archived["false_positive"] = 1
     with pytest.raises(SystemExit, match="does not reproduce archived"):
         audit._assert_selected_metrics("s30661", metrics, archived)
+
+
+def test_remote_retry_recovers_transient_failure(monkeypatch):
+    calls = {"n": 0}
+    sleeps = []
+
+    def flaky():
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise RuntimeError("temporary 502")
+        return "ok"
+
+    monkeypatch.setattr(audit.time, "sleep", sleeps.append)
+
+    assert audit._call_with_retry(flaky, attempts=4, base_delay_s=0.5) == "ok"
+    assert calls["n"] == 3
+    assert sleeps == [0.5, 1.0]
+
+
+def test_remote_retry_reraises_last_failure(monkeypatch):
+    monkeypatch.setattr(audit.time, "sleep", lambda _: None)
+
+    def broken():
+        raise RuntimeError("persistent failure")
+
+    with pytest.raises(RuntimeError, match="persistent failure"):
+        audit._call_with_retry(broken, attempts=2, base_delay_s=0)
