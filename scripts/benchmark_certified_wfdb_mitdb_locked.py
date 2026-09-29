@@ -90,7 +90,8 @@ def validate_locked_inputs(data_dir: Path) -> None:
 
 def run_detector(executable: str, record_base: Path) -> np.ndarray:
     completed = subprocess.run(
-        [executable, "-r", str(record_base), "-s", "0"],
+        [executable, "-r", record_base.name, "-s", "0"],
+        cwd=record_base.parent,
         text=True,
         capture_output=True,
         check=False,
