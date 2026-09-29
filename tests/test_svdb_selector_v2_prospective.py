@@ -106,6 +106,48 @@ def test_reference_filter_allows_nonbeat_endpoint_marker_but_not_endpoint_beat()
     with pytest.raises(ValueError, match="reference beat samples fall outside"):
         sv._reference_from_annotation(bad, symbols, 230400)
 
+def test_annotation_window_excludes_nominal_endpoint(monkeypatch, tmp_path):
+    protocol = sv.load_locked_protocol()
+    model = _Model(protocol)
+    signal = np.zeros((230400, 2), dtype=float)
+
+    monkeypatch.setattr(
+        sv.wfdb,
+        "rdrecord",
+        lambda *args, **kwargs: SimpleNamespace(
+            fs=128.0, p_signal=signal, sig_name=["ECG1", "ECG2"]
+        ),
+    )
+    monkeypatch.setattr(
+        sv,
+        "compute_lead_quality",
+        lambda *args, **kwargs: (
+            np.array([100, 300, 500]),
+            np.array([0.9, 0.95, 0.99]),
+            _quality(0.99, 0.5, 0.6),
+        ),
+    )
+    monkeypatch.setattr(sv, "choose_two_lead_channel_v2", lambda *args, **kwargs: 0)
+
+    def fake_rdann(*args, **kwargs):
+        assert kwargs == {"sampfrom": 0, "sampto": 230399}
+        return SimpleNamespace(
+            sample=np.array([100, 300, 500]),
+            symbol=["N", "N", "N"],
+        )
+
+    monkeypatch.setattr(sv.wfdb, "rdann", fake_rdann)
+    result, _, _ = sv.evaluate_record(
+        tmp_path,
+        "860",
+        protocol=protocol,
+        model=model,
+        v2_gate=0.0,
+        width_gate=0.0,
+    )
+    assert result.metrics.f1 == pytest.approx(1.0)
+
+
 def test_evaluate_record_selects_v2_before_annotation_load(monkeypatch, tmp_path):
     protocol = sv.load_locked_protocol()
     model = _Model(protocol)
@@ -137,6 +179,8 @@ def test_evaluate_record_selects_v2_before_annotation_load(monkeypatch, tmp_path
 
     def fake_rdann(*args, **kwargs):
         events.append("annotation")
+        assert kwargs["sampfrom"] == 0
+        assert kwargs["sampto"] == 230399
         return SimpleNamespace(
             sample=np.array([100, 300, 500]),
             symbol=["N", "N", "N"],
