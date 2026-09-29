@@ -66,8 +66,23 @@ Interpretation: the Phase-3 ablation does not support resampling or robust scali
 
 Seven INCART records were previously excluded for a leading negative annotation index. Six repair cleanly under `--annotation-policy drop_edges`; I57 remains excluded pending a second reference-detector check.
 
-`scripts/recalibrate_threshold_grouped_cv.py` is the direct follow-up. It performs record-grouped cross-validation across the MIT-BIH calibration records plus INCART, never reads the locked 12-record MIT-BIH held-out split, and never retrains the RF. It reports both an out-of-fold threshold estimate and a full-pool deployment-candidate threshold; neither is validated until tested on a genuinely fresh database.
+`scripts/recalibrate_threshold_grouped_cv.py` is the direct follow-up. The corrected workflow fits candidate thresholds **only on the seven MIT-BIH calibration records**, never reads the locked 12-record MIT-BIH held-out split, never uses INCART labels for threshold fitting/model selection, and never retrains the RF. INCART is evaluated only after the candidate threshold is frozen and remains exposed development data. Any candidate threshold still requires a genuinely fresh database before it can be described as externally validated.
 
+
+### Cross-database research-use policy
+
+The RF suppressor must not be assumed to transfer to an unseen database merely
+because the input is ECG. ElectroTrace currently has no validated automatic
+out-of-domain classifier, so it does not silently infer that a recording is
+in-domain. On an unvalidated domain, the RF path remains experimental and
+should be run alongside an established/reference baseline when comparative
+reliability matters. Database-specific calibration or adaptation must use a
+declared development partition and be frozen before separate held-out or
+untouched external evaluation. Development-data gains on INCART remain
+development evidence and cannot be relabeled as external validation.
+
+The full policy and supporting artifacts are in
+`docs/CROSS_DATABASE_POLICY.md`.
 
 ### Phase-5 consolidated validation (2026-09-27)
 
