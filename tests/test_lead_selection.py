@@ -5,9 +5,15 @@ import pytest
 from electrotrace.lead_selection import (
     EDB_DEVELOPMENT_PRIMARY_P50_FLOOR,
     LEAD_SELECTOR_V2_VERSION,
+    LEAD_SELECTOR_V3_VERSION,
     LEAD_SELECTOR_VERSION,
+    STARVATION_ALTERNATE_MIN_RATE_BPM,
+    STARVATION_ALTERNATE_MIN_RATE_RATIO,
+    STARVATION_PRIMARY_MAX_RATE_BPM,
+    STARVATION_PRIMARY_MAX_RETENTION,
     choose_two_lead_channel,
     choose_two_lead_channel_v2,
+    choose_two_lead_channel_v3,
 )
 
 
@@ -88,3 +94,71 @@ def test_v2_rejects_invalid_label_free_inputs(bad):
         changed[index] = bad
         with pytest.raises(ValueError):
             choose_two_lead_channel_v2(*changed)
+
+
+def test_v3_version_and_thresholds_are_frozen():
+    assert LEAD_SELECTOR_V3_VERSION == "edb-ltafdb-svdb-informed-starvation-rescue-v3"
+    assert STARVATION_PRIMARY_MAX_RATE_BPM == pytest.approx(30.0)
+    assert STARVATION_PRIMARY_MAX_RETENTION == pytest.approx(0.30)
+    assert STARVATION_ALTERNATE_MIN_RATE_BPM == pytest.approx(30.0)
+    assert STARVATION_ALTERNATE_MIN_RATE_RATIO == pytest.approx(2.0)
+
+
+def test_v3_switches_only_for_detector_starvation_rescue():
+    assert choose_two_lead_channel_v3(
+        10.0, 70.0, 0.10, 0.70, 0.90, 0.99
+    ) == 1
+
+    # A normal-rate primary is never replaced merely because channel 1 looks better.
+    assert choose_two_lead_channel_v3(
+        70.0, 80.0, 0.20, 0.80, 0.80, 0.99
+    ) == 0
+    # Low absolute rate without low retention is not considered starvation.
+    assert choose_two_lead_channel_v3(
+        20.0, 80.0, 0.50, 0.80, 0.80, 0.99
+    ) == 0
+    # Alternate must be both plausibly dense and more than twice the primary.
+    assert choose_two_lead_channel_v3(
+        20.0, 30.0, 0.10, 0.80, 0.80, 0.99
+    ) == 0
+    assert choose_two_lead_channel_v3(
+        20.0, 40.0, 0.10, 0.80, 0.80, 0.99
+    ) == 0
+    # Alternate confidence/retention must improve.
+    assert choose_two_lead_channel_v3(
+        10.0, 70.0, 0.10, 0.70, 0.99, 0.98
+    ) == 0
+    assert choose_two_lead_channel_v3(
+        10.0, 70.0, 0.10, 0.09, 0.80, 0.99
+    ) == 0
+
+
+@pytest.mark.parametrize("bad", [-1.0, math.nan, math.inf, -math.inf])
+def test_v3_rejects_invalid_rates(bad):
+    with pytest.raises(ValueError):
+        choose_two_lead_channel_v3(bad, 70.0, 0.1, 0.8, 0.8, 0.99)
+    with pytest.raises(ValueError):
+        choose_two_lead_channel_v3(10.0, bad, 0.1, 0.8, 0.8, 0.99)
+
+
+@pytest.mark.parametrize("bad", [-0.01, 1.01, math.nan, math.inf, -math.inf])
+def test_v3_rejects_invalid_probability_or_fraction_inputs(bad):
+    args = [10.0, 70.0, 0.1, 0.8, 0.8, 0.99]
+    for index in (2, 3, 4, 5):
+        changed = list(args)
+        changed[index] = bad
+        with pytest.raises(ValueError):
+            choose_two_lead_channel_v3(*changed)
+
+
+def test_v3_rejects_non_rescue_rate_ratio():
+    with pytest.raises(ValueError, match="must be > 1"):
+        choose_two_lead_channel_v3(
+            10.0,
+            70.0,
+            0.1,
+            0.8,
+            0.8,
+            0.99,
+            alternate_min_rate_ratio=1.0,
+        )
