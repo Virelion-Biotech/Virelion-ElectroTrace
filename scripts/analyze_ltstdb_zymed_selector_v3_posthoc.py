@@ -2,8 +2,9 @@
 """Post-hoc fixed-lead comparator audit for exposed Zymed LTSTDB selector-v3.
 
 This script is development-only and must only be used after the immutable first
-prospective selector-v3 artifact exists. It reproduces every archived selected
-lead, selector input, and selected-lead metric before reporting fixed-channel
+prospective selector-v3 artifact exists. It requires the archived selected
+channel and selected-lead metrics to reproduce exactly, while recording any
+cross-run drift in label-free selector inputs before reporting fixed-channel
 and oracle comparators.
 """
 from __future__ import annotations
@@ -80,7 +81,8 @@ def _summary(records: list[RecordValidation]) -> dict:
     return out
 
 
-def _assert_quality(record: str, channel: int, actual: dict, archived: dict) -> None:
+def _quality_differences(actual: dict, archived: dict) -> list[dict]:
+    differences: list[dict] = []
     for key in (
         "retained_probability_p50",
         "retained_qrs_band_fraction",
@@ -98,11 +100,16 @@ def _assert_quality(record: str, channel: int, actual: dict, archived: dict) -> 
             same = int(got) == int(expected)
         else:
             same = _same_number(got, expected)
-        if not same:
-            raise SystemExit(
-                f"{record}: channel {channel} quality {key}={got!r} "
-                f"does not reproduce archived {expected!r}"
-            )
+        if same:
+            continue
+        item = {"field": key, "actual": got, "archived": expected}
+        if not isinstance(expected, str):
+            try:
+                item["absolute_difference"] = abs(float(got) - float(expected))
+            except (TypeError, ValueError):
+                pass
+        differences.append(item)
+    return differences
 
 
 def _assert_selected_metrics(record: str, actual, archived: dict) -> None:
@@ -127,7 +134,12 @@ def _assert_selected_metrics(record: str, actual, archived: dict) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--ltstdb-dir", type=Path, required=True)
+    source = ap.add_mutually_exclusive_group(required=True)
+    source.add_argument("--ltstdb-dir", type=Path)
+    source.add_argument(
+        "--pn-dir",
+        help="PhysioNet directory for bounded remote streaming, e.g. ltstdb/1.0.0",
+    )
     ap.add_argument("--model", type=Path, required=True)
     ap.add_argument("--polarity-threshold-report", type=Path, required=True)
     ap.add_argument("--first-run-report", type=Path, required=True)
@@ -169,14 +181,18 @@ def main() -> int:
     selected_results: list[RecordValidation] = []
     oracle_results: list[RecordValidation] = []
     rows = []
+    input_drift_records = []
 
     for i, record in enumerate(records, start=1):
+        record_name = str(args.ltstdb_dir / record) if args.ltstdb_dir else record
+        remote_kwargs = {} if args.ltstdb_dir else {"pn_dir": str(args.pn_dir)}
         rec = wfdb.rdrecord(
-            str(args.ltstdb_dir / record),
+            record_name,
             sampfrom=start,
             sampto=stop,
             channels=[0, 1],
             physical=True,
+            **remote_kwargs,
         )
         if not _same_number(rec.fs, fs):
             raise SystemExit(f"{record}: unexpected sampling frequency {rec.fs}")
@@ -211,10 +227,11 @@ def main() -> int:
         )
 
         annotation = wfdb.rdann(
-            str(args.ltstdb_dir / record),
+            record_name,
             str(detector["annotation_extension"]),
             sampfrom=start,
             sampto=stop - 1,
+            **remote_kwargs,
         )
         reference, _ = _prospective._sv._reference_from_annotation(
             annotation, beat_symbols, stop - start
@@ -230,12 +247,44 @@ def main() -> int:
                 f"{record}: recomputed selector chose {selected}, "
                 f"archived chose {archived['selected_channel']}"
             )
-        if not _same_number(rates[0], archived["channel0_retained_rate_bpm"]):
-            raise SystemExit(f"{record}: channel-0 retained rate drift")
-        if not _same_number(rates[1], archived["channel1_retained_rate_bpm"]):
-            raise SystemExit(f"{record}: channel-1 retained rate drift")
-        _assert_quality(record, 0, qualities[0].to_dict(), archived["channel0_quality"])
-        _assert_quality(record, 1, qualities[1].to_dict(), archived["channel1_quality"])
+        record_drift = {
+            "record": record,
+            "archived_selected_channel": int(archived["selected_channel"]),
+            "channels": [],
+        }
+        for ch in (0, 1):
+            channel_drift = []
+            archived_rate = archived[f"channel{ch}_retained_rate_bpm"]
+            if not _same_number(rates[ch], archived_rate):
+                channel_drift.append(
+                    {
+                        "field": "retained_rate_bpm",
+                        "actual": rates[ch],
+                        "archived": archived_rate,
+                        "absolute_difference": abs(float(rates[ch]) - float(archived_rate)),
+                    }
+                )
+            channel_drift.extend(
+                _quality_differences(
+                    qualities[ch].to_dict(),
+                    archived[f"channel{ch}_quality"],
+                )
+            )
+            if channel_drift:
+                record_drift["channels"].append(
+                    {
+                        "channel": ch,
+                        "was_archived_selected_channel": ch == int(archived["selected_channel"]),
+                        "differences": channel_drift,
+                    }
+                )
+        if record_drift["channels"]:
+            input_drift_records.append(record_drift)
+
+        # The prospective scientific result is the selected channel and its scored
+        # metrics. These remain strict invariants. Label-free feature/probability
+        # values from the exposed alternate path are audited, not silently treated
+        # as bitwise-portable across separate executions.
         _assert_selected_metrics(record, metrics[selected], archived)
 
         oracle = 1 if metrics[1].f1 > metrics[0].f1 else 0
@@ -258,6 +307,7 @@ def main() -> int:
                 "channel0": metrics[0].to_dict(),
                 "channel1": metrics[1].to_dict(),
                 "selected": metrics[selected].to_dict(),
+                "archived_label_free_input_drift": record_drift["channels"],
                 "selected_minus_channel0_f1": float(
                     metrics[selected].f1 - metrics[0].f1
                 ),
@@ -266,7 +316,12 @@ def main() -> int:
                 ),
             }
         )
-        print(f"[{i:02d}/18] {record}: reproduced", flush=True)
+        drift_count = sum(len(ch["differences"]) for ch in record_drift["channels"])
+        print(
+            f"[{i:02d}/18] {record}: selected result reproduced; "
+            f"label-free input drift fields={drift_count}",
+            flush=True,
+        )
 
     switched = [r for r in rows if r["selected_channel"] == 1]
     improved = [r for r in switched if r["selected_minus_channel0_f1"] > 1e-12]
@@ -282,6 +337,11 @@ def main() -> int:
             "run. This audit cannot alter or replace that result."
         ),
         "inputs": {
+            "data_source": (
+                {"mode": "local", "path": str(args.ltstdb_dir)}
+                if args.ltstdb_dir
+                else {"mode": "physionet_remote_bounded", "pn_dir": str(args.pn_dir)}
+            ),
             "first_run_report": str(args.first_run_report),
             "first_run_sha256": _prospective._sv.sha256_file(args.first_run_report),
             "model": str(args.model),
@@ -292,8 +352,17 @@ def main() -> int:
             ),
         },
         "reproduction": {
+            "all_18_archived_selected_channel_decisions_reproduced": True,
             "all_18_archived_selected_lead_results_reproduced": True,
-            "selected_channel_rate_and_quality_inputs_reproduced": True,
+            "label_free_input_bitwise_equivalence": len(input_drift_records) == 0,
+            "label_free_input_drift_record_count": len(input_drift_records),
+            "label_free_input_drift_records": input_drift_records,
+            "interpretation": (
+                "Selected channel decisions and selected-lead outcome metrics are strict "
+                "reproduction invariants. Any cross-run drift in label-free channel inputs "
+                "is retained explicitly because this is exposed-data post-hoc analysis, "
+                "not a replacement prospective result."
+            ),
             "channel2_loaded": False,
         },
         "summaries": {

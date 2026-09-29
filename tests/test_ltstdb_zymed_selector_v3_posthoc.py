@@ -34,7 +34,7 @@ def test_load_first_run_requires_complete_label_free_prospective_artifact(tmp_pa
         audit.load_first_run(p)
 
 
-def test_assert_quality_accepts_exact_reproduction():
+def test_quality_differences_empty_for_exact_reproduction():
     archived = {
         "retained_probability_p50": 0.9,
         "retained_qrs_band_fraction": 0.6,
@@ -44,10 +44,10 @@ def test_assert_quality_accepts_exact_reproduction():
         "selected_polarity": "positive",
         "polarity_confidence": 0.8,
     }
-    audit._assert_quality("s30661", 0, dict(archived), archived)
+    assert audit._quality_differences(dict(archived), archived) == []
 
 
-def test_assert_quality_rejects_drift():
+def test_quality_differences_report_drift_without_hiding_it():
     archived = {
         "retained_probability_p50": 0.9,
         "retained_qrs_band_fraction": 0.6,
@@ -59,8 +59,15 @@ def test_assert_quality_rejects_drift():
     }
     actual = dict(archived)
     actual["retained_count"] = 4
-    with pytest.raises(SystemExit, match="does not reproduce archived"):
-        audit._assert_quality("s30661", 0, actual, archived)
+    differences = audit._quality_differences(actual, archived)
+    assert differences == [
+        {
+            "field": "retained_count",
+            "actual": 4,
+            "archived": 5,
+            "absolute_difference": 1.0,
+        }
+    ]
 
 
 def test_assert_selected_metrics_accepts_exact_result():
