@@ -67,3 +67,31 @@ def test_evaluate_detector_scores_every_locked_record(monkeypatch, tmp_path):
     assert [result.record for result in results] == bench.LOCKED_TEST_RECORDS
     assert len(results) == 12
     assert all(result.metrics.f1 == pytest.approx(1.0) for result in results)
+
+
+def test_run_detector_uses_record_directory_as_wfdb_search_root(monkeypatch, tmp_path):
+    record_dir = tmp_path / "records"
+    record_dir.mkdir()
+    record_base = record_dir / "105"
+    (record_base.with_suffix(".qrs")).write_bytes(b"x")
+    seen = {}
+
+    def fake_run(args, **kwargs):
+        seen["args"] = args
+        seen["cwd"] = kwargs.get("cwd")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(bench.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        bench.wfdb,
+        "rdann",
+        lambda *args, **kwargs: SimpleNamespace(
+            sample=np.asarray([100, 200], dtype=int),
+            symbol=["N", "N"],
+        ),
+    )
+
+    detected = bench.run_detector("/usr/local/bin/gqrs", record_base)
+    assert seen["args"] == ["/usr/local/bin/gqrs", "-r", "105", "-s", "0"]
+    assert seen["cwd"] == record_dir
+    assert detected.tolist() == [100, 200]
