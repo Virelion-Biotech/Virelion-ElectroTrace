@@ -124,6 +124,34 @@ A completed primary artifact requires:
 
 Any malformed required record aborts the run rather than silently dropping it.
 
+
+## Completed result — September 29, 2026
+
+Actions run `36592730416` completed all **105/105** QTDB records with no
+primary exclusions. The immutable JSON is artifact `11044358209`, SHA-256
+`e7c827b2df1cf808c9ccf717dcc54153d1bd425898e4c75576f4e38326cadb94`.
+
+Primary reference-centered joint onset+offset success:
+
+| Tolerance | Joint success | 95% record-bootstrap interval |
+|---:|---:|---:|
+| 20 ms | 0.5893 | 0.5169–0.6660 |
+| 40 ms | 0.8454 | 0.7852–0.9009 |
+| 60 ms | 0.9249 | 0.8762–0.9683 |
+| 80 ms | 0.9542 | 0.9177–0.9879 |
+| 100 ms | 0.9945 | 0.9866–1.0000 |
+
+For the 11 q2c records, 404 annotator-2 events matched q1c events. Joint
+inter-observer boundary agreement was 0.7698 at 20 ms, 0.9629 at 40 ms,
+0.9950 at 60 ms, and 0.9975 at 80/100 ms.
+
+The secondary raw Stage-1 detector matched 3,591/3,623 selected manual QRS
+events (sensitivity 0.9912) but generated 172,505 detections (PPV 0.0208).
+Because QTDB manual waveform annotation marks selected beats rather than every
+beat for this study, that secondary PPV is not a conventional whole-record
+R-peak benchmark. Its role is to expose the difference between event detection
+and boundary localization, not to support a detector claim.
+
 ## Interpretation
 
 This study can characterize QRS boundary localization under the declared QTDB
