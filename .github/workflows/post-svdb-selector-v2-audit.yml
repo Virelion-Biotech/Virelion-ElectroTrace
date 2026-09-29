@@ -43,6 +43,7 @@ jobs:
           pytest -q \
             tests/test_svdb_selector_v2_posthoc.py \
             tests/test_svdb_selector_v2_prospective.py \
+            tests/test_lead_quality.py \
             tests/test_lead_selection.py
 
       - name: Restore trusted frozen v4 model
@@ -106,12 +107,12 @@ jobs:
             --first-run-report \
               /tmp/svdb-first/svdb_selector_v2_first_run.json \
             --output \
-              validation_reports/experiments/2026-09-svdb-posthoc/svdb_selector_posthoc_audit.json
+              validation_reports/experiments/2026-09-svdb-posthoc/svdb_selector_v2_posthoc_audit.json
 
       - name: Hash post-hoc artifact
         run: |
           set -euo pipefail
-          OUT="validation_reports/experiments/2026-09-svdb-posthoc/svdb_selector_posthoc_audit.json"
+          OUT="validation_reports/experiments/2026-09-svdb-posthoc/svdb_selector_v2_posthoc_audit.json"
           {
             echo "git_head=$(git rev-parse HEAD)"
             sha256sum "${OUT}"
@@ -120,9 +121,9 @@ jobs:
       - name: Upload post-hoc comparator artifact
         uses: actions/upload-artifact@v4
         with:
-          name: electrotrace-svdb-selector-posthoc-audit
+          name: electrotrace-svdb-selector-v2-posthoc-audit
           retention-days: 90
           if-no-files-found: error
           path: |
-            validation_reports/experiments/2026-09-svdb-posthoc/svdb_selector_posthoc_audit.json
+            validation_reports/experiments/2026-09-svdb-posthoc/svdb_selector_v2_posthoc_audit.json
             validation_reports/experiments/2026-09-svdb-posthoc/POSTHOC_SHA256.txt
