@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from scripts import benchmark_certified_wfdb_incart as incart_bench
 from scripts import benchmark_certified_wfdb_mitdb_locked as bench
 
 
@@ -94,4 +95,37 @@ def test_run_detector_uses_record_directory_as_wfdb_search_root(monkeypatch, tmp
     detected = bench.run_detector("/usr/local/bin/gqrs", record_base)
     assert seen["args"] == ["/usr/local/bin/gqrs", "-r", "105", "-s", "0"]
     assert seen["cwd"] == record_dir
+    assert detected.tolist() == [100, 200]
+
+
+@pytest.mark.parametrize(
+    ("module", "record_name"),
+    [(bench, "105"), (incart_bench, "I04")],
+)
+def test_certified_binary_invocation_uses_record_basename_and_cwd(
+    monkeypatch, tmp_path, module, record_name
+):
+    record_base = tmp_path / record_name
+    record_base.with_suffix(".qrs").write_bytes(b"x")
+    seen = {}
+
+    def fake_run(command, **kwargs):
+        seen["command"] = command
+        seen["cwd"] = kwargs.get("cwd")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        module.wfdb,
+        "rdann",
+        lambda *args, **kwargs: SimpleNamespace(
+            sample=np.asarray([100, 200], dtype=np.int64),
+            symbol=["N", "N"],
+        ),
+    )
+
+    detected = module.run_detector("/usr/local/bin/gqrs", record_base)
+
+    assert seen["command"] == ["/usr/local/bin/gqrs", "-r", record_name, "-s", "0"]
+    assert seen["cwd"] == tmp_path
     assert detected.tolist() == [100, 200]
