@@ -1,0 +1,84 @@
+name: incart-invalid-reference-repair-audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/incart-invalid-reference-repair-audit.yml'
+      - 'scripts/benchmark_certified_wfdb_incart.py'
+      - 'src/electrotrace/wfdb_records.py'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install runtime and certified WFDB tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+          python -m pip install "numpy==2.1.3" "wfdb==4.3.1"
+          sudo apt-get update
+          sudo apt-get install -y wfdb
+          command -v gqrs
+          command -v sqrs
+
+      - name: Download only the seven historically malformed INCART records
+        run: |
+          set -euo pipefail
+          OUT=".cache/physionet/incartdb"
+          BASE="https://physionet.org/files/incartdb/1.0.0"
+          mkdir -p "${OUT}"
+          RECORDS=(I04 I17 I35 I44 I57 I72 I74)
+          JOBS="/tmp/incart-invalid-downloads.tsv"
+          : > "${JOBS}"
+          for record in "${RECORDS[@]}"; do
+            for suffix in hea dat atr; do
+              printf '%s\t%s\n' "${BASE}/${record}.${suffix}" "${OUT}/${record}.${suffix}" >> "${JOBS}"
+            done
+          done
+          xargs -P 6 -n 2 bash -c '
+            set -euo pipefail
+            url="$1"
+            dest="$2"
+            wget -q --https-only --retry-connrefused --waitretry=2 --tries=5 -O "${dest}" "${url}"
+            test -s "${dest}"
+          ' _ < "${JOBS}"
+          test "$(find "${OUT}" -maxdepth 1 -name '*.hea' | wc -l)" -eq 7
+
+      - name: Audit edge repair independently with gqrs and sqrs
+        run: |
+          python -u scripts/benchmark_certified_wfdb_incart.py \
+            --data-dir .cache/physionet/incartdb \
+            --work-dir /tmp/incart-reference-repair-audit \
+            --output validation_reports/experiments/2026-09-incart-reference-repair/incart_invalid_reference_repair_audit.json \
+            --annotation-policy drop_edges \
+            --detectors gqrs,sqrs
+
+      - name: Hash audit
+        run: |
+          set -euo pipefail
+          OUT="validation_reports/experiments/2026-09-incart-reference-repair/incart_invalid_reference_repair_audit.json"
+          {
+            echo "git_head=$(git rev-parse HEAD)"
+            sha256sum "${OUT}"
+          } | tee validation_reports/experiments/2026-09-incart-reference-repair/SHA256.txt
+
+      - name: Upload audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: electrotrace-incart-invalid-reference-repair-audit
+          retention-days: 90
+          if-no-files-found: error
+          path: |
+            validation_reports/experiments/2026-09-incart-reference-repair/incart_invalid_reference_repair_audit.json
+            validation_reports/experiments/2026-09-incart-reference-repair/SHA256.txt
