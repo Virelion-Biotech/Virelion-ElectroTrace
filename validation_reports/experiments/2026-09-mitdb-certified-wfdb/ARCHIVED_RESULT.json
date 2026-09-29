@@ -1,0 +1,83 @@
+{
+  "schema": "electrotrace.certified_wfdb_mitdb_locked_archive/v1",
+  "archived_at_utc": "2026-09-29",
+  "source_workflow": {
+    "run_id": 36605114898,
+    "head_sha": "8f960ec41cf80dce3ef8862198ccefacc16f10d1",
+    "artifact_id": 11050866718,
+    "artifact_name": "electrotrace-mitdb-certified-wfdb-locked",
+    "artifact_zip_digest": "sha256:bca937fb2983407fa3f3e970cdb687dbdcdc27bfb83ae1c44254527a0ca541aa",
+    "result_json_sha256": "57a922bfea41a8a5f799d739105d62d46dd91d31a3ca0f63ae0f0986c0da838e"
+  },
+  "toolchain": {
+    "wfdb_toolkit_source_release": "10.7.0",
+    "wfdb_python_version": "4.3.1",
+    "note": "wfdb-config --version emitted '..' for this source build; the workflow-pinned source release is therefore recorded explicitly."
+  },
+  "protocol": {
+    "dataset": "MIT-BIH Arrhythmia Database",
+    "split": "historical locked 12-record evaluation split",
+    "records": [
+      "105",
+      "118",
+      "122",
+      "201",
+      "207",
+      "209",
+      "214",
+      "219",
+      "230",
+      "231",
+      "232",
+      "234"
+    ],
+    "channel": 0,
+    "annotation_extension": "atr",
+    "tolerance_ms": 75,
+    "detector_configuration": {
+      "gqrs": {
+        "signal": 0,
+        "threshold": "WFDB default 1.00"
+      },
+      "sqrs": {
+        "signal": 0,
+        "threshold": "WFDB default 500"
+      }
+    },
+    "parameter_tuning_on_locked_records": false,
+    "comparison_scope": "Reference-binary comparison on the same locked record split; not prospective evidence for ElectroTrace mechanisms."
+  },
+  "results": {
+    "gqrs": {
+      "records": 12,
+      "reference_count": 26930,
+      "detected_count": 27327,
+      "true_positive": 26851,
+      "false_positive": 476,
+      "false_negative": 79,
+      "sensitivity": 0.9970664686223543,
+      "positive_predictive_value": 0.9825813298203242,
+      "f1": 0.9897709051366643,
+      "mean_record_signed_timing_error_ms": -34.96482594539623,
+      "median_record_absolute_timing_error_ms": 36.111111111111114
+    },
+    "sqrs": {
+      "records": 12,
+      "reference_count": 26930,
+      "detected_count": 26841,
+      "true_positive": 5305,
+      "false_positive": 21536,
+      "false_negative": 21625,
+      "sensitivity": 0.19699220200519865,
+      "positive_predictive_value": 0.1976453932416825,
+      "f1": 0.19731825705305836,
+      "mean_record_signed_timing_error_ms": 0.27641112401727164,
+      "median_record_absolute_timing_error_ms": 38.19444444444444
+    }
+  },
+  "interpretation": [
+    "gqrs is a strong certified reference-binary comparator on this locked split.",
+    "sqrs at its untouched WFDB default configuration performs poorly on this split; no post-hoc threshold tuning was performed.",
+    "These are retrospective reference-binary benchmarks, not clinical validation and not prospective evidence for ElectroTrace mechanisms."
+  ]
+}
