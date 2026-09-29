@@ -1,0 +1,169 @@
+{
+  "schema": "electrotrace.prospective_lead_selector_protocol/v3",
+  "protocol_id": "ltdb-starvation-rescue-selector-v3-2026-09-29",
+  "preregistration_issue": "https://github.com/Virelion-Biotech/Virelion-ElectroTrace/issues/52",
+  "dataset": {
+    "name": "MIT-BIH Long-Term ECG Database",
+    "physionet_database": "ltdb",
+    "version": "1.0.0",
+    "expected_record_count": 7,
+    "records": [
+      "14046",
+      "14134",
+      "14149",
+      "14157",
+      "14172",
+      "14184",
+      "15814"
+    ],
+    "expected_sampling_frequency_hz": 128,
+    "minimum_signal_channels": 2,
+    "candidate_channels": [
+      0,
+      1
+    ],
+    "evaluation_window": {
+      "sampfrom": 0,
+      "sampto_exclusive": 230400,
+      "duration_seconds": 1800
+    },
+    "expected_channel_counts": {
+      "14046": 2,
+      "14134": 2,
+      "14149": 2,
+      "14157": 2,
+      "14172": 2,
+      "14184": 2,
+      "15814": 3
+    },
+    "independence_scope": {
+      "selector_v3_used_ltdb_before_preregistration": false,
+      "record_set_untouched_for_selector_v3": true,
+      "institutionally_independent": false,
+      "subject_overlap_with_historical_sources_excluded": false,
+      "limitation": "Distinct untouched records with manually reviewed beat annotations, but from the broader MIT-BIH/Beth Israel ecosystem; this is not fully institutionally independent clinical validation."
+    }
+  },
+  "development_provenance": {
+    "exposed_datasets": [
+      "European ST-T Database",
+      "Long Term AF Database",
+      "MIT-BIH Supraventricular Arrhythmia Database"
+    ],
+    "edb_selector_development_sha256": "36adeff8758eb27fece6590c16f779469cfc374fccf1a47a1de786bb340d7d0a",
+    "ltafdb_feature_audit_sha256": "55d14ebdd2c00d4cf2b7b7eb16a5a06ec6f6f1eb45051cb23da842c25d2060d",
+    "ltafdb_posthoc_audit_sha256": "080cb73d7dc9e3a680dd767dc381decd640cfe5870dc25958af90d56b851e462",
+    "svdb_first_run_sha256": "6e02fe1c2591fb2789e82eaac5bd5087e52a7f477bba20d5ad94fc63b6dd916f",
+    "svdb_posthoc_audit_sha256": "94aa1cf8ac3b749133743b5977e099347933f016cf5696828c8e18f3c1a64cad",
+    "exposed_development_summary": {
+      "records": 252,
+      "selector_v3_switches": 13,
+      "selector_v3_switches_improved": 13,
+      "selector_v3_switches_regressed": 0,
+      "edb_fixed_channel0_f1": 0.9341080568374112,
+      "edb_selector_v3_f1": 0.9657956542614154,
+      "ltafdb_fixed_channel0_f1": 0.9266067054357785,
+      "ltafdb_selector_v3_f1": 0.9280474896143064,
+      "svdb_fixed_channel0_f1": 0.9452270676010989,
+      "svdb_selector_v3_f1": 0.9821300538014001
+    }
+  },
+  "frozen_model": {
+    "model_version": "rf-candidate-suppressor-v4",
+    "feature_schema_version": "candidate-features-v4",
+    "operating_threshold_source": "model_metadata_only",
+    "retraining": false,
+    "operating_threshold": 0.2751648051220502,
+    "target_recall": 0.995,
+    "n_training_candidates": 102115,
+    "n_positive_candidates": 63526,
+    "n_negative_candidates": 38589,
+    "random_seed": 42,
+    "n_estimators": 150,
+    "calibration_candidates": 24841,
+    "calibration_method": "locked_MITBIH_calibration_records",
+    "trusted_legacy_pickle_sha256": "8732aa47051c76b043bd56e4d9dc82dc01307e0d9bcc6c5ed046fca19a27f5bb"
+  },
+  "detector": {
+    "annotation_extension": "atr",
+    "beat_symbols": [
+      "/",
+      "A",
+      "E",
+      "F",
+      "J",
+      "L",
+      "N",
+      "Q",
+      "R",
+      "S",
+      "V",
+      "a",
+      "e",
+      "f",
+      "j"
+    ],
+    "tolerance_ms": 75,
+    "polarity": "adaptive",
+    "stage1_scale_method": "windowed_std",
+    "recovery": false,
+    "polarity_threshold_report_schema": "electrotrace.mitdb_polarity_thresholds_extended_derivation/v3",
+    "expected_v2_gate_confidence": 0,
+    "expected_width_override_confidence": 0
+  },
+  "lead_selector": {
+    "version": "edb-ltafdb-svdb-informed-starvation-rescue-v3",
+    "candidate_channels": [
+      0,
+      1
+    ],
+    "historical_primary_channel": 0,
+    "primary_max_retained_rate_bpm": 30,
+    "primary_max_retention_fraction": 0.3,
+    "alternate_min_retained_rate_bpm": 30,
+    "alternate_min_rate_ratio": 2,
+    "require_alternate_probability_p50_higher": true,
+    "require_alternate_retention_fraction_higher": true,
+    "conjunction": "all",
+    "tie_or_disagreement_policy": "preserve_channel_0",
+    "reference_annotations_allowed_before_selection": false,
+    "safety_caveat": "Retained-rate thresholds are detector-starvation heuristics, not physiologic heart-rate validity bounds; genuine profound bradycardia is a known risk case."
+  },
+  "integrity": {
+    "annotation_policy": "error",
+    "require_all_records": true,
+    "require_files": [
+      ".hea",
+      ".dat",
+      ".atr"
+    ],
+    "abort_on_any_record_failure": true,
+    "prohibit_reference_load_before_lead_selection": true,
+    "allow_ltdb_for_model_selection": false,
+    "allow_ltdb_for_threshold_selection": false,
+    "allow_ltdb_for_lead_selector_tuning": false,
+    "allow_ltdb_for_polarity_tuning": false,
+    "allow_ltdb_for_scale_method_selection": false,
+    "allow_ltdb_for_architecture_search": false,
+    "after_first_scored_run_dataset_is_exposed": true,
+    "suppress_partial_outcome_metrics": true
+  },
+  "endpoints": {
+    "primary": [
+      "aggregate_sensitivity",
+      "aggregate_positive_predictive_value",
+      "aggregate_f1"
+    ],
+    "secondary": [
+      "per_record_metrics",
+      "macro_mean_record_f1",
+      "macro_median_record_f1",
+      "min_record_f1",
+      "max_record_f1",
+      "selected_channel_counts",
+      "lead_quality_audit"
+    ],
+    "posthoc_pass_threshold": null
+  },
+  "interpretation": "First prospective untouched-record evaluation of starvation-rescue selector v3 on MIT-BIH Long-Term ECG Database. Same MIT-BIH/Beth Israel ecosystem limitation applies. Not an ANSI/AAMI bxb compliance study."
+}
