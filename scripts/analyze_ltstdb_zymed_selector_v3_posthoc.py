@@ -15,6 +15,7 @@ import json
 import math
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -42,6 +43,33 @@ def git_head() -> str:
         ).strip()
     except Exception:
         return "unknown"
+
+
+def _call_with_retry(
+    func,
+    *args,
+    attempts: int = 5,
+    base_delay_s: float = 2.0,
+    **kwargs,
+):
+    """Retry transient remote WFDB reads without changing scientific inputs."""
+    if attempts < 1:
+        raise ValueError("attempts must be >= 1")
+    for attempt in range(1, attempts + 1):
+        try:
+            return func(*args, **kwargs)
+        except Exception as exc:
+            if attempt == attempts:
+                raise
+            delay = base_delay_s * attempt
+            print(
+                f"WFDB remote read failed on attempt {attempt}/{attempts}: "
+                f"{type(exc).__name__}: {exc}; retrying in {delay:.1f}s",
+                file=sys.stderr,
+                flush=True,
+            )
+            time.sleep(delay)
+    raise AssertionError("unreachable")
 
 
 def load_first_run(path: Path) -> dict:
@@ -186,13 +214,18 @@ def main() -> int:
     for i, record in enumerate(records, start=1):
         record_name = str(args.ltstdb_dir / record) if args.ltstdb_dir else record
         remote_kwargs = {} if args.ltstdb_dir else {"pn_dir": str(args.pn_dir)}
-        rec = wfdb.rdrecord(
-            record_name,
-            sampfrom=start,
-            sampto=stop,
-            channels=[0, 1],
-            physical=True,
+        record_reader = wfdb.rdrecord
+        record_args = {
+            "sampfrom": start,
+            "sampto": stop,
+            "channels": [0, 1],
+            "physical": True,
             **remote_kwargs,
+        }
+        rec = (
+            record_reader(record_name, **record_args)
+            if args.ltstdb_dir
+            else _call_with_retry(record_reader, record_name, **record_args)
         )
         if not _same_number(rec.fs, fs):
             raise SystemExit(f"{record}: unexpected sampling frequency {rec.fs}")
@@ -226,12 +259,24 @@ def main() -> int:
             minimum_rate_ratio=float(selector["minimum_alternate_to_primary_rate_ratio"]),
         )
 
-        annotation = wfdb.rdann(
-            record_name,
-            str(detector["annotation_extension"]),
-            sampfrom=start,
-            sampto=stop - 1,
+        annotation_args = {
+            "sampfrom": start,
+            "sampto": stop - 1,
             **remote_kwargs,
+        }
+        annotation = (
+            wfdb.rdann(
+                record_name,
+                str(detector["annotation_extension"]),
+                **annotation_args,
+            )
+            if args.ltstdb_dir
+            else _call_with_retry(
+                wfdb.rdann,
+                record_name,
+                str(detector["annotation_extension"]),
+                **annotation_args,
+            )
         )
         reference, _ = _prospective._sv._reference_from_annotation(
             annotation, beat_symbols, stop - start

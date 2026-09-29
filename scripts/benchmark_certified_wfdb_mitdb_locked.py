@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import platform
 import shutil
 import subprocess
@@ -201,6 +202,7 @@ def main() -> int:
         "platform": platform.platform(),
         "wfdb_python_version": getattr(wfdb, "__version__", "unknown"),
         "wfdb_toolkit_version": wfdb_toolkit_version(),
+        "wfdb_toolkit_source_release": os.environ.get("WFDB_TOOLKIT_SOURCE_RELEASE", "unknown"),
         "protocol": {
             "dataset": "MIT-BIH Arrhythmia Database",
             "physionet_database": "mitdb",
