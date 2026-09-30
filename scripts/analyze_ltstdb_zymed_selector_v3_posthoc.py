@@ -437,6 +437,7 @@ def main() -> int:
                 "verified_file_count": (
                     len(verified_source_hashes) if verified_source_hashes is not None else 0
                 ),
+                "verified_hashes": verified_source_hashes or {},
             },
             "model": str(args.model),
             "model_sha256": _prospective._sv.sha256_file(args.model),
