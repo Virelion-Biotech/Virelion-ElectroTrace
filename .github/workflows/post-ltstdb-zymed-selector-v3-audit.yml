@@ -23,11 +23,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
 
@@ -118,7 +118,7 @@ jobs:
           } | tee validation_reports/experiments/2026-09-ltstdb-zymed-posthoc/POSTHOC_SHA256.txt
 
       - name: Upload post-hoc comparator artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: electrotrace-ltstdb-zymed-selector-v3-posthoc-audit
           retention-days: 90
