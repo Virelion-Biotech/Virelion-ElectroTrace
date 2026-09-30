@@ -7,15 +7,14 @@ mechanism itself, so a clean threshold re-derivation does not retroactively
 make adaptive-polarity results prospective held-out evidence. Reports emitted
 by this script label that limitation explicitly.
 
-Every prior MIT-BIH number for the v4/windowed_std model
-(``incart_mitbih_model_windowed_std_2026-09-09.skops``) was produced with
-``--polarity positive`` (see ``mitdb_windowed_std_polarityfix.json``), not the
-adaptive polarity the 1.8.1 lock and ``docs/VALIDATION.md`` both specify. That
-means no valid non-regression number exists yet for the current model
-generation. This script does not retrain anything; it loads a model file as-is
-and scores it against the 12 records held out at the 1.8.1 freeze
-(seed=42, test_fraction=0.25), with adaptive polarity, so the result is
-comparable to ``mitdb_two_stage_locked_1.8.1.json``.
+This runner was introduced to fill a historical non-regression gap for the
+v4/windowed_std model
+(``incart_mitbih_model_windowed_std_2026-09-09.skops``). That gap is now
+closed: repository artifacts include both the historical-default adaptive audit
+and the leakage-safe 0.0/0.0 gate audit. The script remains the reproducibility
+entrypoint and does not retrain anything; it loads a model file as-is and scores
+the exact 12 records held out at the 1.8.1 freeze
+(seed=42, test_fraction=0.25).
 
 Usage:
   python -u scripts/evaluate_frozen_model_mitdb.py \
