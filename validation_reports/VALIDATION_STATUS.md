@@ -1,8 +1,8 @@
 # Validation status
 
-**Software:** electrotrace 1.8.1  
-**Primary scientific endpoint:** held-out MIT-BIH test records only (not full-pool)  
-**Current hardening branch:** merged into `main`; there is no separate hardening branch to check out
+**Software:** electrotrace 1.9.0 release candidate; immutable historical locked artifacts retain their original 1.8.1 version labels  
+**Primary historical model-comparison endpoint:** held-out MIT-BIH test records only (not full-pool)  
+**Repository scientific-validation backlog:** complete on `main` as of 2026-09-30
 
 ## Unit tests
 
@@ -102,7 +102,7 @@ Interpretation: the Phase-3 ablation does not support resampling or robust scali
 
 Seven INCART records were historically excluded for a leading negative annotation index. The completed source-reference audit now authorizes all seven edge-only repairs with two pinned certified WFDB detectors, and the complete frozen-v4 characterization scores all 75 official records. See the complete-cohort section above for the immutable provenance and I57-specific evidence.
 
-`scripts/recalibrate_threshold_grouped_cv.py` is the direct follow-up. The corrected workflow fits candidate thresholds **only on the seven MIT-BIH calibration records**, never reads the locked 12-record MIT-BIH held-out split, never uses INCART labels for threshold fitting/model selection, and never retrains the RF. INCART is evaluated only after the candidate threshold is frozen and remains exposed development data. Any candidate threshold still requires a genuinely fresh database before it can be described as externally validated.
+`scripts/recalibrate_threshold_grouped_cv.py` is the direct follow-up. The corrected workflow fits candidate thresholds **only on the seven MIT-BIH calibration records**, never reads the locked 12-record MIT-BIH held-out split, never uses INCART labels for threshold fitting/model selection, and never retrains the RF. INCART is evaluated only after the candidate threshold is frozen and remains exposed development data. The need for fresh external evidence was subsequently addressed for the unchanged frozen v4 configuration by the preregistered 90-record EDB run below. That does not validate any future threshold change; a changed threshold would require another untouched cohort.
 
 
 ### Cross-database research-use policy

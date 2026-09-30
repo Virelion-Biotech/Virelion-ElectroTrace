@@ -1,5 +1,12 @@
 # Experimental Polarity Selector v2
 
+> **Historical experiment.** This document records the early v2 polarity work
+> that informed later leakage analysis. It is not the current selector or gate
+> specification. The repository subsequently completed development-only gate
+> derivation, locked non-regression audits, and prospective external evaluation;
+> use `validation_reports/VALIDATION_STATUS.md` for current evidence.
+
+
 ## Status
 
 Experimental only. The locked primary detector and MIT-BIH primary benchmark are unchanged.
@@ -37,6 +44,6 @@ On the uploaded MIT-BIH 1.0.0 archive, using an independent local WFDB-format re
 
 The hybrid changed only record 207 under the 0.10 ambiguity gate. Its record-level F1 improvement on 207 was approximately +0.68. This is encouraging but is not sufficient evidence for promotion.
 
-## Decision rule
+## Historical decision rule (superseded)
 
-Do not modify the primary detector based on this experiment. The next decision requires an official `wfdb-python` reproduction followed by independent validation on a separate ECG dataset. If the hybrid continues to improve performance there without annotation-informed tuning, it can become a candidate for a future detector release.
+At the time of this experiment, the rule was not to modify the primary detector without official reproduction and independent external evaluation. Those follow-up steps were later executed under stricter leakage-aware protocols. The original 0.10 exploratory gate in this document is therefore not a current release parameter and must not be revived by reading this file in isolation.

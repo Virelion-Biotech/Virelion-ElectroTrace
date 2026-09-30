@@ -1,5 +1,7 @@
 # ElectroTrace
 
+**Current source version:** 1.9.0 (release candidate)
+
 **A reproducible ECG/electrophysiology annotation and benchmarking workbench.**
 
 ElectroTrace is built around a simple principle: **the evidence is the product**. It provides one place to run detectors, compare them under declared protocols, preserve record/subject-level statistics, and carry hashes, software versions, and provenance alongside results.
@@ -49,7 +51,7 @@ ElectroTrace is research software. It is not a clinical device and the current m
 
 Python 3.10+ is required.
 
-**PyPI publication is prepared by CI but not yet performed.** For the current code, install from source:
+**v1.9.0 is release-ready, but this repository does not claim PyPI availability until the tagged Trusted Publishing workflow succeeds.** Until then, install from source:
 
 ~~~bash
 git clone https://github.com/Virelion-Biotech/Virelion-ElectroTrace.git
@@ -123,7 +125,7 @@ ElectroTrace does not claim clinical performance, real-time streaming performanc
 
 ## Documentation and citation
 
-See docs/, mkdocs.yml, and CITATION.cff. A DOI-bearing software release still requires final release/Zenodo configuration.
+See docs/, mkdocs.yml, and CITATION.cff. The repository includes Zenodo metadata for v1.9.0, but a DOI is not claimed until an actual tagged release is archived by Zenodo.
 
 ## License
 
