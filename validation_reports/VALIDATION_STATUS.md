@@ -40,45 +40,56 @@ Artifacts:
 - mitdb_two_stage_locked_1.8.1.json
 - mitdb_baseline_comparison_locked.json
 
-### Certified WFDB reference binaries on the locked 12-record split
-
-A no-tuning reference-binary benchmark was completed with the WFDB application
-source pinned to release **10.7.0**, channel 0, the same frozen 12-record split,
-the ElectroTrace beat-symbol whitelist, and 75 ms matching.
-
-| Certified detector | Sensitivity | PPV | F1 |
-|---|---:|---:|---:|
-| WFDB gqrs (default threshold 1.00) | **0.9971** | **0.9826** | **0.9898** |
-| WFDB sqrs (default threshold 500) | 0.1970 | 0.1976 | 0.1973 |
-
-The poor default-`sqrs` result is retained as observed; its threshold was not
-tuned on the locked records. These are retrospective reference-binary
-comparisons, not clinical validation or prospective evidence for ElectroTrace
-mechanisms.
-
-Permanent provenance:
-- workflow run: `36605114898`
-- workflow head: `8f960ec41cf80dce3ef8862198ccefacc16f10d1`
-- artifact ID: `11050866718`
-- artifact ZIP digest: `sha256:bca937fb2983407fa3f3e970cdb687dbdcdc27bfb83ae1c44254527a0ca541aa`
-- full result JSON SHA-256: `57a922bfea41a8a5f799d739105d62d46dd91d31a3ca0f63ae0f0986c0da838e`
-- repository archive: `validation_reports/experiments/2026-09-mitdb-certified-wfdb/ARCHIVED_RESULT.json`
-
-
 ## INCART external comparison
 
 Two model generations are present in the immutable validation history and must be kept distinct:
 
-| Model | Feature schema | Records | Sensitivity | PPV | F1 |
+| Model | Feature schema / status | Records | Sensitivity | PPV | F1 |
 |---|---|---:|---:|---:|---:|
-| Earlier two-stage model | candidate-features-v3 | 68 | 0.3239 | 0.9679 | 0.4854 |
-| Windowed-std two-stage model | candidate-features-v4 | 68 | 0.9011 | 0.7594 | 0.8242 |
+| Earlier two-stage model | candidate-features-v3 historical comparison | 68 | 0.3239 | 0.9679 | 0.4854 |
+| Windowed-std two-stage model | candidate-features-v4 historical 68-record development comparison | 68 | 0.9011 | 0.7594 | 0.8242 |
+| Frozen windowed-std two-stage model | **complete 75-record INCART source-cohort development characterization** | **75** | **0.8977** | **0.7633** | **0.8251** |
 
-The second row is the current windowed-std model and is the relevant post-fix external result. WFDB gqrs on the same 68-record protocol has sensitivity 0.9324, PPV 0.9265, F1 0.9294; sqrs has sensitivity 0.7488, PPV 0.9513, F1 0.8380. These are cross-database detector results under the stated matching protocol, not clinical performance claims.
+The 68-record rows remain historical evidence from before the seven malformed-edge
+source annotations were fully resolved. The complete 75-record characterization
+uses the unchanged frozen v4 model, channel 0, the stored RF threshold, the
+leakage-safe 0.0/0.0 polarity gates, 75 ms matching, no retraining, and no
+INCART-based threshold fitting. It scores **all 75 official INCART records**
+with zero source-reference exclusions.
 
-Artifacts:
-- incart_two_stage_external_full_windowed_std_2026-09-09.json
-- incart_wfdb_vs_electrotrace_comparison_2026-09-11.json
+On the exact same 75-record scored cohort, certified WFDB `gqrs` has
+sensitivity **0.9372**, PPV **0.9310**, F1 **0.9341**; `sqrs` has
+sensitivity **0.7617**, PPV **0.9537**, F1 **0.8469**. ElectroTrace's
+75-record macro mean F1 is **0.8226** with a 2,000-replicate record-bootstrap
+95% interval of **0.7844-0.8564** for macro mean F1.
+
+The seven historically malformed-edge records are now all source-reference
+usable under a strict repair rule: the source annotation must be structurally
+edge-only and **both** pinned certified WFDB detectors must independently align
+to the same cleaned source reference. Detector outputs validate the repair and
+never replace labels. I57, the former blocker, drops exactly one leading beat at
+sample -8, has zero interior-invalid beats, and receives independent alignment
+coverage 0.9969 from `gqrs` and 0.9854 from `sqrs`; frozen-v4 I57 F1 is
+0.8687.
+
+This complete INCART result remains **development-data characterization**:
+INCART informed v4 feature-scaling development and cannot be relabeled as fresh
+external validation.
+
+Permanent complete-cohort provenance:
+- workflow run: `36628984736`
+- branch head SHA: `6429c477f055aa64ae03ad46ba913f5c3c629eac`
+- executed pull-request checkout SHA: `d98f1838f30241c095f6d8d649e3f3a6e0e075c6`
+- artifact ID: `11063844800`
+- artifact ZIP digest: `sha256:963bb6f1505c4e74031c6a3d6dc198249dc087f9f7c19d2fe8d2ca4e7a036dce`
+- full result JSON SHA-256: `d6e46488c1534e1232c561e08edfe035ece6051115c778f8c9d69e08159774d6`
+- certified comparator JSON SHA-256: `8e7aece26f7275d58e17b33121cef9a27025336dced4fd4436d8b0d80e0161c8`
+- pinned WFDB source release: `10.7.0`
+- repository archive: `validation_reports/experiments/2026-09-incart-complete/ARCHIVED_RESULT.json`
+
+Historical artifacts:
+- `incart_two_stage_external_full_windowed_std_2026-09-09.json`
+- `incart_wfdb_vs_electrotrace_comparison_2026-09-11.json`
 
 ### Phase-3 preprocessing/threshold ablation
 
@@ -89,7 +100,7 @@ Interpretation: the Phase-3 ablation does not support resampling or robust scali
 
 `scripts/incart_fp_offsets.py` classifies every false positive on the 68-record windowed-std run by its position relative to neighbouring reference beats. 74% sit 150-450 ms after the preceding true beat (the post-QRS T-wave window); approximately 0% are duplicate detections. Stage-2 ranking AUC is 0.998 even on the 13 worst over-detecting records, so the candidate ranking is strong and the remaining error is concentrated in operating-threshold calibration rather than simple ranking failure. These are development-data diagnostics, not held-out test results.
 
-Seven INCART records were historically excluded because each contains one leading invalid beat annotation. A later certified-reference repair audit ran the edge-only `drop_edges` policy on all seven records (`I04 I17 I35 I44 I57 I72 I74`) with both WFDB `gqrs` and `sqrs`. **All 7/7 repairs were independently authorized and no record was excluded**, including I57. Each repair dropped exactly one leading invalid beat; no interior-invalid beat was accepted. The archived audit is `validation_reports/experiments/2026-09-incart-reference-repair/ARCHIVED_RESULT.json` (Actions run `36605115005`, full JSON SHA-256 `3080d71530fd9bf154ca8b9cc7ef68406b4ae8bf3cc6754091682ca1ba7fcc86`).
+Seven INCART records were historically excluded for a leading negative annotation index. The completed source-reference audit now authorizes all seven edge-only repairs with two pinned certified WFDB detectors, and the complete frozen-v4 characterization scores all 75 official records. See the complete-cohort section above for the immutable provenance and I57-specific evidence.
 
 `scripts/recalibrate_threshold_grouped_cv.py` is the direct follow-up. The corrected workflow fits candidate thresholds **only on the seven MIT-BIH calibration records**, never reads the locked 12-record MIT-BIH held-out split, never uses INCART labels for threshold fitting/model selection, and never retrains the RF. INCART is evaluated only after the candidate threshold is frozen and remains exposed development data. Any candidate threshold still requires a genuinely fresh database before it can be described as externally validated.
 
@@ -351,37 +362,6 @@ Permanent first-run provenance:
 
 The Zymed LTSTDB subset is now exposed development data. It cannot be reused as
 prospective evidence for any selector changed after this run.
-
-
-### Zymed LTSTDB exposed-data fixed-lead comparator
-
-After the immutable prospective selector-v3 run had completed and the Zymed
-subset was exposed, a separate post-hoc comparator re-evaluated fixed channel 0,
-fixed channel 1, the frozen prospective selector v3, and a best-lead oracle.
-The successful main-branch audit reproduced **all 18 archived selected-channel
-decisions, all 18 selected-lead outcome metrics, and all label-free selector
-inputs exactly**. Channel 2 remained unloaded.
-
-| Post-hoc strategy | Sensitivity | PPV | F1 | Macro mean F1 | Min record F1 |
-|---|---:|---:|---:|---:|---:|
-| Fixed channel 0 | 0.8718 | 0.9650 | 0.9160 | 0.9031 | 0.3344 |
-| Fixed channel 1 | 0.9373 | 0.9686 | **0.9527** | 0.9481 | 0.6799 |
-| Prospective selector v3 reproduced | 0.8718 | 0.9650 | 0.9160 | 0.9031 | 0.3344 |
-| Post-hoc oracle best lead | 0.9916 | 0.9842 | **0.9879** | 0.9861 | 0.8798 |
-
-This does **not** alter the prospective conclusion. The frozen selector selected
-channel 0 on 18/18 records because its starvation-rescue condition never fired.
-The stronger post-hoc fixed-channel-1 and oracle results are exposed-data
-hypothesis-generating comparisons only and cannot be used to retroactively claim
-that v3 should have switched.
-
-Permanent post-hoc provenance:
-- workflow run: `36605159238`
-- head commit: `82bd6d13e9eb53e891109c35276a9a55dffe5327`
-- artifact ID: `11051356654`
-- artifact ZIP digest: `sha256:e1e8f94c2d3e730f02895a7c68072e102d3155332f054a682a36bc36a4e0459c`
-- full result JSON SHA-256: `10263d252fa4dcb938b07534ff03ea01db55c6c721c1314787ec9eca39a4c38b`
-- repository archive: `validation_reports/experiments/2026-09-ltstdb-zymed-posthoc/ARCHIVED_RESULT.json`
 
 
 ## QT Database QRS-boundary characterization (2026-09-29)

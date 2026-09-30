@@ -1,0 +1,102 @@
+{
+  "schema": "electrotrace.incart_frozen_v4_complete_characterization_archive/v1",
+  "archived_at_utc": "2026-09-30",
+  "evidence_status": "exposed_development_database_complete_75_record_source_cohort_characterization",
+  "interpretation_guardrail": "INCART informed v4 development. This 75-record completion is development-data characterization, not fresh external validation.",
+  "source_workflow": {
+    "run_id": 36628984736,
+    "branch_head_sha": "6429c477f055aa64ae03ad46ba913f5c3c629eac",
+    "executed_checkout_sha": "d98f1838f30241c095f6d8d649e3f3a6e0e075c6",
+    "artifact_id": 11063844800,
+    "artifact_name": "electrotrace-incart-frozen-v4-complete-characterization",
+    "artifact_zip_digest": "sha256:963bb6f1505c4e74031c6a3d6dc198249dc087f9f7c19d2fe8d2ca4e7a036dce",
+    "result_json_sha256": "d6e46488c1534e1232c561e08edfe035ece6051115c778f8c9d69e08159774d6",
+    "certified_json_sha256": "8e7aece26f7275d58e17b33121cef9a27025336dced4fd4436d8b0d80e0161c8",
+    "wfdb_toolkit_source_release": "10.7.0"
+  },
+  "protocol": {
+    "official_records_requested": 75,
+    "records_scored": 75,
+    "records_excluded_for_source_reference_integrity": 0,
+    "channel": 0,
+    "tolerance_ms": 75,
+    "stage1_scale_method": "windowed_std",
+    "frozen_polarity_gates": {
+      "v2_gate_confidence": 0,
+      "width_override_confidence": 0
+    },
+    "model_threshold": 0.2751648051220502,
+    "retraining": false,
+    "incart_labels_used_for_model_training": false,
+    "incart_labels_used_for_threshold_selection": false,
+    "detector_protocol_overridden": false,
+    "reference_repair_policy": "edge-only source annotations require structural validity plus independent alignment authorization from both pinned certified WFDB detectors; detector outputs validate cleaned source annotations and never replace labels"
+  },
+  "electrotrace": {
+    "records": 75,
+    "reference_count": 175867,
+    "detected_count": 206822,
+    "true_positive": 157875,
+    "false_positive": 48947,
+    "false_negative": 17992,
+    "sensitivity": 0.8976954175598606,
+    "positive_predictive_value": 0.7633375559659997,
+    "f1": 0.8250825082508251,
+    "macro": {
+      "records": 75,
+      "mean_sensitivity": 0.9047844919485364,
+      "mean_positive_predictive_value": 0.7790849745617122,
+      "mean_f1": 0.8226321405546745,
+      "median_f1": 0.8602377807133421,
+      "min_f1": 0.17898521773871354,
+      "max_f1": 0.9997138769670958
+    },
+    "macro_record_bootstrap_95": {
+      "unit": "record",
+      "replicates": 2000,
+      "seed": 42,
+      "sensitivity": {
+        "lower_95": 0.8618382915715851,
+        "upper_95": 0.9411882732185447
+      },
+      "positive_predictive_value": {
+        "lower_95": 0.7437445803283138,
+        "upper_95": 0.8120658950784392
+      },
+      "f1": {
+        "lower_95": 0.7844240291741998,
+        "upper_95": 0.8564208694543776
+      }
+    },
+    "mean_record_signed_timing_error_ms": -4.388998283459767,
+    "median_record_absolute_timing_error_ms": 3.8910505836575875
+  },
+  "certified_same_75_record_cohort": {
+    "gqrs": {
+      "sensitivity": 0.9372196034503346,
+      "positive_predictive_value": 0.9309678731191541,
+      "f1": 0.9340832778431067,
+      "macro_mean_f1": 0.9367458190564473
+    },
+    "sqrs": {
+      "sensitivity": 0.7616608004912804,
+      "positive_predictive_value": 0.9537340956503785,
+      "f1": 0.8469441950454608,
+      "macro_mean_f1": 0.8291114885766605
+    }
+  },
+  "i57": {
+    "reference_count": 2870,
+    "detected_count": 3671,
+    "true_positive": 2841,
+    "false_positive": 830,
+    "false_negative": 29,
+    "sensitivity": 0.9898954703832753,
+    "positive_predictive_value": 0.7739035685099428,
+    "f1": 0.868674514600214,
+    "source_annotation_edit": "drop exactly one leading invalid beat at sample -8; zero interior invalid beats",
+    "gqrs_alignment_coverage": 0.9968641114982578,
+    "sqrs_alignment_coverage": 0.9853658536585366,
+    "detector_outputs_used_as_reference_labels": false
+  }
+}

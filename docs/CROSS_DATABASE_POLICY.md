@@ -14,10 +14,16 @@ be collapsed into one "generalization" number.
   prospective validation of that mechanism.
 - The earlier cross-database INCART evaluation exposed a severe transfer failure:
   F1 0.4854 for the earlier feature generation, while certified WFDB `gqrs`
-  scored F1 0.9294 under the same 68-record matching protocol.
-- INCART then became development data. The current v4/windowed-std model reaches
-  F1 0.8242 on those 68 usable INCART records, but that number is development
-  evidence because INCART informed the feature-scaling changes.
+  scored F1 0.9294 under the same historical 68-record matching protocol.
+- INCART then became development data. The complete frozen-v4/windowed-std
+  source-cohort characterization now scores **75/75 official INCART records**
+  at sensitivity 0.8977, PPV 0.7633, F1 0.8251. On the same 75 records,
+  certified WFDB `gqrs` scores F1 0.9341 and `sqrs` F1 0.8469. This remains
+  development evidence because INCART informed v4 feature-scaling changes.
+  Seven formerly malformed edge annotations, including I57, are usable only
+  under a documented rule requiring structural edge-only validity plus
+  independent alignment authorization from both pinned certified WFDB
+  detectors; detector outputs validate but never replace source labels.
 - The frozen v4 detector subsequently completed a prospective external European
   ST-T Database run without retraining or threshold recalibration: 90/90 records,
   sensitivity 0.9056, PPV 0.9644, F1 0.9341. Record-level performance remained
@@ -87,6 +93,7 @@ Primary artifacts and scripts include:
 
 - `validation_reports/mitdb_two_stage_locked_1.8.1.json`
 - `validation_reports/incart_two_stage_external_full_windowed_std_2026-09-09.json`
+- `validation_reports/experiments/2026-09-incart-complete/ARCHIVED_RESULT.json`
 - `validation_reports/certified_wfdb_incart_2026-09-11.json`
 - `validation_reports/incart_domain_shift_analysis_2026-09-12.json`
 - `validation_reports/experiments/2026-09-incart-fp-forensics/`
