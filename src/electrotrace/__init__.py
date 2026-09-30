@@ -1,6 +1,6 @@
 """ElectroTrace: reproducible ECG/electrophysiology research and benchmarking tools."""
 
-__version__ = "1.8.1"
+__version__ = "1.9.0"
 
 from .candidate_suppressor import CandidateSuppressor
 from .io import load_recording
