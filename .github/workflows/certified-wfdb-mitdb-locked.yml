@@ -24,9 +24,9 @@ jobs:
       WFDB_TOOLKIT_SOURCE_RELEASE: "10.7.0"
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
 
@@ -107,7 +107,7 @@ jobs:
           } | tee validation_reports/experiments/2026-09-mitdb-certified-wfdb/SHA256.txt
 
       - name: Upload benchmark artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: electrotrace-mitdb-certified-wfdb-locked
           retention-days: 90
