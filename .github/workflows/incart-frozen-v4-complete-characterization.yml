@@ -29,11 +29,11 @@ jobs:
     env:
       WFDB_TOOLKIT_SOURCE_RELEASE: "10.7.0"
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
 
@@ -172,7 +172,7 @@ jobs:
           } | tee "${DIR}/SHA256.txt"
 
       - name: Upload complete INCART characterization
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: electrotrace-incart-frozen-v4-complete-characterization
           retention-days: 90
