@@ -98,5 +98,10 @@
     "gqrs_alignment_coverage": 0.9968641114982578,
     "sqrs_alignment_coverage": 0.9853658536585366,
     "detector_outputs_used_as_reference_labels": false
+  },
+  "archival_context": {
+    "rebased_onto_main_sha": "f1663fcfe0a7db29e54aad6d32dd23e8f030be1e",
+    "authoritative_full_from_scratch_run_id": 36628984736,
+    "note": "Archive metadata commit only; scientific metrics and source-workflow provenance above are unchanged."
   }
 }
