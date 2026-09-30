@@ -92,9 +92,22 @@ enforced. Full-record normalization is retrospective design, not sample mixing.
 | Recovery | off by default |
 | Evaluation mode | retrospective full-record |
 
-## Remaining work for algorithm-paper strength
+## Completion status for algorithm-paper infrastructure
 
-1. Locked baseline comparison (Pan–Tompkins / Hamilton / open detectors).
-2. Independent external database beyond MIT-BIH/QTDB.
-3. Prespecified QTDB delineation protocol with uncertainty intervals.
-4. Frozen tagged release with regenerated artifacts only.
+The repository work corresponding to the original reviewer checklist is now
+complete:
+
+1. Locked baseline comparison is preserved, and certified WFDB `gqrs`/`sqrs`
+   reference-binary results are archived with exact toolkit provenance.
+2. Independent prospective external evaluation was completed on all 90
+   preregistered European ST-T Database records, with the heterogeneous negative
+   tail retained rather than tuned away.
+3. QTDB completed a prespecified 105-record QRS-boundary tolerance-curve study
+   with record-bootstrap uncertainty and interobserver analysis.
+4. The complete 75-record INCART source cohort is characterized with strict
+   source-reference integrity rules and same-cohort certified baselines.
+5. ElectroTrace 1.9.0 release metadata, CI/security, tag/version guards, and
+   Trusted Publishing workflow are prepared in-repo.
+
+An actual PyPI/Zenodo publication remains an external release action rather than
+a scientific-validation blocker.
