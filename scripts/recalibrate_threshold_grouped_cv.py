@@ -21,7 +21,9 @@ labels you are about to report performance on. This script:
   4. Evaluates the frozen development candidate on INCART descriptively, without
      using INCART labels to choose the threshold.
   5. Fits the final development candidate on the full MIT-BIH calibration pool
-     only. A fresh third database remains required for validation.
+     only. The unchanged frozen configuration was later tested prospectively on
+     EDB; any threshold change produced here would still require a new untouched
+     cohort before it could be described as externally validated.
 
 This never touches the MIT-BIH 12-record held-out split and never retrains
 the RF.
