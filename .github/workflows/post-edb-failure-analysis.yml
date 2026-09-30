@@ -17,11 +17,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
 
@@ -114,7 +114,7 @@ jobs:
           } | tee validation_reports/experiments/2026-09-edb-posthoc/POSTHOC_SHA256.txt
 
       - name: Upload post-hoc analysis
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: electrotrace-edb-posthoc-failure-analysis
           retention-days: 90
