@@ -1,11 +1,11 @@
 import json
+import pathlib
 import re
-from pathlib import Path
 
 import electrotrace
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 def _project_version() -> str:
