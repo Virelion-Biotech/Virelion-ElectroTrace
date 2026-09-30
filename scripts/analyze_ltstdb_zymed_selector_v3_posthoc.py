@@ -160,6 +160,38 @@ def _assert_selected_metrics(record: str, actual, archived: dict) -> None:
             )
 
 
+def _verify_local_source_identity(root: Path, protocol: dict, first_run: dict) -> dict[str, str]:
+    """Require byte-identical local inputs before reproducing archived metrics."""
+    expected = first_run.get("dataset_input_hashes")
+    if not isinstance(expected, dict) or not expected:
+        raise SystemExit("archived first-run report lacks dataset_input_hashes")
+
+    actual = _prospective.verify_dataset(root, protocol)
+    expected_keys = set(expected)
+    actual_keys = set(actual)
+    missing = sorted(expected_keys - actual_keys)
+    unexpected = sorted(actual_keys - expected_keys)
+    mismatched = sorted(
+        key for key in expected_keys & actual_keys if str(actual[key]) != str(expected[key])
+    )
+    if missing or unexpected or mismatched:
+        details = []
+        if missing:
+            details.append("missing=" + ",".join(missing[:8]))
+        if unexpected:
+            details.append("unexpected=" + ",".join(unexpected[:8]))
+        if mismatched:
+            preview = ",".join(
+                f"{key}:{expected[key]}!={actual[key]}" for key in mismatched[:4]
+            )
+            details.append("mismatched=" + preview)
+        raise SystemExit(
+            "local Zymed LTSTDB source bytes do not match the immutable first-run hashes; "
+            + "; ".join(details)
+        )
+    return actual
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     source = ap.add_mutually_exclusive_group(required=True)
@@ -179,6 +211,17 @@ def main() -> int:
     records = list(protocol["dataset"]["records"])
     if [r["record"] for r in first["record_results"]] != records:
         raise SystemExit("archived first-run record order does not match locked protocol")
+
+    verified_source_hashes = None
+    if args.ltstdb_dir is not None:
+        verified_source_hashes = _verify_local_source_identity(
+            args.ltstdb_dir, protocol, first
+        )
+        print(
+            f"Verified {len(verified_source_hashes)} local source hashes against "
+            "the immutable prospective first run.",
+            flush=True,
+        )
 
     model = CandidateSuppressor.load(args.model)
     _prospective._sv.verify_model(model, protocol)
@@ -389,6 +432,12 @@ def main() -> int:
             ),
             "first_run_report": str(args.first_run_report),
             "first_run_sha256": _prospective._sv.sha256_file(args.first_run_report),
+            "source_identity": {
+                "verified_against_first_run_hashes": verified_source_hashes is not None,
+                "verified_file_count": (
+                    len(verified_source_hashes) if verified_source_hashes is not None else 0
+                ),
+            },
             "model": str(args.model),
             "model_sha256": _prospective._sv.sha256_file(args.model),
             "polarity_derivation": str(args.polarity_threshold_report),
