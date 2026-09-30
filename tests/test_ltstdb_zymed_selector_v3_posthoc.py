@@ -108,3 +108,30 @@ def test_remote_retry_reraises_last_failure(monkeypatch):
 
     with pytest.raises(RuntimeError, match="persistent failure"):
         audit._call_with_retry(broken, attempts=2, base_delay_s=0)
+
+def test_verify_local_source_identity_accepts_exact_hashes(monkeypatch, tmp_path):
+    first = {"dataset_input_hashes": {"RECORDS": "a" * 64, "s30671.dat": "b" * 64}}
+    monkeypatch.setattr(
+        audit._prospective,
+        "verify_dataset",
+        lambda root, protocol: dict(first["dataset_input_hashes"]),
+    )
+    actual = audit._verify_local_source_identity(tmp_path, {"dataset": {}}, first)
+    assert actual == first["dataset_input_hashes"]
+
+
+def test_verify_local_source_identity_rejects_byte_drift(monkeypatch, tmp_path):
+    first = {"dataset_input_hashes": {"RECORDS": "a" * 64, "s30671.dat": "b" * 64}}
+    monkeypatch.setattr(
+        audit._prospective,
+        "verify_dataset",
+        lambda root, protocol: {"RECORDS": "a" * 64, "s30671.dat": "c" * 64},
+    )
+    with pytest.raises(SystemExit, match="do not match the immutable first-run hashes"):
+        audit._verify_local_source_identity(tmp_path, {"dataset": {}}, first)
+
+
+def test_verify_local_source_identity_requires_first_run_hash_manifest(tmp_path):
+    with pytest.raises(SystemExit, match="lacks dataset_input_hashes"):
+        audit._verify_local_source_identity(tmp_path, {"dataset": {}}, {})
+
