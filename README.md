@@ -12,15 +12,20 @@ The repository also ships its own Stage-1 and two-stage Random Forest detector, 
 
 | Protocol | Detector | Model generation | Records | Sensitivity | PPV | F1 |
 |---|---|---|---:|---:|---:|---:|
-| Locked MIT-BIH held-out | ElectroTrace two-stage | v3 (1.8.1 lock) | 12 | 0.9924 | 0.9879 | 0.9902 |\n| MIT-BIH leakage-safe gate audit | ElectroTrace two-stage | v4 (legacy non-regression) | 12 | 0.9390 | 0.9913 | 0.9644 |
+| Locked MIT-BIH held-out | ElectroTrace two-stage | v3 (1.8.1 lock) | 12 | 0.9924 | 0.9879 | 0.9902 |
+| MIT-BIH leakage-safe gate audit | ElectroTrace two-stage | v4 (legacy non-regression) | 12 | 0.9390 | 0.9913 | 0.9644 |
 | Locked MIT-BIH held-out | Pan-Tompkins reimplementation | — | 12 | 0.9908 | 0.9954 | 0.9931 |
 | Locked MIT-BIH held-out | Hamilton reimplementation | — | 12 | 0.9990 | 0.9303 | 0.9634 |
 | Locked MIT-BIH held-out | ElectroTrace Stage-1 | — | 12 | 0.9931 | 0.7553 | 0.8580 |
 | INCART external comparison | ElectroTrace two-stage | v3 | 68 | 0.3239 | 0.9679 | 0.4854 |
 | INCART external comparison | ElectroTrace two-stage | v4 (windowed-std) | 68 | 0.9011 | 0.7594 | 0.8242 |
 | INCART certified WFDB comparison | WFDB gqrs | — | 68 | 0.9324 | 0.9265 | 0.9294 |
+| INCART complete source cohort | ElectroTrace two-stage | v4 frozen / development data | 75 | 0.8977 | 0.7633 | 0.8251 |
+| INCART complete source cohort | WFDB gqrs | certified reference baseline | 75 | 0.9372 | 0.9310 | 0.9341 |
+| INCART complete source cohort | WFDB sqrs | certified reference baseline | 75 | 0.7617 | 0.9537 | 0.8469 |
+| European ST-T prospective external | ElectroTrace two-stage | v4 frozen | 90 | 0.9056 | 0.9644 | 0.9341 |
 
-These values are transcribed from the repository's locked validation artifacts. They are retrospective research results, not clinical validation and not evidence of general detector superiority. **INCART informed the choice of the v4 feature scaling and is development data for that model generation**, not a held-out test set — the v4 row above should not be read as a clean generalization result. A false-positive forensics pass (`scripts/incart_fp_offsets.py`, `validation_reports/experiments/2026-09-incart-fp-forensics/`) found the v4 gap is concentrated in the post-QRS T-wave window with a near-ceiling Stage-2 ranking AUC, consistent with a threshold/calibration problem rather than a ranking failure; `scripts/recalibrate_threshold_grouped_cv.py` is the follow-up experiment. A genuinely held-out third database (not MIT-BIH, not INCART) is still needed before any recalibrated number is reported as validated.
+These values come from the repository's locked/archived validation artifacts. They are research results, not clinical validation and not evidence of universal detector superiority. **INCART informed v4 feature-scaling development and remains exposed development data**, so neither its historical 68-record row nor the completed 75-record row is a clean generalization estimate. The 75-record completion exists to finish the source cohort reproducibly, including the seven formerly malformed edge annotations under a two-certified-detector repair rule. A later one-shot prospective evaluation on all 90 European ST-T Database records provides independent external evidence for the unchanged frozen v4 configuration (F1 0.9341), but does not make INCART held-out or validate future post-hoc retuning. See `validation_reports/VALIDATION_STATUS.md` and `docs/CROSS_DATABASE_POLICY.md` for the evidence boundaries.
 
 ## Why ElectroTrace exists
 
@@ -100,7 +105,7 @@ The two-stage Random Forest is opt-in. New model persistence uses .skops plus a 
 
 A model records its feature schema and training scikit-learn major version. Loading stops when the runtime major version is incompatible or when the .skops file contains unknown serialized types.
 
-The current INCART result is therefore part of the evidence surface: cross-database behavior must be measured instead of inferred from MIT-BIH. The research-use policy for unseen domains is documented in `docs/CROSS_DATABASE_POLICY.md`; ElectroTrace does not silently infer that a new database is in-domain or automatically promote the RF path over established reference baselines.
+The complete 75-record INCART result is part of the evidence surface: cross-database behavior must be measured instead of inferred from MIT-BIH. The research-use policy for unseen domains is documented in `docs/CROSS_DATABASE_POLICY.md`; ElectroTrace does not silently infer that a new database is in-domain or automatically promote the RF path over established reference baselines.
 
 ## Validation philosophy
 
