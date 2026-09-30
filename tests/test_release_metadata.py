@@ -1,6 +1,5 @@
 import json
 import re
-import tomllib
 from pathlib import Path
 
 import electrotrace
@@ -10,13 +9,23 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _project_version() -> str:
-    with (ROOT / "pyproject.toml").open("rb") as handle:
-        return str(tomllib.load(handle)["project"]["version"])
+    text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    in_project = False
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if line == "[project]":
+            in_project = True
+            continue
+        if in_project and line.startswith("["):
+            break
+        if in_project and line.startswith("version ="):
+            return line.split("=", 1)[1].strip().strip('"').strip("'")
+    raise AssertionError("project version not found")
 
 
 def _citation_version() -> str:
     text = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
-    match = re.search(r'^version:\s*["\']?([^"\'\s]+)', text, flags=re.MULTILINE)
+    match = re.search(r"^version:\s*[\"']?([^\"'\s]+)", text, flags=re.MULTILINE)
     assert match is not None
     return match.group(1)
 
