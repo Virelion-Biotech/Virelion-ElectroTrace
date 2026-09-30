@@ -18,11 +18,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 240
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
 
@@ -107,7 +107,7 @@ jobs:
           } | tee validation_reports/experiments/2026-09-edb-posthoc/LEAD_SELECTOR_SHA256.txt
 
       - name: Upload selector-development artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: electrotrace-edb-label-free-lead-selector-development
           retention-days: 90
