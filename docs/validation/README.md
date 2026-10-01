@@ -1,3 +1,8 @@
+---
+layout: page
+title: Validation evidence
+---
+
 # Validation evidence
 
 This page is a compact orientation to the current evidence surface. The authoritative record of exact hashes, workflow IDs, model generations, and interpretation boundaries is `validation_reports/VALIDATION_STATUS.md` in the repository.
