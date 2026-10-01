@@ -1,3 +1,8 @@
+---
+layout: page
+title: Cross-database policy
+---
+
 # Cross-database detector policy
 
 ElectroTrace is research software. This document defines the evidence boundary for

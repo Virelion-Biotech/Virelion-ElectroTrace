@@ -1,11 +1,33 @@
 site_name: ElectroTrace
+site_description: Reproducible ECG/electrophysiology annotation, benchmarking, and research-validation toolkit
+site_url: https://virelion-biotech.github.io/Virelion-ElectroTrace/
+repo_url: https://github.com/Virelion-Biotech/Virelion-ElectroTrace
+repo_name: Virelion-Biotech/Virelion-ElectroTrace
+
 theme:
   name: material
-repo_url: https://github.com/Virelion-Biotech/Virelion-ElectroTrace
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+
+markdown_extensions:
+  - meta
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+
 nav:
   - Home: index.md
   - Quickstart: QUICKSTART.md
-  - Validation: validation/README.md
-  - Limitations: LIMITATIONS.md
+  - Validation:
+      - Evidence overview: validation/README.md
+      - QTDB: QTDB_VALIDATION.md
+      - QRS delineation: QRS_DELINEATION.md
+      - Cross-database policy: CROSS_DATABASE_POLICY.md
   - Reproducibility: REPRODUCIBILITY.md
+  - Limitations: LIMITATIONS.md
+  - Detector plugins: DETECTOR_PLUGINS.md
   - Contributing: CONTRIBUTING.md

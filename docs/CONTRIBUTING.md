@@ -1,3 +1,8 @@
+---
+layout: page
+title: Contributing
+---
+
 # Contributing
 
 See the repository-level CONTRIBUTING.md for contribution rules, scientific-change expectations, and local checks.

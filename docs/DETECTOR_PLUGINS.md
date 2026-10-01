@@ -1,3 +1,8 @@
+---
+layout: page
+title: Detector plugins
+---
+
 # Detector plugins
 
 ElectroTrace can discover third-party detectors through the Python entry-point group electrotrace.detectors.

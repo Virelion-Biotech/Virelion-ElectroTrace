@@ -1,3 +1,8 @@
+---
+layout: page
+title: QTDB validation
+---
+
 # QT Database QRS-boundary validation
 
 ## Purpose
