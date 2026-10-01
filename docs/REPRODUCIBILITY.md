@@ -1,3 +1,8 @@
+---
+layout: page
+title: Reproducibility
+---
+
 # Reproducibility
 
 When the source tree is not a git checkout, set ELECTROTRACE_GIT_SHA in the execution environment. The CLI records unknown rather than inventing a commit identifier.
