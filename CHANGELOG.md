@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.9.0 — 2026-09-30
+## 1.9.0 — 2026-10-01
 
 ### Added
 - Public Python API exports plus the `electrotrace` CLI for detector listing, single-record detection, batch processing, local validation, benchmarking, and JSON-to-HTML reporting.
