@@ -9,3 +9,8 @@ header_pages:
   - QUICKSTART.md
   - LIMITATIONS.md
   - REPRODUCIBILITY.md
+plugins:
+  - jekyll-relative-links
+relative_links:
+  enabled: true
+  collections: true
