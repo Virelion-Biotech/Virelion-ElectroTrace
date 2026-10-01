@@ -50,7 +50,7 @@ electrotrace list
 No external ECG dataset is required for the first run. Download the repository's small example CSV and detect R peaks:
 
 ```bash
-python -c "from urllib.request import urlretrieve; urlretrieve('https://raw.githubusercontent.com/Virelion-Biotech/Virelion-ElectroTrace/main/sample_data/sample_ecg.csv','sample_ecg.csv')" && electrotrace detect sample_ecg.csv --detector pan-tompkins --channel 0 -o peaks.csv
+python -c "from urllib.request import urlretrieve; urlretrieve('https://raw.githubusercontent.com/Virelion-Biotech/Virelion-ElectroTrace/v1.9.0/sample_data/sample_ecg.csv','sample_ecg.csv')" && electrotrace detect sample_ecg.csv --detector pan-tompkins --channel 0 -o peaks.csv
 ```
 
 That creates:
