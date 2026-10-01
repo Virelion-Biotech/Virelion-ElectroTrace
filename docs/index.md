@@ -1,3 +1,8 @@
+---
+layout: page
+title: ElectroTrace
+---
+
 # ElectroTrace
 
 ElectroTrace is a reproducible ECG/electrophysiology annotation, benchmarking, and research-validation toolkit.
