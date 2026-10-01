@@ -150,6 +150,26 @@ peaks = detect_r_peaks(
 print(peaks[:10])
 ```
 
+## EP calibration handoff
+
+ElectroTrace can now turn a measured ECG into a calibration-grade, provenance-linked observation for CardiEP/CardiInfer:
+
+```bash
+electrotrace calibration prepare recording.csv \
+  --entity-id subject-001 \
+  --kind ecg \
+  --detector stage1 \
+  --units mV \
+  --output-dir calibration/ \
+  -o calibration-handoff.json
+```
+
+The ECG handoff contains an aligned multi-lead median-beat template, R-relative timing, QRS delineation summary, robust residual-noise estimates, lead-quality metadata, source SHA-256, and a typed artifact reference. HeartTwin exposes the same path as `electrical.prepare_calibration`.
+
+Pre-aligned EAM activation, activation-map, and repolarization-map files can also be registered as calibration observations, but ElectroTrace deliberately does not invent a spatial registration: callers must supply the coordinate frame and units.
+
+This handoff is an inverse-model input contract. It is not evidence that the downstream EP model, discrepancy function, or inferred patient parameters are clinically valid.
+
 ## Why ElectroTrace exists
 
 Most ECG software answers “which detector can I run?” ElectroTrace is aimed at a stricter research question:
