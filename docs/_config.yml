@@ -1,0 +1,11 @@
+title: ElectroTrace
+description: Reproducible ECG/electrophysiology annotation, benchmarking, and research-validation toolkit
+theme: minima
+url: https://virelion-biotech.github.io
+baseurl: /Virelion-ElectroTrace
+github_username: Virelion-Biotech
+header_pages:
+  - index.md
+  - QUICKSTART.md
+  - LIMITATIONS.md
+  - REPRODUCIBILITY.md
