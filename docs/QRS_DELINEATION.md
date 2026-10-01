@@ -1,3 +1,8 @@
+---
+layout: page
+title: QRS delineation
+---
+
 # QRS Onset/Offset Delineation
 
 ElectroTrace contains the experimental frozen signal-only QRS boundary
