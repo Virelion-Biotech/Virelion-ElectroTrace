@@ -12,6 +12,7 @@ theme:
     - content.code.copy
 
 markdown_extensions:
+  - meta
   - admonition
   - attr_list
   - tables
