@@ -15,6 +15,7 @@ from pathlib import Path
 import numpy as np
 
 from . import __version__
+from .calibration import prepare_calibration
 from .candidate_suppressor import CandidateSuppressor
 from .detectors import discover_detectors, get_detector
 from .io import load_recording
@@ -520,6 +521,40 @@ def cmd_bench(args: argparse.Namespace) -> int:
     return 0 if not failures else 2
 
 
+def cmd_calibration_prepare(args: argparse.Namespace) -> int:
+    r_indices = None
+    if args.r_indices:
+        r_indices = [int(item.strip()) for item in args.r_indices.split(",") if item.strip()]
+    params = {
+        "observation_kind": args.kind,
+        "channel": args.channel,
+        "detector": args.detector,
+        "polarity": args.polarity,
+        "scale_method": args.scale_method,
+        "pre_s": args.pre_s,
+        "post_s": args.post_s,
+        "min_beats": args.min_beats,
+        "max_beats": args.max_beats,
+        "r_indices": r_indices,
+        "coordinate_frame": args.coordinate_frame,
+        "units": args.units,
+        "calibration_output_dir": args.output_dir,
+    }
+    result = prepare_calibration(
+        args.input,
+        entity_id=args.entity_id,
+        params={key: value for key, value in params.items() if value is not None},
+    )
+    output = Path(args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(
+        json.dumps(result, indent=2, sort_keys=True, allow_nan=False) + "\n",
+        encoding="utf-8",
+    )
+    print(f"calibration_observations={len(result['observations'])} output={output}")
+    return 0
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     data = json.loads(Path(args.input).read_text(encoding="utf-8"))
     title = html.escape(args.title)
@@ -607,6 +642,32 @@ def build_parser() -> argparse.ArgumentParser:
     bench.add_argument("--bootstrap", type=int, default=2000)
     bench.add_argument("-o", "--output", default="bench.json")
     bench.set_defaults(func=cmd_bench)
+
+    calibration = sub.add_parser(
+        "calibration", help="prepare calibration-grade EP observations"
+    )
+    calibration_sub = calibration.add_subparsers(dest="calibration_command", required=True)
+    prepare = calibration_sub.add_parser(
+        "prepare", parents=[common], help="prepare an ECG/EAM observation for CardiEP/CardiInfer"
+    )
+    prepare.add_argument("input")
+    prepare.add_argument("--entity-id", default="subject")
+    prepare.add_argument(
+        "--kind",
+        choices=["ecg", "eam_activation", "activation_map", "repolarization_map"],
+        default="ecg",
+    )
+    prepare.add_argument("--detector", default="stage1")
+    prepare.add_argument("--pre-s", type=float, default=0.25)
+    prepare.add_argument("--post-s", type=float, default=0.45)
+    prepare.add_argument("--min-beats", type=int, default=3)
+    prepare.add_argument("--max-beats", type=int, default=256)
+    prepare.add_argument("--r-indices", help="optional comma-separated R sample indices")
+    prepare.add_argument("--coordinate-frame")
+    prepare.add_argument("--units")
+    prepare.add_argument("--output-dir", default="electrotrace_calibration")
+    prepare.add_argument("-o", "--output", default="calibration-handoff.json")
+    prepare.set_defaults(func=cmd_calibration_prepare)
 
     report = sub.add_parser(
         "report", help="render a JSON artifact as self-contained HTML"
