@@ -1,3 +1,8 @@
+---
+layout: page
+title: Quickstart
+---
+
 # Quickstart
 
 ElectroTrace 1.9.0 is available from PyPI and requires Python 3.10+.
