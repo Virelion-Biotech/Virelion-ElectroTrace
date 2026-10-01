@@ -1,3 +1,8 @@
+---
+layout: page
+title: Limitations
+---
+
 # Limitations
 
 ElectroTrace is research software, not a clinical device.
