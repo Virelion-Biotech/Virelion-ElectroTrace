@@ -171,9 +171,9 @@ def build_ecg_calibration_bundle(
     for peak in usable:
         try:
             boundary = delineate_qrs(primary, fs, int(peak))
-        except Exception:
-            continue
-        if not boundary.onset_found or not boundary.offset_found:
+        except ValueError:
+            boundary = None
+        if boundary is None or not boundary.onset_found or not boundary.offset_found:
             continue
         onset_ms = float((boundary.onset - int(peak)) * 1000.0 / fs)
         offset_ms = float((boundary.offset - int(peak)) * 1000.0 / fs)
