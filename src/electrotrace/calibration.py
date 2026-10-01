@@ -327,6 +327,7 @@ def prepare_ecg_calibration(
     hints = [
         {
             "term_id": f"{observation_id}:morphology",
+            "observation_id": observation_id,
             "model_output": "ecg",
             "discrepancy": "correlation",
             "weight": float(params.get("ecg_morphology_weight", 1.0)),
@@ -344,6 +345,7 @@ def prepare_ecg_calibration(
         hints.append(
             {
                 "term_id": f"{observation_id}:qrs_duration",
+                "observation_id": observation_id,
                 "model_output": "qrs_duration_ms",
                 "discrepancy": "gaussian",
                 "weight": float(params.get("qrs_weight", 0.25)),
@@ -422,6 +424,7 @@ def register_map_calibration(
     model_output = "activation_map" if normalized in {"eam_activation", "activation_map"} else "repolarization_map"
     hint = {
         "term_id": f"{observation_id}:map",
+        "observation_id": observation_id,
         "model_output": model_output,
         "discrepancy": str(params.get("discrepancy", "student_t")),
         "weight": float(params.get("weight", 2.0)),
