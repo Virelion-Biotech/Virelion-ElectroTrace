@@ -2,7 +2,12 @@
 
 __version__ = "1.9.0"
 
-from .calibration import build_ecg_calibration_bundle, prepare_calibration, prepare_ecg_calibration, register_map_calibration
+from .calibration import (
+    build_ecg_calibration_bundle,
+    prepare_calibration,
+    prepare_ecg_calibration,
+    register_map_calibration,
+)
 from .candidate_suppressor import CandidateSuppressor
 from .io import load_recording
 from .provenance import DatasetManifest, manifest_from_dict
