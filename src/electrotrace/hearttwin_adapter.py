@@ -1,4 +1,4 @@
-"""HeartTwin local-command adapter for ElectroTrace electrical.analyze."""
+"""HeartTwin local-command adapter for ElectroTrace electrical capabilities."""
 from __future__ import annotations
 
 import json
@@ -6,6 +6,7 @@ import os
 import sys
 from pathlib import Path
 
+from .calibration import prepare_calibration
 from .formats import load_electrophysiology
 from .io import load_csv, validate_dataframe
 
@@ -70,6 +71,18 @@ def main() -> int:
         file_path = Path(path)
         if not file_path.is_file():
             raise FileNotFoundError(file_path)
+        capability = os.environ.get("HEARTTWIN_CAPABILITY", "electrical.analyze")
+        if capability == "electrical.prepare_calibration":
+            body = prepare_calibration(
+                file_path,
+                entity_id=str(payload.get("entity_id") or "unknown"),
+                params=params,
+            )
+            print(json.dumps(body, allow_nan=False, default=str))
+            return 0
+        if capability != "electrical.analyze":
+            raise ValueError(f"Unsupported ElectroTrace HeartTwin capability: {capability}")
+
         body = _analyze_file(file_path, params)
         if not body.get("valid", False):
             raise RuntimeError("; ".join(body.get("errors") or ["ElectroTrace analysis failed"]))
