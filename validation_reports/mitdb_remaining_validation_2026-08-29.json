@@ -1,0 +1,38 @@
+{
+  "schema": "electrotrace.remaining_validation/v1",
+  "software_version": "1.8.0",
+  "git_head": "7734553d482699286df90b79c9afca71d3606de9",
+  "created_at_utc": "2026-08-29T17:02:25.018849+00:00",
+  "record_207": {
+    "single_stage_adaptive": {"sensitivity": 0.14677419354838708, "positive_predictive_value": 0.11124694376528117, "f1": 0.1265646731571627, "true_positive": 273, "false_positive": 2181, "false_negative": 1587},
+    "single_stage_positive": {"sensitivity": 0.14677419354838708, "positive_predictive_value": 0.11124694376528117, "f1": 0.1265646731571627, "true_positive": 273, "false_positive": 2181, "false_negative": 1587},
+    "single_stage_negative": {"sensitivity": 0.9220430107526881, "positive_predictive_value": 0.7175732217573222, "f1": 0.8070588235294118, "true_positive": 1715, "false_positive": 675, "false_negative": 145},
+    "two_stage_adaptive": {"sensitivity": 0.13279569892473117, "positive_predictive_value": 0.7507598784194529, "f1": 0.2256738236637734, "true_positive": 247, "false_positive": 82, "false_negative": 1613},
+    "two_stage_negative": {"sensitivity": 0.906989247311828, "positive_predictive_value": 0.9514946418499718, "f1": 0.9287090558766858, "true_positive": 1687, "false_positive": 86, "false_negative": 173}
+  },
+  "two_stage_full_pool": {
+    "polarity": "adaptive",
+    "recovery": false,
+    "seed": 42,
+    "train_records": ["100", "101", "102", "103", "104", "106", "107", "108", "109", "111", "112", "113", "114", "115", "116", "117", "119", "121", "123", "124", "200", "202", "203", "205", "208", "210", "212", "213", "215", "217", "220", "221", "222", "223", "228", "233"],
+    "test_records": ["105", "118", "122", "201", "207", "209", "214", "219", "230", "231", "232", "234"],
+    "note": "Model trained on train_records only; full_pool includes train records (optimistic on those).",
+    "held_out_summary": {"records": 12, "reference_count": 26930, "detected_count": 25425, "true_positive": 25252, "false_positive": 173, "false_negative": 1678, "sensitivity": 0.9376903082064612, "positive_predictive_value": 0.9931956735496559, "f1": 0.9646452105816063},
+    "full_pool_summary": {"records": 48, "reference_count": 109494, "detected_count": 105854, "true_positive": 105582, "false_positive": 272, "false_negative": 3912, "sensitivity": 0.9642720149049263, "positive_predictive_value": 0.9974304230355018, "f1": 0.9805709827813586}
+  },
+  "recovery_ab": {
+    "test_records": ["105", "118", "122", "201", "207", "209", "214", "219", "230", "231", "232", "234"],
+    "without_recovery": {"records": 12, "sensitivity": 0.9376903082064612, "positive_predictive_value": 0.9931956735496559, "f1": 0.9646452105816063},
+    "with_recovery": {"records": 12, "sensitivity": 0.9367619754920163, "positive_predictive_value": 0.9953049790894026, "f1": 0.9651465299563853},
+    "note": "Same train/test split (seed=42). Keep recovery off by default (ΔF1 ≈ +0.0005)."
+  },
+  "qtdb_two_stage_summary": {
+    "records": 105,
+    "reference_qrs": 3623,
+    "matched_qrs": 3319,
+    "detected_qrs": 101710,
+    "onset_median_abs_ms": 8.0,
+    "offset_median_abs_ms": 12.0,
+    "match_rate": 0.916
+  }
+}

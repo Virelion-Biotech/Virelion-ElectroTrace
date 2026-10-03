@@ -1,0 +1,73 @@
+{
+  "schema": "electrotrace.ltstdb_zymed_selector_v3_posthoc_archive/v1",
+  "archived_at_utc": "2026-09-29",
+  "evidence_status": "posthoc_exposed_dataset_comparator_analysis",
+  "source_workflow": {
+    "run_id": 36605159238,
+    "head_sha": "82bd6d13e9eb53e891109c35276a9a55dffe5327",
+    "artifact_id": 11051356654,
+    "artifact_name": "electrotrace-ltstdb-zymed-selector-v3-posthoc-audit",
+    "artifact_zip_digest": "sha256:e1e8f94c2d3e730f02895a7c68072e102d3155332f054a682a36bc36a4e0459c",
+    "result_json_sha256": "10263d252fa4dcb938b07534ff03ea01db55c6c721c1314787ec9eca39a4c38b"
+  },
+  "reproduction": {
+    "all_18_archived_selected_channel_decisions_reproduced": true,
+    "all_18_archived_selected_lead_results_reproduced": true,
+    "label_free_input_bitwise_equivalence": true,
+    "label_free_input_drift_record_count": 0,
+    "channel2_loaded": false
+  },
+  "summaries": {
+    "channel0_fixed_posthoc": {
+      "records": 18,
+      "sensitivity": 0.8717745900763195,
+      "positive_predictive_value": 0.9649778745356019,
+      "f1": 0.9160115009659013,
+      "macro_mean_record_f1": 0.9030736162375573,
+      "macro_median_record_f1": 0.9806577730715482,
+      "min_record_f1": 0.3343792021515016,
+      "max_record_f1": 1
+    },
+    "channel1_fixed_posthoc": {
+      "records": 18,
+      "sensitivity": 0.9372554888086025,
+      "positive_predictive_value": 0.9686485053357194,
+      "f1": 0.9526934527043178,
+      "macro_mean_record_f1": 0.9480793169821167,
+      "macro_median_record_f1": 0.9980845593691666,
+      "min_record_f1": 0.679887906876482,
+      "max_record_f1": 1
+    },
+    "prospective_selector_v3_reproduced": {
+      "records": 18,
+      "sensitivity": 0.8717745900763195,
+      "positive_predictive_value": 0.9649778745356019,
+      "f1": 0.9160115009659013,
+      "macro_mean_record_f1": 0.9030736162375573,
+      "macro_median_record_f1": 0.9806577730715482,
+      "min_record_f1": 0.3343792021515016,
+      "max_record_f1": 1
+    },
+    "oracle_best_channel_posthoc": {
+      "records": 18,
+      "sensitivity": 0.9916198131560382,
+      "positive_predictive_value": 0.9841926586038616,
+      "f1": 0.9878922764011202,
+      "macro_mean_record_f1": 0.9861362800115239,
+      "macro_median_record_f1": 0.9994279224160585,
+      "min_record_f1": 0.8797557538750586,
+      "max_record_f1": 1
+    }
+  },
+  "switch_audit": {
+    "selected_channel1_records": 0,
+    "switches_improved_vs_channel0": 0,
+    "switches_regressed_vs_channel0": 0,
+    "switches_tied_vs_channel0": 0
+  },
+  "interpretation": [
+    "The immutable prospective v3 result remains fixed channel 0 on all 18 records because the preregistered starvation condition never fired.",
+    "Post-hoc, fixed channel 1 performs better in aggregate than fixed channel 0, and the oracle is higher still. These exposed-data comparisons may motivate future hypotheses but cannot retroactively alter the prospective result.",
+    "The successful main-branch comparator reproduced all archived selected-channel decisions, selected-lead metrics, and label-free selector inputs exactly."
+  ]
+}

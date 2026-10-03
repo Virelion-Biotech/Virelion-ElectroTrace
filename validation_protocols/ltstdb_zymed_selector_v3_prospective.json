@@ -1,0 +1,178 @@
+{
+  "schema": "electrotrace.prospective_lead_selector_protocol/v3",
+  "protocol_id": "ltstdb-zymed-starvation-rescue-selector-v3-2026-09-29",
+  "preregistration_issue": "https://github.com/Virelion-Biotech/Virelion-ElectroTrace/issues/54",
+  "dataset": {
+    "name": "Long Term ST Database — Zymed three-channel subset",
+    "physionet_database": "ltstdb",
+    "version": "1.0.0",
+    "expected_record_count": 18,
+    "records": [
+      "s30661",
+      "s30671",
+      "s30681",
+      "s30691",
+      "s30701",
+      "s30711",
+      "s30721",
+      "s30731",
+      "s30732",
+      "s30741",
+      "s30742",
+      "s30751",
+      "s30752",
+      "s30761",
+      "s30771",
+      "s30781",
+      "s30791",
+      "s30801"
+    ],
+    "expected_sampling_frequency_hz": 250,
+    "expected_min_signal_channels": 3,
+    "candidate_channels": [
+      0,
+      1
+    ],
+    "prohibited_channels": [
+      2
+    ],
+    "window": {
+      "start_seconds": 0,
+      "duration_seconds": 1800,
+      "start_sample": 0,
+      "stop_sample_exclusive": 450000
+    },
+    "independence_scope": {
+      "selector_v3_used_ltstdb_before_preregistration": false,
+      "exact_record_subset_untouched_for_selector_v3": true,
+      "recording_source": "Zymed, Inc.",
+      "excludes_pisa_edb_source_records": true,
+      "note": "PhysioNet documents that all 18 three-channel LTSTDB recordings were contributed by Zymed; selector v3 was frozen using only exposed EDB, LTAFDB, and SVDB data."
+    }
+  },
+  "development_provenance": {
+    "exposed_datasets": [
+      "European ST-T Database",
+      "Long Term AF Database",
+      "MIT-BIH Supraventricular Arrhythmia Database"
+    ],
+    "rule": "switch only for gross primary retained-rate starvation",
+    "exposed_switch_audit": {
+      "edb": {
+        "switches": 7,
+        "improvements": 7,
+        "regressions": 0,
+        "aggregate_f1": 0.9657956542614154
+      },
+      "ltafdb": {
+        "switches": 1,
+        "improvements": 1,
+        "regressions": 0,
+        "aggregate_f1": 0.9280474896143064
+      },
+      "svdb": {
+        "switches": 5,
+        "improvements": 5,
+        "regressions": 0,
+        "aggregate_f1": 0.9821300538014001
+      }
+    }
+  },
+  "frozen_model": {
+    "model_version": "rf-candidate-suppressor-v4",
+    "feature_schema_version": "candidate-features-v4",
+    "operating_threshold_source": "model_metadata_only",
+    "retraining": false,
+    "operating_threshold": 0.2751648051220502,
+    "target_recall": 0.995,
+    "n_training_candidates": 102115,
+    "n_positive_candidates": 63526,
+    "n_negative_candidates": 38589,
+    "random_seed": 42,
+    "n_estimators": 150,
+    "calibration_candidates": 24841,
+    "calibration_method": "locked_MITBIH_calibration_records",
+    "trusted_legacy_pickle_sha256": "8732aa47051c76b043bd56e4d9dc82dc01307e0d9bcc6c5ed046fca19a27f5bb"
+  },
+  "detector": {
+    "annotation_extension": "atr",
+    "beat_symbols": [
+      "/",
+      "A",
+      "E",
+      "F",
+      "J",
+      "L",
+      "N",
+      "Q",
+      "R",
+      "S",
+      "V",
+      "a",
+      "e",
+      "f",
+      "j"
+    ],
+    "tolerance_ms": 75,
+    "polarity": "adaptive",
+    "stage1_scale_method": "windowed_std",
+    "recovery": false,
+    "polarity_threshold_report_schema": "electrotrace.mitdb_polarity_thresholds_extended_derivation/v3",
+    "expected_v2_gate_confidence": 0,
+    "expected_width_override_confidence": 0
+  },
+  "lead_selector": {
+    "version": "edb-ltafdb-svdb-informed-starvation-rescue-v3",
+    "historical_primary_channel": 0,
+    "alternate_channel": 1,
+    "primary_retained_rate_ceiling_bpm": 30,
+    "alternate_retained_rate_floor_bpm": 30,
+    "minimum_alternate_to_primary_rate_ratio": 2,
+    "conditions": [
+      "primary_retained_rate_bpm < 30",
+      "alternate_retained_rate_bpm > 30",
+      "alternate_retained_rate_bpm > 2 * primary_retained_rate_bpm"
+    ],
+    "conjunction": "all",
+    "tie_or_disagreement_policy": "preserve_channel_0",
+    "reference_annotations_allowed_before_selection": false,
+    "third_channel_allowed": false
+  },
+  "integrity": {
+    "annotation_policy": "error",
+    "require_all_records": true,
+    "require_files": [
+      ".hea",
+      ".dat",
+      ".atr"
+    ],
+    "abort_on_any_record_failure": true,
+    "prohibit_reference_load_before_lead_selection": true,
+    "prohibit_channel_2_load": true,
+    "allow_ltstdb_for_model_selection": false,
+    "allow_ltstdb_for_threshold_selection": false,
+    "allow_ltstdb_for_lead_selector_tuning": false,
+    "allow_ltstdb_for_polarity_tuning": false,
+    "allow_ltstdb_for_scale_method_selection": false,
+    "allow_ltstdb_for_architecture_search": false,
+    "after_first_scored_run_dataset_is_exposed": true,
+    "suppress_partial_outcome_metrics": true
+  },
+  "endpoints": {
+    "primary": [
+      "aggregate_sensitivity",
+      "aggregate_positive_predictive_value",
+      "aggregate_f1"
+    ],
+    "secondary": [
+      "per_record_metrics",
+      "macro_mean_record_f1",
+      "macro_median_record_f1",
+      "min_record_f1",
+      "max_record_f1",
+      "selected_channel_counts"
+    ],
+    "posthoc_pass_threshold": null
+  },
+  "interpretation": "First prospective external evaluation of starvation-rescue selector v3 on the untouched Zymed three-channel LTSTDB subset, using only candidate channels 0 and 1. This is not an ANSI/AAMI bxb compliance study."
+}

@@ -1,108 +1,236 @@
-# ECG Trace Annotator
+# ElectroTrace
 
-A lightweight Streamlit app for building labeled ECG datasets: **Upload → Visualize → Annotate → Review → Export**.
+[![PyPI](https://img.shields.io/pypi/v/electrotrace.svg)](https://pypi.org/project/electrotrace/)
+[![Python](https://img.shields.io/pypi/pyversions/electrotrace.svg)](https://pypi.org/project/electrotrace/)
+[![Tests](https://github.com/Virelion-Biotech/Virelion-ElectroTrace/actions/workflows/test.yml/badge.svg)](https://github.com/Virelion-Biotech/Virelion-ElectroTrace/actions/workflows/test.yml)
+[![Release](https://img.shields.io/github/v/release/Virelion-Biotech/Virelion-ElectroTrace)](https://github.com/Virelion-Biotech/Virelion-ElectroTrace/releases/latest)
+[![License](https://img.shields.io/github/license/Virelion-Biotech/Virelion-ElectroTrace)](LICENSE)
 
-## Features (MVP)
+**Current release: 1.9.0**
 
-- Upload a CSV with a time column + one or more signal channels (auto-detects the time column, or pick manually)
-- Interactive Plotly waveform: zoom, pan, multi-channel
-- **Box-select on the chart** to pre-fill a new interval annotation (or enter times manually)
-- Point annotations (R peak, pacing spike, etc.) and interval annotations (QRS, P/T wave, artifact, etc.)
-- Non-destructive optional filtering for display only (baseline wander removal, low-pass, high-pass, notch) — raw data is never modified
-- Annotation table: view, duplicate, delete
-- Export to JSON and CSV; re-import a previously saved `annotations.json`
-- Built-in synthetic sample ECG so you can try it with no file of your own
+A reproducible ECG/electrophysiology annotation, benchmarking, and research-validation toolkit.
 
-## Quickstart
+ElectroTrace is built around a simple principle: **the evidence is the product**. It helps researchers detect beats, batch recordings, compare detectors under declared protocols, preserve record/subject-level statistics, and carry source hashes, software versions, detector configuration, and provenance alongside results.
+
+> ElectroTrace is research software, not a clinical device. The current release does not claim clinical validation, real-time/streaming validation, population-wide generalization, or universal detector superiority.
+
+## Install
+
+Python 3.10+ is required.
+
+Minimal installation:
 
 ```bash
-git clone <your-repo-url>
-cd ecg-trace-annotator
-python -m venv .venv && source .venv/bin/activate   # optional but recommended
-pip install -r requirements.txt
-streamlit run app.py
+python -m pip install electrotrace==1.9.0
 ```
 
-Then open the local URL Streamlit prints (usually `http://localhost:8501`), and click **Load sample data** in the sidebar to try it immediately.
+Install common optional format/model support:
 
-## CSV format
-
-```csv
-time,Lead_I,Lead_II
-0.000,0.012,0.031
-0.004,0.015,0.034
-...
+```bash
+python -m pip install "electrotrace[all]==1.9.0"
 ```
 
-- `time` should be in seconds.
-- Any number of additional signal columns is supported; pick which ones to display/annotate in the sidebar.
-- Sampling rate is inferred automatically from the time column.
+Useful extras can also be installed separately:
 
-## Annotation schema
-
-Annotations are stored as:
-
-```json
-{
-  "file": "sample_ecg.csv",
-  "annotation_schema": "v1",
-  "annotations": [
-    {
-      "id": "a1b2c3d4",
-      "type": "interval",
-      "label": "QRS",
-      "channel": "Lead_II",
-      "start": 1.42,
-      "end": 1.51,
-      "confidence": 0.98,
-      "notes": ""
-    },
-    {
-      "id": "e5f6a7b8",
-      "type": "point",
-      "label": "R_peak",
-      "channel": "Lead_II",
-      "time": 1.465,
-      "confidence": 0.99,
-      "notes": ""
-    }
-  ]
-}
+```bash
+python -m pip install "electrotrace[wfdb]==1.9.0"    # WFDB / PhysioNet records
+python -m pip install "electrotrace[edf]==1.9.0"     # EDF files
+python -m pip install "electrotrace[models]==1.9.0"  # .skops model artifacts
 ```
 
-CSV export flattens this into one row per annotation (`file,id,type,label,channel,start,end,time,confidence,notes`) for use in ML pipelines.
+Confirm the installation:
 
-## Project layout
-
-```
-ecg-trace-annotator/
-├── app.py                     # Streamlit application (main entry point)
-├── src/
-│   ├── annotation_model.py    # Annotation + AnnotationStore data model
-│   ├── io_utils.py            # CSV loading, column/sampling-rate inference
-│   └── signal_processing.py   # Optional non-destructive filters
-├── sample_data/
-│   └── sample_ecg.csv         # Synthetic demo recording
-├── requirements.txt
-└── README.md
+```bash
+electrotrace --help
+electrotrace list
 ```
 
-## Roadmap (not yet implemented)
+## 60-second demo
 
-These are natural next steps if you want to extend the tool, per the original design doc:
+No external ECG dataset is required for the first run. Download the repository's small example CSV and detect R peaks:
 
-- PDF/image ECG upload with bounding-box annotation (pixel coords, optional grid calibration to time)
-- Keyboard shortcuts for fast labeling (Q/P/T/A, arrows to move cursor, etc.)
-- Undo/redo
-- Multi-file "project" mode (`project.json` + one folder per recording)
-- Multi-annotator agreement metrics (IoU, Cohen's kappa)
-- ML-assisted pre-labeling (automatic R-peak/QRS detector + human review queue)
-- YOLO/COCO/segmentation export for image-based annotation
+```bash
+python -c "from urllib.request import urlretrieve; urlretrieve('https://raw.githubusercontent.com/Virelion-Biotech/Virelion-ElectroTrace/v1.9.0/sample_data/sample_ecg.csv','sample_ecg.csv')" && electrotrace detect sample_ecg.csv --detector pan-tompkins --channel 0 -o peaks.csv
+```
 
-## Deploying
+That creates:
 
-Works as-is on [Streamlit Community Cloud](https://streamlit.io/cloud): push this repo to GitHub, point Streamlit Cloud at `app.py`, done.
+```text
+peaks.csv
+peaks.csv.manifest.json
+```
+
+`peaks.csv` contains detected sample indices and times. The adjacent manifest records the detector configuration, input hash, ElectroTrace version, channel selection, and provenance metadata.
+
+The sample is an onboarding fixture only; it is **not** validation evidence and should not be used to infer clinical performance.
+
+## Use your own recording
+
+ElectroTrace currently accepts:
+
+- CSV with a monotonic time column named `time`, `t`, `timestamp`, `time_s`, or `seconds`, plus one or more numeric signal columns;
+- EDF with the `edf` extra installed;
+- WFDB records with the `wfdb` extra installed.
+
+Detect one recording:
+
+```bash
+electrotrace detect recording.edf \
+  --detector pan-tompkins \
+  --channel 0 \
+  -o peaks.csv
+```
+
+Batch a directory:
+
+```bash
+electrotrace batch data/ \
+  --detector pan-tompkins \
+  --workers 4 \
+  -o results/
+```
+
+Batch output is deliberately analysis-friendly:
+
+```text
+results/
+├── beats.csv
+├── records.csv
+├── subjects.csv
+├── failures.csv
+├── manifest.json
+├── batch_state.json
+└── peaks/
+```
+
+Subject identity is never inferred from filenames. When subject-level aggregation is appropriate, provide a two-column `record,subject_id` CSV with `--subject-map`.
+
+## Validation and benchmarking
+
+Validate a local WFDB record against its annotations:
+
+```bash
+electrotrace validate .cache/physionet/mitdb/100 \
+  --detector pan-tompkins \
+  --tolerance-ms 75 \
+  -o validation.json
+```
+
+Compare detectors over a local WFDB collection:
+
+```bash
+electrotrace bench .cache/physionet/mitdb \
+  --detectors pan-tompkins,hamilton \
+  --tolerance-ms 75 \
+  -o bench.json
+```
+
+Render any JSON result as a self-contained HTML report:
+
+```bash
+electrotrace report bench.json -o bench.html
+```
+
+Primary comparative statistics should be interpreted at the record or subject level rather than treating individual beats as independent biological replicates.
+
+## Python API
+
+```python
+from electrotrace import load_recording, detect_r_peaks
+
+record = load_recording("recording.csv")
+signal = record.signals[next(iter(record.signals))]
+
+peaks = detect_r_peaks(
+    signal,
+    record.sampling_rate_hz,
+    polarity="adaptive",
+)
+
+print(peaks[:10])
+```
+
+## EP calibration handoff
+
+ElectroTrace can now turn a measured ECG into a calibration-grade, provenance-linked observation for CardiEP/CardiInfer:
+
+```bash
+electrotrace calibration prepare recording.csv \
+  --entity-id subject-001 \
+  --kind ecg \
+  --detector stage1 \
+  --units mV \
+  --output-dir calibration/ \
+  -o calibration-handoff.json
+```
+
+The ECG handoff contains an aligned multi-lead median-beat template, R-relative timing, QRS delineation summary, robust residual-noise estimates, lead-quality metadata, source SHA-256, and a typed artifact reference. HeartTwin exposes the same path as `electrical.prepare_calibration`.
+
+Pre-aligned EAM activation, activation-map, and repolarization-map files can also be registered as calibration observations, but ElectroTrace deliberately does not invent a spatial registration: callers must supply the coordinate frame and units.
+
+This handoff is an inverse-model input contract. It is not evidence that the downstream EP model, discrepancy function, or inferred patient parameters are clinically valid.
+
+## Why ElectroTrace exists
+
+Most ECG software answers “which detector can I run?” ElectroTrace is aimed at a stricter research question:
+
+> **Under one explicit protocol, how did this detector behave, and can someone else reproduce the answer?**
+
+The toolkit emphasizes:
+
+- record/subject-level rather than beat-level primary statistics;
+- one-to-one matching under a declared tolerance;
+- locked splits with explicit seeds;
+- bootstrap uncertainty over records;
+- SHA-256 input hashes;
+- software/git provenance;
+- detector and model metadata;
+- explicit evidence boundaries and non-claims.
+
+## Evidence snapshot
+
+ElectroTrace ships a research detector as well as benchmarking infrastructure. The detector evidence is intentionally reported with its limitations rather than compressed into one headline score.
+
+| Protocol | Detector / generation | Records | Sensitivity | PPV | F1 | Evidence status |
+|---|---|---:|---:|---:|---:|---|
+| Locked MIT-BIH | two-stage v3 | 12 | 0.9924 | 0.9879 | 0.9902 | historical locked model comparison |
+| MIT-BIH leakage-safe gate audit | frozen v4 | 12 | 0.9390 | 0.9913 | 0.9644 | legacy non-regression |
+| INCART complete source cohort | frozen v4 | 75 | 0.8977 | 0.7633 | 0.8251 | exposed development characterization |
+| INCART same-cohort baseline | WFDB gqrs | 75 | 0.9372 | 0.9310 | 0.9341 | certified reference baseline |
+| European ST-T | frozen v4 | 90 | 0.9056 | 0.9644 | 0.9341 | preregistered prospective external evaluation |
+| SVDB | selector v2 | 78 | 0.9680 | 0.9878 | 0.9778 | prospective selector transfer |
+| Zymed LTSTDB subset | selector v3 | 18 | 0.8718 | 0.9650 | 0.9160 | prospective null-switch evaluation |
+
+Important boundaries:
+
+- INCART informed v4 development and is not fresh external validation.
+- Historical MIT-BIH adaptive-polarity evidence remains legacy/non-regression where prior mechanism exposure applies.
+- The EDB, LTAFDB, SVDB, and Zymed cohorts became exposed after their respective first runs.
+- Selector v3 made zero prospective switches on the 18-record Zymed subset; that run therefore does not demonstrate a prospective starvation-rescue benefit.
+- QTDB supports QRS-boundary characterization, not a conventional full-beat detector benchmark.
+- No result supports a clinical-device, regulatory, streaming, population-generalization, or universal-superiority claim.
+
+For the complete evidence history, hashes, workflow IDs, and interpretation boundaries, see `validation_reports/VALIDATION_STATUS.md`.
+
+## Documentation
+
+- Hosted documentation: https://virelion-biotech.github.io/Virelion-ElectroTrace/
+- Quickstart: `docs/QUICKSTART.md`
+- Reproducibility: `docs/REPRODUCIBILITY.md`
+- Cross-database policy: `docs/CROSS_DATABASE_POLICY.md`
+- Limitations: `docs/LIMITATIONS.md`
+- Validation status: `validation_reports/VALIDATION_STATUS.md`
+
+## Citation
+
+Software citation metadata is provided in `CITATION.cff`. Release metadata is also prepared in `zenodo.json`.
+
+GitHub release: https://github.com/Virelion-Biotech/Virelion-ElectroTrace/releases/tag/v1.9.0
+
+## Contributing
+
+See `CONTRIBUTING.md`. Detector plugins can register through the `electrotrace.detectors` entry-point group.
 
 ## License
 
-MIT — adapt freely for your research.
+AGPL-3.0-or-later.

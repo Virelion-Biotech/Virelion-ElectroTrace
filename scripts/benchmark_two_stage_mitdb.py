@@ -1,0 +1,294 @@
+#!/usr/bin/env python3
+"""Train and evaluate ElectroTrace's two-stage MIT-BIH R-peak detector."""
+from __future__ import annotations
+
+import argparse
+import json
+import platform
+import subprocess
+import sys
+from dataclasses import replace
+from datetime import datetime, timezone
+from pathlib import Path
+
+import numpy as np
+import wfdb
+from sklearn.model_selection import StratifiedShuffleSplit
+
+from electrotrace import __version__
+from electrotrace.candidate_suppressor import CandidateSuppressor, _candidate_features, label_candidates, select_threshold_for_recall
+from electrotrace.threshold_selection import select_threshold_for_f1
+from electrotrace.validation import DEFAULT_BEAT_SYMBOLS, DetectionMetrics, RecordValidation, summarize_records, validate_record
+from electrotrace.validation_detectors import detect_r_peaks_two_stage
+
+ALLOWED_BEAT_SYMBOLS = DEFAULT_BEAT_SYMBOLS
+
+
+def _run_provenance() -> dict:
+    try:
+        git_head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+    except Exception:
+        git_head = "unknown"
+    pkgs = {}
+    for name in ("numpy", "scipy", "sklearn", "wfdb", "pandas"):
+        try:
+            mod = __import__(name if name != "sklearn" else "sklearn")
+            pkgs[name] = getattr(mod, "__version__", "unknown")
+        except Exception:
+            pkgs[name] = "missing"
+    return {
+        "git_head": git_head,
+        "python": sys.version.split()[0],
+        "platform": platform.platform(),
+        "package_versions": pkgs,
+        "electrotrace_version": __version__,
+    }
+
+
+def _load_record(record: str, data_dir: Path):
+    base = str(data_dir / record)
+    rec = wfdb.rdrecord(base, channels=[0], physical=False)
+    signal = np.asarray(rec.p_signal[:, 0] if rec.p_signal is not None else rec.d_signal[:, 0], dtype=float)
+    ann = wfdb.rdann(base, "atr")
+    refs = np.asarray([s for s, symbol in zip(ann.sample, ann.symbol) if symbol in ALLOWED_BEAT_SYMBOLS], dtype=int)
+    return base, rec, signal, refs
+
+
+def _candidate_stream(signal: np.ndarray, fs_hz: float, polarity: str, recovery: bool, scale_method: str | None = None):
+    from electrotrace.validation_detectors import (
+        DEFAULT_SCALE_METHOD,
+        _candidate_set,
+        detect_r_peaks,
+        estimate_stage1_scale,
+        recover_stage1_candidates,
+        select_signal_polarity,
+    )
+    scale_method = scale_method or DEFAULT_SCALE_METHOD
+    chosen = polarity
+    if chosen == "adaptive":
+        chosen = select_signal_polarity(signal, fs_hz, scale_method=scale_method).polarity
+    primary = detect_r_peaks(signal, fs_hz, polarity=chosen, scale_method=scale_method)
+    if len(primary) == 0:
+        return np.asarray([], dtype=int), np.asarray([], dtype=float), chosen
+    z = signal - np.median(signal)
+    scale = estimate_stage1_scale(z, fs_hz, method=scale_method)
+    candidate_signal = z if chosen != "negative" else -z
+    primary, prominences = _candidate_set(candidate_signal, fs_hz, scale)
+    if not recovery:
+        return primary, prominences, chosen
+    extra, extra_prom = recover_stage1_candidates(
+        signal, fs_hz, primary, polarity=chosen, scale_method=scale_method
+    )
+    if len(extra) == 0:
+        return primary, prominences, chosen
+    all_peaks = np.sort(np.concatenate([primary, extra]))
+    prom_map = {int(i): float(p) for i, p in zip(primary, prominences)}
+    prom_map.update({int(i): float(p) for i, p in zip(extra, extra_prom)})
+    all_prom = np.asarray([prom_map[int(i)] for i in all_peaks], dtype=float)
+    return all_peaks, all_prom, chosen
+
+
+def _record_level_calibration_indices(labels: np.ndarray, groups: np.ndarray, seed: int):
+    labels = np.asarray(labels, dtype=int)
+    groups = np.asarray(groups)
+    unique_groups = np.unique(groups)
+    if len(unique_groups) < 3:
+        raise ValueError("record-level calibration requires at least three training records")
+    rates = []
+    for group in unique_groups:
+        group_labels = labels[groups == group]
+        if group_labels.size == 0:
+            raise ValueError(f"record '{group}' has no candidate labels")
+        rates.append(float(np.mean(group_labels)))
+    rates = np.asarray(rates, dtype=float)
+    order = np.argsort(rates, kind="stable")
+    strata = np.zeros(len(unique_groups), dtype=int)
+    n_strata = min(3, len(unique_groups))
+    for rank, idx in enumerate(order):
+        strata[idx] = min(n_strata - 1, (rank * n_strata) // len(unique_groups))
+    calibration_count = max(1, int(round(len(unique_groups) * 0.20)))
+    if len(unique_groups) - calibration_count < 2:
+        calibration_count = 1
+    rng = np.random.default_rng(seed)
+    calibration_group_idx = None
+    if len(unique_groups) >= 6 and np.bincount(strata, minlength=n_strata).min() >= 2:
+        splitter = StratifiedShuffleSplit(n_splits=1, test_size=calibration_count, random_state=seed)
+        _, calibration_group_idx = next(splitter.split(unique_groups, strata))
+    else:
+        for _ in range(200):
+            candidate_idx = np.sort(rng.choice(len(unique_groups), size=calibration_count, replace=False))
+            fit_idx_probe = np.setdiff1d(np.arange(len(unique_groups)), candidate_idx)
+            calibration_labels = labels[np.isin(groups, unique_groups[candidate_idx])]
+            fit_labels = labels[np.isin(groups, unique_groups[fit_idx_probe])]
+            if len(np.unique(calibration_labels)) >= 2 and len(np.unique(fit_labels)) >= 2:
+                calibration_group_idx = candidate_idx
+                break
+    if calibration_group_idx is None:
+        raise ValueError("unable to construct a record-level calibration split with both classes")
+    fit_group_idx = np.setdiff1d(np.arange(len(unique_groups)), calibration_group_idx)
+    fit_groups = unique_groups[fit_group_idx]
+    calibration_groups = unique_groups[calibration_group_idx]
+    fit_idx = np.flatnonzero(np.isin(groups, fit_groups))
+    calibration_idx = np.flatnonzero(np.isin(groups, calibration_groups))
+    if set(groups[fit_idx]).intersection(set(groups[calibration_idx])):
+        raise RuntimeError("calibration records overlap model-fitting records")
+    if len(np.unique(labels[fit_idx])) < 2 or len(np.unique(labels[calibration_idx])) < 2:
+        raise ValueError("record-level calibration split must contain both positive and negative candidates")
+    return (fit_idx, calibration_idx, sorted(str(v) for v in fit_groups), sorted(str(v) for v in calibration_groups))
+
+
+def _fit_group_calibrated(features, labels, groups, target_recall, seed):
+    labels = np.asarray(labels, dtype=int)
+    groups = np.asarray(groups)
+    fit_idx, calibration_idx, fit_records, calibration_records = _record_level_calibration_indices(labels, groups, seed)
+    model = CandidateSuppressor().fit(
+        features[fit_idx], labels[fit_idx], target_recall=target_recall, random_seed=seed,
+        calibration_fraction=0, n_estimators=200,
+    )
+    calibration_probabilities = model.predict_proba(features[calibration_idx])
+    threshold = select_threshold_for_f1(
+        labels[calibration_idx], calibration_probabilities, min_recall=min(0.97, float(target_recall)),
+    )
+    model.metadata = replace(
+        model.metadata, threshold=float(threshold),
+        calibration_fraction=float(len(calibration_idx) / len(labels)),
+        calibration_candidates=int(len(calibration_idx)),
+        calibration_method="held_out_record_group_stratified_f1",
+    )
+    return model, fit_records, calibration_records
+
+
+def _train_records(records, data_dir, polarity, recovery, seed, scale_method=None):
+    from electrotrace.validation_detectors import DEFAULT_SCALE_METHOD
+    scale_method = scale_method or DEFAULT_SCALE_METHOD
+    features, labels, groups = [], [], []
+    feature_names = None
+    for record in records:
+        _, rec, signal, refs = _load_record(record, data_dir)
+        candidates, prominences, _ = _candidate_stream(signal, float(rec.fs), polarity, recovery, scale_method)
+        X, names = _candidate_features(signal, float(rec.fs), candidates, prominences, scale_method=scale_method)
+        y = label_candidates(candidates, refs, float(rec.fs))
+        features.append(X); labels.append(y); groups.append(np.full(len(y), record, dtype=object)); feature_names = names
+    model, fit_records, calibration_records = _fit_group_calibrated(
+        np.vstack(features), np.concatenate(labels), np.concatenate(groups), target_recall=0.995, seed=seed)
+    model.feature_names = feature_names
+    return model, fit_records, calibration_records
+
+
+def _evaluate(model, records, data_dir, polarity, recovery, scale_method=None):
+    from electrotrace.validation_detectors import DEFAULT_SCALE_METHOD
+    scale_method = scale_method or DEFAULT_SCALE_METHOD
+    results = []
+    for record in records:
+        base, rec, signal, _ = _load_record(record, data_dir)
+        def detector(test_signal, fs_hz):
+            retained, _ = detect_r_peaks_two_stage(
+                test_signal, fs_hz, model, polarity=polarity, recovery=recovery, scale_method=scale_method,
+            )
+            return retained
+        result = validate_record(base, detector, channel=0, annotation_extension="atr", beat_symbols=sorted(ALLOWED_BEAT_SYMBOLS), tolerance_ms=75)
+        payload = result.to_dict()
+        candidates, _, _ = _candidate_stream(signal, float(rec.fs), polarity, recovery, scale_method)
+        retained = detector(signal, float(rec.fs))
+        payload["stage1_detected"] = int(len(candidates))
+        payload["stage2_retained"] = int(len(retained))
+        payload["suppression_rate"] = float(1.0 - len(retained) / len(candidates)) if len(candidates) else 0.0
+        results.append(payload)
+    return results
+
+
+def _summary_from_payloads(payloads):
+    results = []
+    for p in payloads:
+        metrics = DetectionMetrics(
+            reference_count=int(p["reference_count"]), detected_count=int(p["detected_count"]),
+            true_positive=int(p["true_positive"]), false_positive=int(p["false_positive"]),
+            false_negative=int(p["false_negative"]), sensitivity=float(p["sensitivity"]),
+            positive_predictive_value=float(p["positive_predictive_value"]), f1=float(p["f1"]),
+            mean_timing_error_ms=p.get("mean_timing_error_ms"), median_timing_error_ms=p.get("median_timing_error_ms"),
+            timing_sd_ms=p.get("timing_sd_ms"), median_absolute_timing_error_ms=p.get("median_absolute_timing_error_ms"),
+            mean_absolute_timing_error_ms=p.get("mean_absolute_timing_error_ms"),
+            p95_absolute_timing_error_ms=p.get("p95_absolute_timing_error_ms"),
+            max_absolute_timing_error_ms=p.get("max_absolute_timing_error_ms"),
+        )
+        results.append(RecordValidation(record=p["record"], fs_hz=float(p["fs_hz"]), metrics=metrics))
+    return summarize_records(results)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data-dir", required=True)
+    parser.add_argument("--output", default="validation_reports/mitdb_two_stage_validation.json")
+    parser.add_argument("--test-fraction", type=float, default=0.25)
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--polarity", choices=["positive", "negative", "adaptive"], default="positive")
+    parser.add_argument("--recovery", action="store_true")
+    parser.add_argument(
+        "--scale-method",
+        default=None,
+        choices=["std", "mad", "windowed_mad", "windowed_std", "adaptive"],
+        help=(
+            "Stage-1 amplitude-scale estimator. Default (None) uses "
+            "electrotrace.validation_detectors.DEFAULT_SCALE_METHOD "
+            "('windowed_mad', the Priority-1 fix). Pass 'std' to reproduce "
+            "the pre-fix behavior for a non-regression A/B run, e.g.:\n"
+            "  python scripts/benchmark_two_stage_mitdb.py --data-dir .cache/physionet/mitdb "
+            "--scale-method std --output validation_reports/mitdb_std_baseline.json\n"
+            "  python scripts/benchmark_two_stage_mitdb.py --data-dir .cache/physionet/mitdb "
+            "--scale-method windowed_mad --output validation_reports/mitdb_windowed_mad.json"
+        ),
+    )
+    args = parser.parse_args()
+    if not 0 < args.test_fraction < 1:
+        raise SystemExit("--test-fraction must be between 0 and 1")
+    from electrotrace.validation_detectors import DEFAULT_SCALE_METHOD
+    scale_method = args.scale_method or DEFAULT_SCALE_METHOD
+    data_dir = Path(args.data_dir)
+    records = list(wfdb.get_record_list("mitdb"))
+    rng = np.random.default_rng(args.seed)
+    shuffled = records.copy(); rng.shuffle(shuffled)
+    n_test = max(1, int(round(len(shuffled) * args.test_fraction)))
+    test_records = sorted(shuffled[:n_test]); train_records = sorted(shuffled[n_test:])
+    model, fit_records, calibration_records = _train_records(train_records, data_dir, args.polarity, args.recovery, args.seed, scale_method)
+    record_results = _evaluate(model, test_records, data_dir, args.polarity, args.recovery, scale_method)
+    report = {
+        "schema": "electrotrace.two_stage_validation/v7",
+        "software_version": __version__,
+        "provenance": _run_provenance(),
+        "protocol": {
+            "primary_endpoint": "held_out_test_records_only",
+            "full_pool_is_optimistic": True,
+            "evaluation_mode": "retrospective_full_record",
+            "streaming_claim": False,
+            "tolerance_ms": 75,
+            "seed": args.seed,
+            "test_fraction": args.test_fraction,
+            "n_estimators": 200,
+            "threshold_method": "held_out_record_group_stratified_f1",
+            "min_recall_floor": 0.97,
+            "polarity_rule": "adaptive_count_with_v2_fallback_conf_lt_0.15",
+            "stage1_scale_method": scale_method,
+        },
+        "train_records": train_records,
+        "model_fit_records": fit_records,
+        "calibration_records": calibration_records,
+        "test_records": test_records,
+        "polarity": args.polarity,
+        "recovery": bool(args.recovery),
+        "target_recall": model.metadata.target_recall,
+        "threshold": model.metadata.threshold,
+        "model_metadata": model.metadata.to_dict(),
+        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "record_results": record_results,
+        "summary": _summary_from_payloads(record_results),
+    }
+    output = Path(args.output); output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    model.save(output.with_suffix(".skops"))
+    print(json.dumps(report["summary"], indent=2))
+    print(f"Report written to {output}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

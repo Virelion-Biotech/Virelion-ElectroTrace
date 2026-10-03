@@ -1,0 +1,103 @@
+name: qtdb-qrs-delineation-tolerance-curve
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/qtdb-qrs-delineation-tolerance-curve.yml'
+      - 'validation_protocols/qtdb_qrs_delineation_v1.json'
+      - 'scripts/validate_qtdb.py'
+      - 'src/electrotrace/qrs_delineation.py'
+      - 'tests/test_qtdb_tolerance_curve.py'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install pinned validation runtime
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[test]"
+          python -m pip install \
+            "numpy==2.1.3" \
+            "scipy==1.16.3" \
+            "wfdb==4.3.1"
+          python -m pip install -e . --no-deps
+
+      - name: Run QTDB validation guardrail tests
+        run: |
+          pytest -q \
+            tests/test_qtdb_tolerance_curve.py \
+            tests/test_qrs_delineation.py
+
+      - name: Download exact QT Database inputs
+        run: |
+          set -euo pipefail
+          OUT=".cache/physionet/qtdb"
+          mkdir -p "${OUT}"
+          aws s3 sync --no-sign-request \
+            s3://physionet-open/qtdb/1.0.0/ \
+            "${OUT}/" \
+            --exclude "*" \
+            --include "RECORDS" \
+            --include "*.hea" \
+            --include "*.dat" \
+            --include "*.q1c" \
+            --include "*.q2c"
+
+          python - <<'PY'
+          from pathlib import Path
+          root = Path(".cache/physionet/qtdb")
+          records = [
+              x.strip()
+              for x in (root / "RECORDS").read_text().splitlines()
+              if x.strip()
+          ]
+          assert len(records) == 105, len(records)
+          assert len(set(records)) == 105
+          for record in records:
+              for suffix in ("hea", "dat", "q1c"):
+                  path = root / f"{record}.{suffix}"
+                  assert path.is_file() and path.stat().st_size > 0, path
+          q2 = [r for r in records if (root / f"{r}.q2c").is_file()]
+          assert len(q2) == 11, q2
+          print("records=105 q1c=105 q2c=11")
+          PY
+
+      - name: Run frozen QTDB tolerance-curve study
+        run: |
+          python -u scripts/validate_qtdb.py \
+            --qtdb-dir .cache/physionet/qtdb \
+            --output validation_reports/experiments/2026-09-qtdb-delineation/qtdb_qrs_delineation_tolerance_curve.json
+
+      - name: Hash completed QTDB artifact
+        run: |
+          set -euo pipefail
+          OUT="validation_reports/experiments/2026-09-qtdb-delineation/qtdb_qrs_delineation_tolerance_curve.json"
+          test -s "${OUT}"
+          {
+            echo "git_head=$(git rev-parse HEAD)"
+            sha256sum "${OUT}"
+          } | tee validation_reports/experiments/2026-09-qtdb-delineation/SHA256.txt
+
+      - name: Upload QTDB validation artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: electrotrace-qtdb-qrs-delineation-tolerance-curve
+          retention-days: 90
+          if-no-files-found: error
+          path: |
+            validation_reports/experiments/2026-09-qtdb-delineation/qtdb_qrs_delineation_tolerance_curve.json
+            validation_reports/experiments/2026-09-qtdb-delineation/SHA256.txt

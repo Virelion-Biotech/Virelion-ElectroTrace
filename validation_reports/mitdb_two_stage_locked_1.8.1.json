@@ -1,0 +1,59 @@
+{
+  "schema": "electrotrace.two_stage_validation/v7",
+  "software_version": "1.8.1",
+  "provenance": {
+    "git_head": "c50b37a6f3c1289ef939f345af4d6e302cb0a48f",
+    "python": "3.12.3",
+    "platform": "Linux-6.12.8+-x86_64-with-glibc2.39",
+    "package_versions": {
+      "numpy": "2.4.4",
+      "scipy": "1.17.1",
+      "sklearn": "1.9.0",
+      "wfdb": "4.3.1",
+      "pandas": "3.0.3"
+    },
+    "electrotrace_version": "1.8.1"
+  },
+  "protocol": {
+    "primary_endpoint": "held_out_test_records_only",
+    "full_pool_is_optimistic": true,
+    "evaluation_mode": "retrospective_full_record",
+    "streaming_claim": false,
+    "tolerance_ms": 75,
+    "seed": 42,
+    "test_fraction": 0.25,
+    "n_estimators": 200,
+    "threshold_method": "held_out_record_group_stratified_f1",
+    "min_recall_floor": 0.97,
+    "polarity_rule": "adaptive_count_with_v2_fallback_conf_lt_0.15"
+  },
+  "polarity": "adaptive",
+  "recovery": false,
+  "threshold": 0.23007195766359265,
+  "test_records": ["105", "118", "122", "201", "207", "209", "214", "219", "230", "231", "232", "234"],
+  "summary": {
+    "records": 12,
+    "reference_count": 26930,
+    "detected_count": 27052,
+    "true_positive": 26726,
+    "false_positive": 326,
+    "false_negative": 204,
+    "sensitivity": 0.99242480505013,
+    "positive_predictive_value": 0.9879491349992607,
+    "f1": 0.9901819124893484
+  },
+  "record_results": [
+    {"record": "105", "sensitivity": 0.9863919129082426, "positive_predictive_value": 0.9757692307692307, "f1": 0.9810518174787316, "true_positive": 2537, "false_positive": 63, "false_negative": 35, "reference_count": 2572, "detected_count": 2600},
+    {"record": "118", "sensitivity": 1.0, "positive_predictive_value": 0.9986847873739588, "f1": 0.9993419609563501, "true_positive": 2278, "false_positive": 3, "false_negative": 0, "reference_count": 2278, "detected_count": 2281},
+    {"record": "122", "sensitivity": 1.0, "positive_predictive_value": 1.0, "f1": 1.0, "true_positive": 2476, "false_positive": 0, "false_negative": 0, "reference_count": 2476, "detected_count": 2476},
+    {"record": "201", "sensitivity": 0.9933774834437086, "positive_predictive_value": 1.0, "f1": 0.9966777408637874, "true_positive": 1950, "false_positive": 0, "false_negative": 13, "reference_count": 1963, "detected_count": 1950},
+    {"record": "207", "sensitivity": 0.9172043010752688, "positive_predictive_value": 0.9074468085106383, "f1": 0.9122994652406416, "true_positive": 1706, "false_positive": 174, "false_negative": 154, "reference_count": 1860, "detected_count": 1880},
+    {"record": "209", "sensitivity": 1.0, "positive_predictive_value": 0.9960225389459728, "f1": 0.9980073065426769, "true_positive": 3005, "false_positive": 12, "false_negative": 0, "reference_count": 3005, "detected_count": 3017},
+    {"record": "214", "sensitivity": 0.993368700265252, "positive_predictive_value": 1.0, "f1": 0.9966733200266135, "true_positive": 2247, "false_positive": 0, "false_negative": 15, "reference_count": 2262, "detected_count": 2247},
+    {"record": "219", "sensitivity": 1.0, "positive_predictive_value": 1.0, "f1": 1.0, "true_positive": 2154, "false_positive": 0, "false_negative": 0, "reference_count": 2154, "detected_count": 2154},
+    {"record": "230", "sensitivity": 0.9995567375886525, "positive_predictive_value": 0.9982293050022134, "f1": 0.9988925802879292, "true_positive": 2255, "false_positive": 4, "false_negative": 1, "reference_count": 2256, "detected_count": 2259},
+    {"record": "231", "sensitivity": 1.0, "positive_predictive_value": 1.0, "f1": 1.0, "true_positive": 1571, "false_positive": 0, "false_negative": 0, "reference_count": 1571, "detected_count": 1571},
+    {"record": "232", "sensitivity": 1.0, "positive_predictive_value": 0.994969256567915, "f1": 0.997478285233959, "true_positive": 1780, "false_positive": 9, "false_negative": 0, "reference_count": 1780, "detected_count": 1789},
+    {"record": "234", "sensitivity": 0.9996367598982928, "positive_predictive_value": 1.0, "f1": 0.9998183469573115, "true_positive": 2752, "false_positive": 0, "false_negative": 1, "reference_count": 2753, "detected_count": 2752}
+  ]
+}

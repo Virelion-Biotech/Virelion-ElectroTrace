@@ -1,0 +1,61 @@
+import numpy as np
+import pytest
+
+from electrotrace.benchmark import benchmark_models
+from electrotrace.phenotype import beat_phenotypes, summary_statistics
+from electrotrace.statistics import benjamini_hochberg, compare_groups
+
+
+def test_phenotype_summary():
+    time = np.arange(2500) / 500
+    signal = np.sin(2 * np.pi * 1 * time)
+    peaks = np.array([250, 750, 1250, 1750, 2250])
+    beats = beat_phenotypes(time, signal, peaks)
+    summary = summary_statistics(beats)
+    assert summary["n_beats"] == 5
+    assert summary["heart_rate_bpm"]["median"] == pytest.approx(60.0)
+
+
+def test_statistics_and_fdr():
+    result = compare_groups([1, 2, 3, 4], [5, 6, 7, 8])
+    assert result["n_a"] == 4 and result["n_b"] == 4
+    assert result["pseudoreplication_warning"] is True
+    adjusted = benjamini_hochberg([0.01, 0.04, 0.2])
+    assert adjusted[0] <= adjusted[1] <= adjusted[2]
+
+
+def test_statistics_aggregates_repeated_observations_by_unit():
+    result = compare_groups(
+        [1, 2, 10, 11],
+        [5, 6, 14, 15],
+        unit_ids_a=["s1", "s1", "s2", "s2"],
+        unit_ids_b=["s3", "s3", "s4", "s4"],
+    )
+    assert result["n_observations_a"] == 4
+    assert result["n_units_a"] == 2
+    assert result["n_a"] == 2
+    assert result["unit_of_analysis"] == "experimental_unit_mean"
+    assert result["pseudoreplication_warning"] is False
+    assert result["mean_a"] == pytest.approx(6.0)
+
+
+def test_benchmark_requires_multiple_subjects():
+    X = np.random.default_rng(1).normal(size=(10, 4))
+    y = np.array([0, 1] * 5)
+    with pytest.raises(ValueError):
+        benchmark_models(X, y, np.ones(10), folds=2)
+
+
+def test_benchmark_subject_level_split_and_summary_ci():
+    rng = np.random.default_rng(2)
+    X = rng.normal(size=(24, 4))
+    y = np.array([0, 1] * 12)
+    groups = np.repeat(np.arange(6), 4)
+    result = benchmark_models(X, y, groups, folds=3)
+    assert result["n_subjects"] == 6
+    assert "random_forest" in result["models"]
+    model_result = result["models"]["random_forest"]
+    assert len(model_result["folds"]) == 3
+    assert model_result["summary"]["accuracy"]["mean"] is not None
+    assert model_result["summary"]["accuracy"]["std"] is not None
+    assert model_result["summary"]["accuracy"]["ci95_low"] <= model_result["summary"]["accuracy"]["mean"] <= model_result["summary"]["accuracy"]["ci95_high"]

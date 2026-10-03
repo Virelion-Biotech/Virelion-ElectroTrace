@@ -1,0 +1,48 @@
+{
+  "schema": "electrotrace.baseline_comparison/v1",
+  "software_version": "1.8.1",
+  "protocol": {
+    "primary_endpoint": "held_out_test_records_only",
+    "seed": 42,
+    "test_fraction": 0.25,
+    "tolerance_ms": 75,
+    "test_records": ["105", "118", "122", "201", "207", "209", "214", "219", "230", "231", "232", "234"],
+    "note": "Same split as two-stage locked protocol. Classical detectors are research-grade reimplementations, not certified reference binaries."
+  },
+  "interpretation": {
+    "ranking_by_f1": [
+      ["pan_tompkins", 0.9931],
+      ["electrotrace_two_stage_adaptive", 0.9902],
+      ["hamilton", 0.9634],
+      ["electrotrace_stage1_adaptive", 0.8580]
+    ],
+    "caveats": [
+      "Classical Pan-Tompkins/Hamilton here are research reimplementations, not certified reference binaries.",
+      "ElectroTrace two-stage is competitive with Pan-Tompkins on this split (F1 within ~0.003).",
+      "Stage-1 alone trades PPV for recall by design; two-stage is the deployment path.",
+      "n=12 records; do not over-generalize."
+    ]
+  },
+  "comparisons": [
+    {
+      "detector": "pan_tompkins",
+      "summary": {"sensitivity": 0.9908, "positive_predictive_value": 0.9954, "f1": 0.9931},
+      "record_207": {"sensitivity": 0.955, "positive_predictive_value": 0.956, "f1": 0.955}
+    },
+    {
+      "detector": "electrotrace_two_stage_adaptive",
+      "summary": {"sensitivity": 0.9924, "positive_predictive_value": 0.9879, "f1": 0.9902},
+      "record_207": {"sensitivity": 0.917, "positive_predictive_value": 0.907, "f1": 0.912}
+    },
+    {
+      "detector": "hamilton",
+      "summary": {"sensitivity": 0.9990, "positive_predictive_value": 0.9303, "f1": 0.9634},
+      "record_207": {"sensitivity": 0.997, "positive_predictive_value": 0.784, "f1": 0.878}
+    },
+    {
+      "detector": "electrotrace_stage1_adaptive",
+      "summary": {"sensitivity": 0.9931, "positive_predictive_value": 0.7553, "f1": 0.8580},
+      "record_207": {"sensitivity": 0.922, "positive_predictive_value": 0.718, "f1": 0.807}
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "schema_version": "electrotrace-mitdb-polarity-secondary-v1",
+  "validation_status": "complete_local_reproduction",
+  "dataset": "MIT-BIH Arrhythmia Database 1.0.0",
+  "source_commit": "615833eb1c13e9af531a9829fa32433f16fba40f",
+  "primary_locked_baseline_archive": {
+    "pooled_sensitivity": 0.9400423767512375,
+    "pooled_ppv": 0.6541487657930193,
+    "pooled_f1": 0.7714602648758442,
+    "detected_count": 157348,
+    "reference_count": 109494
+  },
+  "local_rerun_check": {
+    "status": "matches_archived_for_47_of_48_records; record_201_requires_reconciliation",
+    "pooled_sensitivity": 0.9424626006904487,
+    "pooled_ppv": 0.655832930828482,
+    "pooled_f1": 0.773446458953238,
+    "detected_count": 157348,
+    "reference_count": 109494,
+    "tp": 103194,
+    "record_201_tp_archived": 553,
+    "record_201_tp_local": 818,
+    "record_201_tp_delta": 265,
+    "note": "The local reproduction agrees with the archived run on detection counts and per-record TP/FP/FN for 47 records. Record 201 differs by 265 TP and should be reconciled with an official wfdb-python execution before publication."
+  },
+  "secondary_selector": {
+    "name": "signal_only_median_prominence_polarity",
+    "rule": "choose polarity with larger median candidate prominence after identical record-level normalization and candidate generation; annotations are never consulted",
+    "disagreement_records": 20,
+    "positive_records": 28,
+    "negative_records": 20
+  },
+  "secondary_results": {
+    "75ms": {
+      "pooled_sensitivity": 0.832228249949769,
+      "pooled_ppv": 0.6173001754540466,
+      "pooled_f1": 0.7088300383880891,
+      "macro_sensitivity": 0.8227584816576518,
+      "macro_ppv": 0.6250418959783145,
+      "macro_f1": 0.7023697281063267
+    },
+    "tolerance_sensitivity": {
+      "50": {"pooled_sensitivity": 0.7803532613659196, "pooled_ppv": 0.5788222223727619, "pooled_f1": 0.6646467867963642},
+      "75": {"pooled_sensitivity": 0.832228249949769, "pooled_ppv": 0.6173001754540466, "pooled_f1": 0.7088300383880891},
+      "100": {"pooled_sensitivity": 0.8660931192576762, "pooled_ppv": 0.6424192335571106, "pooled_f1": 0.737673611786349},
+      "150": {"pooled_sensitivity": 0.9105339105339105, "pooled_ppv": 0.6753829166017464, "pooled_f1": 0.7755249678154572}
+    }
+  },
+  "paired_record_analysis": {
+    "better_records": 10,
+    "worse_records": 10,
+    "same_records": 28,
+    "mean_record_f1_delta": -0.06952527492748409,
+    "median_record_f1_delta": 0.0,
+    "macro_f1_delta": -0.06952527492748395,
+    "top_gains": [
+      {"record": "207", "adaptive": "positive", "alt": "negative", "base_f1": 0.1265646731571627, "alt_f1": 0.807059, "delta_f1": 0.6804941503722491},
+      {"record": "108", "adaptive": "positive", "alt": "negative", "base_f1": 0.552351, "alt_f1": 0.69994, "delta_f1": 0.147589},
+      {"record": "111", "adaptive": "positive", "alt": "negative", "base_f1": 0.674096, "alt_f1": 0.816494, "delta_f1": 0.142398},
+      {"record": "220", "adaptive": "positive", "alt": "negative", "base_f1": 0.672468, "alt_f1": 0.81125, "delta_f1": 0.138782},
+      {"record": "200", "adaptive": "positive", "alt": "negative", "base_f1": 0.708183, "alt_f1": 0.834393, "delta_f1": 0.12621}
+    ],
+    "top_losses": [
+      {"record": "219", "adaptive": "positive", "alt": "negative", "base_f1": 0.971364, "alt_f1": 0.042737, "delta_f1": -0.9286271631376712},
+      {"record": "214", "adaptive": "positive", "alt": "negative", "base_f1": 0.942654, "alt_f1": 0.098027, "delta_f1": -0.844627},
+      {"record": "104", "adaptive": "positive", "alt": "negative", "base_f1": 0.716578, "alt_f1": 0.052569, "delta_f1": -0.664008},
+      {"record": "102", "adaptive": "positive", "alt": "negative", "base_f1": 0.664626, "alt_f1": 0.02384, "delta_f1": -0.640786},
+      {"record": "107", "adaptive": "positive", "alt": "negative", "base_f1": 0.657246, "alt_f1": 0.018015, "delta_f1": -0.639231}
+    ]
+  },
+  "decision": "DO_NOT_PROMOTE",
+  "interpretation": "The alternative polarity selector improves a small set of polarity-failure records, especially 207 and 108, but causes catastrophic losses on other records. It lowers pooled F1 substantially and is not a general improvement. The locked baseline remains unchanged.",
+  "created_at_utc": "2026-08-19T00:00:00+00:00"
+}

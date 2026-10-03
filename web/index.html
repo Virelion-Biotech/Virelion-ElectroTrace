@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ElectroTrace</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+</head>
+<body>
+<header>
+  <div>
+    <h1>ElectroTrace</h1>
+    <p>ECG / electrophysiology annotation, beat segmentation, QC, ML, and research analysis.</p>
+  </div>
+  <div class="header-actions">
+    <label class="button secondary">Load ECG<input id="fileInput" type="file" accept=".csv,.edf,.zip,.wfdb" hidden></label>
+    <button id="loadSample" class="secondary">Load sample</button>
+    <button id="exportJson">Export JSON</button>
+    <button id="exportCsv">Export CSV</button>
+  </div>
+</header>
+<main>
+  <section class="grid top-grid">
+    <div class="card"><h2>Recording</h2><div id="recordingMeta" class="meta-grid"><span>No recording loaded.</span></div><div id="messages"></div></div>
+    <div class="card"><h2>Annotator / source</h2><label>Annotator<input id="annotator" placeholder="e.g. U. Hannan"></label><label>Source / study<input id="source" placeholder="Dataset, experiment, accession, etc."></label><p class="muted" style="margin-top:10px">Shortcuts: Q/P/T/R/A labels · Enter saves · Esc cancels · ←/→ nudges timing.</p></div>
+  </section>
+  <section class="card plot-card">
+    <div class="section-head"><div><h2>Trace</h2><span class="muted">Drag to select an interval; click to capture a point.</span></div><div class="controls-inline"><label>Channel<select id="channelSelect"></select></label><button id="detectPeaks" class="secondary">Detect R peaks</button><button id="segmentBeats" class="secondary">Segment beats</button></div></div>
+    <div id="plot"></div>
+  </section>
+  <section class="grid main-grid">
+    <div class="card"><div class="section-head"><h2>Annotation editor</h2><span id="selectionHint" class="muted">No selection</span></div>
+      <div class="form-grid">
+        <label>Type<select id="annType"><option value="interval">Interval</option><option value="point">Point</option></select></label><label>Label<select id="labelSelect"></select></label><label>Custom label<input id="customLabel" placeholder="Optional"></label><label>Channel<select id="annChannel"></select></label><label>Start (s)<input id="startInput" type="number" step="0.0001"></label><label>End (s)<input id="endInput" type="number" step="0.0001"></label><label>Time (s)<input id="timeInput" type="number" step="0.0001" disabled></label><label>Confidence<input id="confidenceInput" type="number" min="0" max="1" step="0.01" value="1"></label><label class="wide">Notes<input id="notesInput" placeholder="Annotation notes"></label>
+      </div><div class="row-actions"><button id="saveAnnotation">Add annotation</button><button id="cancelEdit" class="secondary" disabled>Cancel edit</button></div>
+    </div>
+    <div class="card"><div class="section-head"><h2>Preprocessing</h2><span class="muted">Display only; raw trace is preserved.</span></div>
+      <div class="form-grid"><label><input id="baseline" type="checkbox"> Baseline removal</label><label>High-pass (Hz)<input id="highpass" type="number" min="0" step="0.1" placeholder="0.5"></label><label>Low-pass (Hz)<input id="lowpass" type="number" min="0" step="1" placeholder="40"></label><label>Notch (Hz)<input id="notch" type="number" min="0" step="1" placeholder="50"></label></div><button id="applyFilters" class="secondary">Apply display filters</button><div id="filterMessage" class="muted"></div>
+    </div>
+  </section>
+  <section class="grid lower-grid">
+    <div class="card"><div class="section-head"><h2>Annotations</h2><span id="annCount" class="badge">0</span></div><div id="annotationList" class="annotation-list"></div></div>
+    <div class="card"><div class="section-head"><h2>Review / QC</h2><span class="muted" id="beatSummary">No beat segmentation yet</span></div><div id="qcSummary" class="qc-summary"></div><div class="row-actions"><button id="acceptAll" class="secondary">Accept all</button><button id="flagUnreviewed" class="secondary">Flag unreviewed</button></div><hr>
+      <h3>Model-assisted labeling</h3><p class="muted">Train only from accepted point annotations. The model ranks uncertain beats; every suggestion remains unreviewed.</p><div class="row-actions"><button id="trainModel" class="secondary">Train model</button><button id="suggestModel" class="secondary">Suggest uncertain beats</button></div><div id="modelStatus" class="muted"></div>
+      <hr><h3>Compare another annotator</h3><input id="reviewFile" type="file" accept=".json"><div id="agreementResult" class="muted">Import JSON to calculate point timing agreement.</div>
+    </div>
+  </section>
+
+  <section class="grid main-grid">
+    <div class="card">
+      <div class="section-head"><h2>Research project</h2><span id="storedMeta" class="muted">Not stored for windowed access.</span></div>
+      <div class="form-grid">
+        <label>Project<input id="projectName" placeholder="MI regeneration"></label>
+        <label>Subject ID<input id="subjectId" placeholder="mouse_001"></label>
+        <label>Group<input id="groupName" placeholder="Sham / MI / treatment"></label>
+        <label>Visit / timepoint<input id="visitName" placeholder="Day 7"></label>
+      </div>
+      <div class="row-actions"><button id="storeRecording" class="secondary">Store large recording</button><button id="saveProjectRecording" class="secondary">Add to project</button></div>
+      <div class="form-grid" style="margin-top:12px"><label>Window start (sample)<input id="windowStart" type="number" min="0" value="0"></label><label>Window stop (sample)<input id="windowStop" type="number" min="1" value="5000"></label></div>
+      <div class="row-actions"><button id="fetchWindow" class="secondary">Load window</button></div>
+      <div id="windowInfo" class="muted">Windowed mode loads only the selected sample range.</div><div id="researchMessage" class="muted"></div><div id="projectCount" class="muted"></div>
+    </div>
+    <div class="card">
+      <div class="section-head"><h2>Phenotype / statistics</h2><span class="muted">Derived from detected beats; not a diagnostic interpretation.</span></div>
+      <button id="phenotypeAnalysis" class="secondary">Analyze current beats</button>
+      <div id="phenotypeResult" class="muted" style="margin-top:10px">No phenotype analysis yet.</div>
+      <hr>
+      <label>Group A values<input id="groupAValues" placeholder="60,62,59,64"></label>
+      <label>Group B values<input id="groupBValues" placeholder="72,70,75,74"></label>
+      <button id="comparePhenotype" class="secondary" style="margin-top:8px">Compare groups</button>
+      <div id="statsResult" class="muted" style="margin-top:10px"></div>
+      <hr>
+      <details><summary>Leakage-safe ML benchmark</summary>
+        <p class="muted">Paste JSON with <code>X</code>, <code>y</code>, and subject-level <code>groups</code>. The benchmark uses <b>StratifiedGroupKFold</b> so beats from one subject cannot leak across train/test while preserving class balance where the data permit.</p>
+        <textarea id="benchmarkJson" rows="6" style="width:100%">{"X":[[0,0],[1,1],[0,1],[1,0]],"y":[0,1,0,1],"groups":["s1","s2","s3","s4"],"folds":2}</textarea>
+        <button id="runBenchmark" class="secondary" style="margin-top:8px">Run benchmark</button>
+        <div id="benchmarkResult" class="muted" style="margin-top:8px"></div>
+      </details>
+    </div>
+  </section>
+</main>
+<footer>ElectroTrace v1.2 · research annotation, electrophysiology phenotyping, and leakage-safe ML dataset platform.</footer>
+<script src="/app.js"></script><script src="/shortcuts.js"></script><script src="/research.js"></script>
+</body>
+</html>

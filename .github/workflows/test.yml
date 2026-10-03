@@ -1,0 +1,63 @@
+name: test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e ".[test,dev]"
+      - run: ruff check src/electrotrace/__init__.py src/electrotrace/cli.py src/electrotrace/detectors.py src/electrotrace/validation_detectors.py tests/test_public_api.py tests/test_detector_registry.py tests/test_model_persistence.py scripts/convert_model_pickle_to_skops.py scripts/phase3_incart_ablation.py scripts/evaluate_frozen_model_mitdb.py scripts/derive_polarity_thresholds_mitdb_extended.py scripts/recalibrate_threshold_grouped_cv.py scripts/inspect_fp_traces.py tests/test_recalibration_and_inspection.py tests/test_v2_gate_confidence.py tests/test_derive_polarity_thresholds_mitdb_extended.py tests/test_evaluate_v2_gate.py scripts/evaluate_frozen_model_edb_prospective.py tests/test_edb_prospective.py scripts/analyze_edb_posthoc_failures.py tests/test_edb_posthoc_failures.py scripts/develop_edb_label_free_lead_selector.py tests/test_edb_lead_selector_development.py src/electrotrace/lead_selection.py tests/test_lead_selection.py scripts/evaluate_ltafdb_lead_selector_prospective.py tests/test_ltafdb_lead_selector_prospective.py scripts/analyze_ltafdb_lead_selector_posthoc.py tests/test_ltafdb_posthoc_selector_audit.py scripts/analyze_ltafdb_label_free_features.py tests/test_ltafdb_label_free_features.py src/electrotrace/lead_quality.py scripts/evaluate_svdb_selector_v2_prospective.py tests/test_lead_quality.py tests/test_svdb_selector_v2_prospective.py scripts/analyze_svdb_selector_v2_posthoc.py tests/test_svdb_selector_v2_posthoc.py tests/test_lead_selection_v3.py scripts/analyze_ltstdb_zymed_selector_v3_posthoc.py tests/test_ltstdb_zymed_selector_v3_posthoc.py scripts/evaluate_ltstdb_zymed_selector_v3_prospective.py tests/test_ltstdb_zymed_selector_v3_prospective.py scripts/benchmark_certified_wfdb_mitdb_locked.py tests/test_certified_wfdb_mitdb_locked.py scripts/validate_qtdb.py tests/test_qtdb_tolerance_curve.py scripts/evaluate_frozen_model_incart_complete.py tests/test_incart_complete_characterization.py tests/test_release_metadata.py
+      - name: Check formatting (advisory)
+        run: |
+          if ! ruff format --check src/electrotrace/__init__.py src/electrotrace/cli.py src/electrotrace/detectors.py src/electrotrace/validation_detectors.py tests/test_public_api.py tests/test_detector_registry.py tests/test_model_persistence.py scripts/convert_model_pickle_to_skops.py scripts/phase3_incart_ablation.py scripts/evaluate_frozen_model_mitdb.py scripts/derive_polarity_thresholds_mitdb_extended.py scripts/recalibrate_threshold_grouped_cv.py scripts/inspect_fp_traces.py tests/test_recalibration_and_inspection.py tests/test_v2_gate_confidence.py tests/test_derive_polarity_thresholds_mitdb_extended.py tests/test_evaluate_v2_gate.py; then
+            echo "::warning::Ruff formatter reports differences in release-hardening files; lint, build, and tests remain blocking."
+          fi
+      - run: python -m build --wheel
+      - run: pytest -q
+      - name: Smoke import and CLI
+        env:
+          ELECTROTRACE_GIT_SHA: ${{ github.sha }}
+        run: |
+          python - <<'PY'
+          import electrotrace
+          assert electrotrace.detect_r_peaks
+          assert electrotrace.load_recording
+          PY
+          electrotrace list
+
+  package:
+    runs-on: ubuntu-latest
+    needs: test
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - run: python -m pip install --upgrade pip
+      - run: pip install build
+      - run: python -m build
+      - run: python -m pip install dist/*.whl
+      - run: electrotrace --help

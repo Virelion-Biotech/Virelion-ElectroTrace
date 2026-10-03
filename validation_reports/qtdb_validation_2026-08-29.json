@@ -1,0 +1,41 @@
+{
+  "channel": 0,
+  "dataset": "qtdb-1.0.0",
+  "delineator_version": "qrs-edge-energy-v1",
+  "detector": "electrotrace.qtdb_detector_adapter:detect_r_peaks_adaptive",
+  "event_tolerance_ms": 75.0,
+  "failures": {},
+  "git_head": "9578678ecea3fe8bbb12ea4296ace3d75f746354",
+  "input_file_sha256_count": 315,
+  "note": "Per-file SHA-256 digests omitted from committed report; full digests available in local run artifacts.",
+  "records": 105,
+  "records_detail_omitted": "105 per-record entries omitted; regenerate with validate_qtdb_resumable.py",
+  "records_requested": 105,
+  "status": "complete",
+  "summary": {
+    "detected_qrs": 167264,
+    "matched_qrs": 3351,
+    "offset": {
+      "max_absolute_ms": 160.0,
+      "mean_absolute_ms": 19.046254849298716,
+      "mean_signed_ms": -6.980602805132796,
+      "median_absolute_ms": 12.0,
+      "median_signed_ms": 0.0,
+      "n": 3351,
+      "p95_absolute_ms": 64.0,
+      "sd_ms": 29.030780058425858
+    },
+    "onset": {
+      "max_absolute_ms": 168.0,
+      "mean_absolute_ms": 14.811101163831692,
+      "mean_signed_ms": 8.866606982990152,
+      "median_absolute_ms": 8.0,
+      "median_signed_ms": 4.0,
+      "n": 3351,
+      "p95_absolute_ms": 46.0,
+      "sd_ms": 23.88436929277911
+    },
+    "reference_qrs": 3623
+  },
+  "wfdb_version": "4.3.1"
+}
