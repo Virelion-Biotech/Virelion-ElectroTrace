@@ -1,0 +1,218 @@
+name: prospective-edb-first-run
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/prospective-edb-first-run.yml'
+
+concurrency:
+  group: prospective-edb-first-run
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  prospective-edb:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Enforce first workflow attempt
+        run: |
+          test "$GITHUB_RUN_ATTEMPT" = "1" || {
+            echo "Refusing a rerun of the one-shot prospective EDB workflow."
+            exit 1
+          }
+
+      - name: Install ElectroTrace and validation runtime
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[test]"
+          python -m pip install \
+            "numpy==2.1.3" \
+            "pandas==2.2.3" \
+            "scipy==1.16.3" \
+            "scikit-learn==1.6.1" \
+            "skops==0.16.0" \
+            "wfdb==4.3.1"
+          python -m pip install -e . --no-deps
+          python - <<'PY'
+          import numpy, pandas, scipy, sklearn, skops, wfdb
+          print("numpy", numpy.__version__)
+          print("pandas", pandas.__version__)
+          print("scipy", scipy.__version__)
+          print("sklearn", sklearn.__version__)
+          print("skops", skops.__version__)
+          print("wfdb", wfdb.__version__)
+          PY
+
+      - name: Verify prospective guardrails
+        run: |
+          pytest -q tests/test_edb_prospective.py tests/test_evaluate_v2_gate.py
+
+      - name: Restore trusted historical v4 model
+        run: |
+          set -euo pipefail
+          NAME="incart_mitbih_model_windowed_std_2026-09-09"
+          PKL="/tmp/${NAME}.pkl"
+          SKOPS="validation_reports/${NAME}.skops"
+          EXPECTED_PKL_SHA="8732aa47051c76b043bd56e4d9dc82dc01307e0d9bcc6c5ed046fca19a27f5bb"
+          HISTORICAL_COMMIT="201096a7eeb2c93f991851266903d0342b08c64b"
+
+          git cat-file -e "${HISTORICAL_COMMIT}^{commit}"
+          git show "${HISTORICAL_COMMIT}:validation_reports/${NAME}.pkl" > "${PKL}"
+          echo "${EXPECTED_PKL_SHA}  ${PKL}" | sha256sum -c -
+
+          mkdir -p validation_reports
+          python scripts/convert_model_pickle_to_skops.py \
+            "${PKL}" \
+            "${SKOPS}" \
+            --allow-pickle
+
+          python - <<'PY'
+          from pathlib import Path
+          import numpy as np
+          from electrotrace.candidate_suppressor import CandidateSuppressor
+
+          name = "incart_mitbih_model_windowed_std_2026-09-09"
+          pkl = Path("/tmp") / f"{name}.pkl"
+          skops = Path("validation_reports") / f"{name}.skops"
+
+          legacy = CandidateSuppressor.load(pkl, allow_pickle=True)
+          safe = CandidateSuppressor.load(skops)
+
+          assert legacy.metadata.to_dict() == safe.metadata.to_dict()
+          assert legacy.feature_names == safe.feature_names
+
+          rng = np.random.default_rng(20260928)
+          X = rng.normal(size=(128, safe.model.n_features_in_))
+          np.testing.assert_allclose(
+              legacy.predict_proba(X),
+              safe.predict_proba(X),
+              rtol=1e-12,
+              atol=1e-15,
+          )
+          print("Frozen model reconstruction verified.")
+          PY
+
+      - name: Download complete MIT-BIH development source
+        run: |
+          set -euo pipefail
+          mkdir -p .cache/physionet/mitdb
+          if command -v aws >/dev/null 2>&1; then
+            aws s3 sync --no-sign-request \
+              s3://physionet-open/mitdb/1.0.0/ \
+              .cache/physionet/mitdb/ \
+              --exclude "*" \
+              --include "*.hea" \
+              --include "*.dat" \
+              --include "*.atr"
+          else
+            python - <<'PY'
+          import wfdb
+          wfdb.dl_database("mitdb", dl_dir=".cache/physionet/mitdb")
+          PY
+          fi
+
+      - name: Re-derive corrected v3 frozen polarity gates
+        run: |
+          python -u scripts/derive_polarity_thresholds_mitdb_extended.py \
+            --mitdb-dir .cache/physionet/mitdb \
+            --output validation_reports/experiments/2026-09-polarity-thresholds/mitdb_extended_derivation_v3.json
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path(
+              "validation_reports/experiments/2026-09-polarity-thresholds/"
+              "mitdb_extended_derivation_v3.json"
+          )
+          report = json.loads(path.read_text())
+          assert report["schema"] == "electrotrace.mitdb_polarity_thresholds_extended_derivation/v3"
+          assert report["freeze_eligible"] is True
+          assert report["protocol"]["development_pool_size"] == 36
+          assert report["protocol"]["locked_heldout_labels_used"] is False
+          assert report["protocol"]["incart_used"] is False
+          assert report["recommended_thresholds"] == {
+              "v2_gate_confidence": 0.0,
+              "width_override_confidence": 0.0,
+          }
+          print("v3 freeze verified:", report["recommended_thresholds"])
+          PY
+
+      - name: Download complete European ST-T Database
+        run: |
+          set -euo pipefail
+          mkdir -p .cache/physionet/edb
+          if command -v aws >/dev/null 2>&1; then
+            aws s3 sync --no-sign-request \
+              s3://physionet-open/edb/1.0.0/ \
+              .cache/physionet/edb/ \
+              --exclude "*" \
+              --include "*.hea" \
+              --include "*.dat" \
+              --include "*.atr" \
+              --include "RECORDS"
+          else
+            python - <<'PY'
+          from pathlib import Path
+          import wfdb
+
+          out = Path(".cache/physionet/edb")
+          wfdb.dl_database("edb", dl_dir=str(out))
+          records = list(wfdb.get_record_list("edb"))
+          if len(records) != 90 or len(set(records)) != 90:
+              raise SystemExit(
+                  f"Unexpected PhysioNet EDB record list: {len(records)} records"
+              )
+          out.mkdir(parents=True, exist_ok=True)
+          (out / "RECORDS").write_text(
+              "\n".join(records) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          fi
+
+          test -s .cache/physionet/edb/RECORDS
+          test "$(wc -l < .cache/physionet/edb/RECORDS)" -eq 90
+
+      - name: Run one-shot prospective EDB evaluation
+        run: |
+          python -u scripts/evaluate_frozen_model_edb_prospective.py \
+            --edb-dir .cache/physionet/edb \
+            --model validation_reports/incart_mitbih_model_windowed_std_2026-09-09.skops \
+            --polarity-threshold-report \
+              validation_reports/experiments/2026-09-polarity-thresholds/mitdb_extended_derivation_v3.json \
+            --confirm-first-scored-run
+
+      - name: Record artifact hashes
+        run: |
+          set -euo pipefail
+          {
+            echo "git_head=$(git rev-parse HEAD)"
+            sha256sum \
+              validation_protocols/edb_prospective_v1.json \
+              validation_reports/experiments/2026-09-polarity-thresholds/mitdb_extended_derivation_v3.json \
+              validation_reports/experiments/2026-09-edb-prospective/edb_frozen_v4_prospective_first_run.json
+          } | tee validation_reports/experiments/2026-09-edb-prospective/FIRST_RUN_SHA256.txt
+
+      - name: Upload prospective validation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: electrotrace-edb-prospective-first-run
+          if-no-files-found: error
+          retention-days: 90
+          path: |
+            validation_reports/experiments/2026-09-edb-prospective/edb_frozen_v4_prospective_first_run.json
+            validation_reports/experiments/2026-09-edb-prospective/FIRST_RUN_SHA256.txt
+            validation_reports/experiments/2026-09-polarity-thresholds/mitdb_extended_derivation_v3.json

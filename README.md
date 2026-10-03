@@ -1,235 +1,236 @@
 # ElectroTrace
 
-Research-grade ECG and electrophysiology annotation, segmentation, phenotyping, external validation, and leakage-safe machine-learning toolkit. ElectroTrace provides an interactive web interface backed by a Python REST API for building curated research datasets with machine-assisted labeling and subject-stratified validation.
+[![PyPI](https://img.shields.io/pypi/v/electrotrace.svg)](https://pypi.org/project/electrotrace/)
+[![Python](https://img.shields.io/pypi/pyversions/electrotrace.svg)](https://pypi.org/project/electrotrace/)
+[![Tests](https://github.com/Virelion-Biotech/Virelion-ElectroTrace/actions/workflows/test.yml/badge.svg)](https://github.com/Virelion-Biotech/Virelion-ElectroTrace/actions/workflows/test.yml)
+[![Release](https://img.shields.io/github/v/release/Virelion-Biotech/Virelion-ElectroTrace)](https://github.com/Virelion-Biotech/Virelion-ElectroTrace/releases/latest)
+[![License](https://img.shields.io/github/license/Virelion-Biotech/Virelion-ElectroTrace)](LICENSE)
 
-**Version:** 1.8.1  
-**License:** AGPL-3.0  
-**Status:** Active research software · validation-focused release
+**Current release: 1.9.0**
 
-## Quick Start
+A reproducible ECG/electrophysiology annotation, benchmarking, and research-validation toolkit.
 
-### Installation
+ElectroTrace is built around a simple principle: **the evidence is the product**. It helps researchers detect beats, batch recordings, compare detectors under declared protocols, preserve record/subject-level statistics, and carry source hashes, software versions, detector configuration, and provenance alongside results.
 
-Requires Python 3.10+.
+> ElectroTrace is research software, not a clinical device. The current release does not claim clinical validation, real-time/streaming validation, population-wide generalization, or universal detector superiority.
+
+## Install
+
+Python 3.10+ is required.
+
+Minimal installation:
 
 ```bash
-git clone https://github.com/Virelion-Biotech/Virelion-ElectroTrace.git
-cd Virelion-ElectroTrace
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -U pip
-pip install -e ".[test]"
+python -m pip install electrotrace==1.9.0
 ```
 
-### Running the Server
+Install common optional format/model support:
 
 ```bash
-python server.py
+python -m pip install "electrotrace[all]==1.9.0"
 ```
 
-Open `http://127.0.0.1:5000` in your browser.
-
-For shared/non-local deployment, set a strong `ELECTROTRACE_API_KEY` before binding beyond localhost. See `SECURITY.md`.
-
-## Core Capabilities
-
-### Recording Import & Validation
-- CSV, EDF/EDF+, and WFDB ZIP import.
-- Strict finite-sample validation and sampling-rate checks.
-- Non-destructive preprocessing.
-
-### Large-recording architecture
-- Metadata-only registration.
-- Native lazy EDF/WFDB windows and bounded CSV windows.
-- CSV browser loading uses the persisted/windowed path.
-- Bounded browser state for long recordings.
-- Automatic upload retention cleanup via `ELECTROTRACE_UPLOAD_TTL_S`.
-
-### Interactive Annotation
-- Multi-channel Plotly visualization.
-- Point/interval annotations with confidence and notes.
-- Annotator/reviewer identity and QC states.
-- Multi-annotator agreement support.
-
-### Beat Segmentation & R-peak Detection
-- High-recall Stage 1 candidate generation using prominence and minimum distance.
-- **Signal-level adaptive polarity selector:** chooses positive versus negative polarity for a recording rather than merging both, with a conservative candidate-count rule and a guarded QRS-band fallback.
-- **Two-stage R-peak pipeline:** Stage 1 candidates followed by a Random Forest false-positive suppressor using morphology, slope, energy, and RR-context features.
-- **Optional long-gap recovery:** adds at most one relaxed candidate inside unusually long RR gaps and passes it through the same Stage-2 verifier; it remains off by default pending external validation.
-- Configurable beat windows and beat-level phenotype extraction.
-
-### Machine-Assisted Labeling
-- Random Forest learning from human-accepted labels.
-- Training safeguards and reproducibility metadata.
-- Uncertainty/diversity-based active learning.
-- Already annotated/training beats excluded from suggestions.
-- Pipeline class handling is explicit for prediction/reporting.
-
-### Research Analysis
-- Subject/record-level leakage-safe ML benchmarking.
-- Fold-level metrics plus mean, SD, and empirical 95% CI.
-- Experimental-unit-aware statistics and pseudoreplication warnings.
-- Welch t-test, Mann-Whitney U, Cohen's d, and Benjamini-Hochberg FDR.
-- Deterministic dataset/study manifests with SHA-256 provenance hashes.
-- Rigorous validation reports with pooled metrics, macro record-level metrics, and record-bootstrap uncertainty intervals.
-- Phenotype integrity checks and experimental-unit aggregation helpers.
-
-## External Scientific Validation
-
-Live scoreboard: [`validation_reports/VALIDATION_STATUS.md`](validation_reports/VALIDATION_STATUS.md).
-
-ElectroTrace 1.8.1 has a **locked, held-out MIT-BIH primary validation protocol** with record-level splitting, separate calibration records, explicit provenance, and reproducible reports. The current primary protocol uses seed=42, 12 held-out records, a 75 ms matching tolerance, adaptive polarity with the guarded v2 fallback, a 200-tree Stage-2 Random Forest, and an F1-max threshold subject to a minimum calibration recall of 0.97.
-
-### Locked MIT-BIH primary result
-
-| Detector | Sensitivity | PPV | F1 |
-|----------|-------------|-----|-----|
-| **ElectroTrace two-stage** | **0.9924** | **0.9879** | **0.9902** |
-| Pan-Tompkins (research reimplementation) | 0.9908 | 0.9954 | **0.9931** |
-| Hamilton (research reimplementation) | 0.9990 | 0.9303 | 0.9634 |
-| ElectroTrace Stage-1 adaptive | 0.9931 | 0.7553 | 0.8580 |
-
-The two-stage detector is therefore **competitive with the research Pan-Tompkins reimplementation on this held-out split**, but does not outperform it on F1. Classical detectors in this table are research reimplementations, not certified reference binaries.
-
-### Independent INCART external pilot
-
-A 7-record independent INCART pilot was added on 2026-08-29. It is **not a completed 75-record external study** and should not be presented as population-level validation. The MIT-BIH-trained Stage-2 suppressor showed substantial cross-database domain shift:
-
-| Detector | Sensitivity | PPV | F1 |
-|----------|-------------|-----|-----|
-| Hamilton | 0.975 | 0.912 | **0.943** |
-| Pan-Tompkins | 0.817 | 0.983 | 0.892 |
-| ElectroTrace Stage-1 | 0.638 | 0.883 | 0.741 |
-| ElectroTrace two-stage (MIT-BIH model) | 0.333 | **0.990** | 0.499 |
-
-This result is a **failure-mode/domain-shift finding**, not evidence of successful external generalization. Full INCART validation remains pending.
-
-### Validation harness
-
-ElectroTrace includes a reproducible PhysioNet/WFDB validation harness reporting sensitivity, PPV, F1, false positives/negatives, timing error, per-record performance, pooled estimates, macro record-level estimates, and record-level bootstrap confidence intervals.
-
-No external dataset is bundled with the repository.
-
-For long QTDB runs that may be interrupted, prefer the checkpointed harness:
+Useful extras can also be installed separately:
 
 ```bash
-python scripts/validate_qtdb_resumable.py .cache/physionet/qtdb \
-  --output validation_reports/qtdb_validation.json \
-  --checkpoint validation_reports/qtdb_checkpoint.json \
-  --tolerance-ms 75
+python -m pip install "electrotrace[wfdb]==1.9.0"    # WFDB / PhysioNet records
+python -m pip install "electrotrace[edf]==1.9.0"     # EDF files
+python -m pip install "electrotrace[models]==1.9.0"  # .skops model artifacts
 ```
 
-Stage-1 default polarity is `adaptive` (`detect_r_peaks(..., polarity="adaptive")`). The 1.8.1 selector includes a guarded QRS-band fallback when polarity confidence is below 0.15. MIT-BIH **207** remains an explicit documented edge case and is covered by the locked validation artifacts.
-
-For the rigorous MIT-BIH protocol:
+Confirm the installation:
 
 ```bash
-python scripts/validate_mitdb.py \
-  --cache-dir .cache/physionet/mitdb \
-  --output validation_reports/mitdb_rpeak_validation.json \
+electrotrace --help
+electrotrace list
+```
+
+## 60-second demo
+
+No external ECG dataset is required for the first run. Download the repository's small example CSV and detect R peaks:
+
+```bash
+python -c "from urllib.request import urlretrieve; urlretrieve('https://raw.githubusercontent.com/Virelion-Biotech/Virelion-ElectroTrace/v1.9.0/sample_data/sample_ecg.csv','sample_ecg.csv')" && electrotrace detect sample_ecg.csv --detector pan-tompkins --channel 0 -o peaks.csv
+```
+
+That creates:
+
+```text
+peaks.csv
+peaks.csv.manifest.json
+```
+
+`peaks.csv` contains detected sample indices and times. The adjacent manifest records the detector configuration, input hash, ElectroTrace version, channel selection, and provenance metadata.
+
+The sample is an onboarding fixture only; it is **not** validation evidence and should not be used to infer clinical performance.
+
+## Use your own recording
+
+ElectroTrace currently accepts:
+
+- CSV with a monotonic time column named `time`, `t`, `timestamp`, `time_s`, or `seconds`, plus one or more numeric signal columns;
+- EDF with the `edf` extra installed;
+- WFDB records with the `wfdb` extra installed.
+
+Detect one recording:
+
+```bash
+electrotrace detect recording.edf \
+  --detector pan-tompkins \
+  --channel 0 \
+  -o peaks.csv
+```
+
+Batch a directory:
+
+```bash
+electrotrace batch data/ \
+  --detector pan-tompkins \
+  --workers 4 \
+  -o results/
+```
+
+Batch output is deliberately analysis-friendly:
+
+```text
+results/
+├── beats.csv
+├── records.csv
+├── subjects.csv
+├── failures.csv
+├── manifest.json
+├── batch_state.json
+└── peaks/
+```
+
+Subject identity is never inferred from filenames. When subject-level aggregation is appropriate, provide a two-column `record,subject_id` CSV with `--subject-map`.
+
+## Validation and benchmarking
+
+Validate a local WFDB record against its annotations:
+
+```bash
+electrotrace validate .cache/physionet/mitdb/100 \
+  --detector pan-tompkins \
   --tolerance-ms 75 \
-  --polarity adaptive \
-  --bootstrap 2000 \
-  --seed 42
+  -o validation.json
 ```
 
-The report preserves the complete record list, dataset/version metadata, detector configuration, software version/commit when supplied by the runtime, exact matching tolerance, per-record results, pooled metrics, macro record-level statistics, record-bootstrap uncertainty, and failures. The associated manifest is canonicalized and SHA-256 hashed.
-
-**Deployment recommendation:** use the two-stage pipeline (`detect_r_peaks_two_stage` with a trained `CandidateSuppressor`) when false positives matter and the deployment domain has been appropriately validated. Single-stage adaptive detection remains the candidate generator.
-
-For the locked two-stage verifier benchmark:
+Compare detectors over a local WFDB collection:
 
 ```bash
-python scripts/benchmark_two_stage_mitdb.py \
-  --data-dir .cache/physionet/mitdb \
-  --output validation_reports/mitdb_two_stage_validation.json
+electrotrace bench .cache/physionet/mitdb \
+  --detectors pan-tompkins,hamilton \
+  --tolerance-ms 75 \
+  -o bench.json
 ```
 
-The two-stage benchmark supports explicit polarity and optional recovery settings, and its current protocol keeps calibration records separate from model-fitting and held-out test records.
-
-See `docs/VALIDATION.md`, `docs/TWO_STAGE_RPEAK.md`, `docs/RESEARCH_VALIDATION.md`, `docs/PEER_REVIEW_RESPONSE.md`, `docs/REMAINING_VALIDATION_STEPS.md`, and `docs/benchmarks/MITBIH_TWO_STAGE_2026-08-17.md`.
-
-## Validation Status & Remaining Work
-
-**Locked:**
-- MIT-BIH held-out primary endpoint.
-- Provenance schema v7 and SHA-256 dataset/software provenance.
-- Protocol-matched Pan-Tompkins and Hamilton comparison.
-- 1.8.1 adaptive/hybrid polarity behavior and regression coverage.
-- INCART 7-record external pilot and documented domain-shift result.
-- 103-test local suite, including baseline detector tests.
-
-**Still required for stronger algorithm-paper claims:**
-1. Full 75-record INCART external evaluation with per-record and macro-record analysis.
-2. Certified WFDB `gqrs` / `sqrs` baseline comparison.
-3. Full prespecified QTDB QRS delineation tolerance-curve analysis with uncertainty intervals.
-4. Optional second external database (e.g., SVDB) using the same locked scoring framework.
-5. Frozen tagged release with regenerated validation artifacts.
-
-## Project & Recording Management
-
-- Persistent project metadata and recording inventory.
-- Subject/group/visit tracking.
-- Chunked access to large recordings.
-- Safe archive extraction.
-- Cross-process metadata locking.
-
-## API Endpoints
-
-### Recording
-- `POST /api/analyze`
-- `POST /api/recording`
-- `GET /api/recording/<id>/window`
-
-### Signal / Beats
-- `POST /api/filter`
-- `POST /api/detect/r-peaks`
-- `POST /api/beats`
-- `POST /api/segment`
-
-### ML / Analysis
-- `POST /api/ml/train`
-- `POST /api/ml/suggest`
-- `POST /api/phenotype`
-- `POST /api/statistics/compare`
-- `POST /api/statistics/fdr`
-- `POST /api/benchmark`
-
-## Testing & Security
+Render any JSON result as a self-contained HTML report:
 
 ```bash
-pytest -q
+electrotrace report bench.json -o bench.html
 ```
 
-The current repository validation status records **103 passing tests**, including baseline detector coverage. CI runs on Python 3.10, 3.11, and 3.12. A separate security workflow runs `pip-audit` and Bandit.
+Primary comparative statistics should be interpreted at the record or subject level rather than treating individual beats as independent biological replicates.
 
-## Scientific Use Notes
+## Python API
 
-**Not a clinical device:** ElectroTrace is research software. Automatic R-peak detection, the false-positive suppressor, and phenotype extraction are research algorithms, not validated clinical algorithms.
+```python
+from electrotrace import load_recording, detect_r_peaks
 
-**Reproducibility:** Raw signals are not overwritten by display preprocessing. Source format, absolute time bounds, provenance, model metadata, train/test record lists, calibration records, and threshold settings are preserved where applicable.
+record = load_recording("recording.csv")
+signal = record.signals[next(iter(record.signals))]
 
-**External validation:** Report the exact dataset version, record list, detector configuration, polarity mode, matching tolerance, recovery setting, calibration records, and model threshold. Do not treat MIT-BIH/QTDB results as proof of population generalization, and do not treat the INCART pilot as a completed external validation study.
+peaks = detect_r_peaks(
+    signal,
+    record.sampling_rate_hz,
+    polarity="adaptive",
+)
 
-**Evaluation mode:** The locked two-stage benchmark is retrospective full-record evaluation, not streaming. Whole-record signal statistics are used by the current research protocol; no online/real-time performance claim is made.
+print(peaks[:10])
+```
 
-**Large-data API:** JSON signal requests are capped at 64 MB; use persistent recording registration and window access for long recordings.
+## EP calibration handoff
 
-**Deployment:** The development server defaults to localhost. Non-local binds require `ELECTROTRACE_API_KEY`; use a TLS-capable reverse proxy for shared deployments. Trusted-model loading uses Python pickle and must never consume untrusted model files.
+ElectroTrace can now turn a measured ECG into a calibration-grade, provenance-linked observation for CardiEP/CardiInfer:
 
-**Research statistics:** Prefer subject/record-level aggregation before inferential statistics. Do not treat individual ECG beats as independent experimental units unless the study design explicitly justifies that assumption.
+```bash
+electrotrace calibration prepare recording.csv \
+  --entity-id subject-001 \
+  --kind ecg \
+  --detector stage1 \
+  --units mV \
+  --output-dir calibration/ \
+  -o calibration-handoff.json
+```
 
-**Phenotype QC:** `electrotrace.phenotype_validation.quality_report` checks structural and mathematical consistency without imposing clinical cutoffs; use study-specific clinical thresholds separately.
+The ECG handoff contains an aligned multi-lead median-beat template, R-relative timing, QRS delineation summary, robust residual-noise estimates, lead-quality metadata, source SHA-256, and a typed artifact reference. HeartTwin exposes the same path as `electrical.prepare_calibration`.
+
+Pre-aligned EAM activation, activation-map, and repolarization-map files can also be registered as calibration observations, but ElectroTrace deliberately does not invent a spatial registration: callers must supply the coordinate frame and units.
+
+This handoff is an inverse-model input contract. It is not evidence that the downstream EP model, discrepancy function, or inferred patient parameters are clinically valid.
+
+## Why ElectroTrace exists
+
+Most ECG software answers “which detector can I run?” ElectroTrace is aimed at a stricter research question:
+
+> **Under one explicit protocol, how did this detector behave, and can someone else reproduce the answer?**
+
+The toolkit emphasizes:
+
+- record/subject-level rather than beat-level primary statistics;
+- one-to-one matching under a declared tolerance;
+- locked splits with explicit seeds;
+- bootstrap uncertainty over records;
+- SHA-256 input hashes;
+- software/git provenance;
+- detector and model metadata;
+- explicit evidence boundaries and non-claims.
+
+## Evidence snapshot
+
+ElectroTrace ships a research detector as well as benchmarking infrastructure. The detector evidence is intentionally reported with its limitations rather than compressed into one headline score.
+
+| Protocol | Detector / generation | Records | Sensitivity | PPV | F1 | Evidence status |
+|---|---|---:|---:|---:|---:|---|
+| Locked MIT-BIH | two-stage v3 | 12 | 0.9924 | 0.9879 | 0.9902 | historical locked model comparison |
+| MIT-BIH leakage-safe gate audit | frozen v4 | 12 | 0.9390 | 0.9913 | 0.9644 | legacy non-regression |
+| INCART complete source cohort | frozen v4 | 75 | 0.8977 | 0.7633 | 0.8251 | exposed development characterization |
+| INCART same-cohort baseline | WFDB gqrs | 75 | 0.9372 | 0.9310 | 0.9341 | certified reference baseline |
+| European ST-T | frozen v4 | 90 | 0.9056 | 0.9644 | 0.9341 | preregistered prospective external evaluation |
+| SVDB | selector v2 | 78 | 0.9680 | 0.9878 | 0.9778 | prospective selector transfer |
+| Zymed LTSTDB subset | selector v3 | 18 | 0.8718 | 0.9650 | 0.9160 | prospective null-switch evaluation |
+
+Important boundaries:
+
+- INCART informed v4 development and is not fresh external validation.
+- Historical MIT-BIH adaptive-polarity evidence remains legacy/non-regression where prior mechanism exposure applies.
+- The EDB, LTAFDB, SVDB, and Zymed cohorts became exposed after their respective first runs.
+- Selector v3 made zero prospective switches on the 18-record Zymed subset; that run therefore does not demonstrate a prospective starvation-rescue benefit.
+- QTDB supports QRS-boundary characterization, not a conventional full-beat detector benchmark.
+- No result supports a clinical-device, regulatory, streaming, population-generalization, or universal-superiority claim.
+
+For the complete evidence history, hashes, workflow IDs, and interpretation boundaries, see `validation_reports/VALIDATION_STATUS.md`.
+
+## Documentation
+
+- Hosted documentation: https://virelion-biotech.github.io/Virelion-ElectroTrace/
+- Quickstart: `docs/QUICKSTART.md`
+- Reproducibility: `docs/REPRODUCIBILITY.md`
+- Cross-database policy: `docs/CROSS_DATABASE_POLICY.md`
+- Limitations: `docs/LIMITATIONS.md`
+- Validation status: `validation_reports/VALIDATION_STATUS.md`
 
 ## Citation
 
-```text
-ElectroTrace: ECG annotation, electrophysiology phenotyping, external validation,
-and leakage-safe machine-learning toolkit.
-Virelion-Biotech, 2024–2026.
-https://github.com/Virelion-Biotech/Virelion-ElectroTrace
-```
+Software citation metadata is provided in `CITATION.cff`. Release metadata is also prepared in `zenodo.json`.
 
----
+GitHub release: https://github.com/Virelion-Biotech/Virelion-ElectroTrace/releases/tag/v1.9.0
 
-**ElectroTrace v1.8.1** · annotation, adaptive/hybrid-polarity R-peak detection, two-stage verification, external validation, rigorous provenance, and leakage-safe ML.
+## Contributing
+
+See `CONTRIBUTING.md`. Detector plugins can register through the `electrotrace.detectors` entry-point group.
+
+## License
+
+AGPL-3.0-or-later.

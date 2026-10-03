@@ -1,0 +1,185 @@
+{
+  "created_at_utc": "2026-09-27T12:38:55.319518+00:00",
+  "figure": "incart_fp_trace_samples.png",
+  "git_head": "040ec8c7bb69980e381821aadc327c140fd8a219",
+  "model": {
+    "path": "validation_reports/incart_mitbih_model_windowed_std_2026-09-09.skops",
+    "sha256": "4b4a7c6dfc7b53edc30bf8224c6f93210b79db27db6bc4a9924e176ff405e575"
+  },
+  "package_versions": {
+    "matplotlib": "3.10.0",
+    "numpy": "2.1.3",
+    "pandas": "2.2.3",
+    "scipy": "1.16.3",
+    "sklearn": "1.6.1",
+    "skops": "0.16.0",
+    "wfdb": "4.3.1"
+  },
+  "platform": "Linux-6.6.122+-x86_64-with-glibc2.39",
+  "protocol": {
+    "amp_ratio_min": 0.6,
+    "annotation_policy": "error",
+    "n_candidates_found": 3639,
+    "polarity_filter": "any",
+    "records_scanned": [
+      "I03",
+      "I12",
+      "I29",
+      "I26",
+      "I05"
+    ],
+    "scale_method": "windowed_std",
+    "window_s": 0.6
+  },
+  "purpose": "Manual-inspection sample; not a metric. Look at the figure.",
+  "python": "3.13.15",
+  "samples": [
+    {
+      "amp_ratio": 0.9754601226993865,
+      "category": "post_qrs_t_window",
+      "dt_next_ms": 529.1828793774318,
+      "dt_prev_ms": 276.26459143968873,
+      "nearest_ref_index": 1764,
+      "operating_threshold": 0.2751648051220502,
+      "probability": 0.3858537225840539,
+      "record": "I05",
+      "same_polarity": false,
+      "sample": 459833
+    },
+    {
+      "amp_ratio": 1.2103896103896103,
+      "category": "post_qrs_t_window",
+      "dt_next_ms": 513.6186770428016,
+      "dt_prev_ms": 260.7003891050584,
+      "nearest_ref_index": 1979,
+      "operating_threshold": 0.2751648051220502,
+      "probability": 0.4994523871253552,
+      "record": "I03",
+      "same_polarity": true,
+      "sample": 368736
+    },
+    {
+      "amp_ratio": 1.7734375,
+      "category": "post_qrs_t_window",
+      "dt_next_ms": 357.97665369649803,
+      "dt_prev_ms": 369.64980544747084,
+      "nearest_ref_index": 1962,
+      "operating_threshold": 0.2751648051220502,
+      "probability": 0.6720432598008071,
+      "record": "I29",
+      "same_polarity": false,
+      "sample": 338356
+    },
+    {
+      "amp_ratio": 0.7307692307692307,
+      "category": "post_qrs_t_window",
+      "dt_next_ms": 291.8287937743191,
+      "dt_prev_ms": 326.84824902723733,
+      "nearest_ref_index": 2675,
+      "operating_threshold": 0.2751648051220502,
+      "probability": 0.46509272226016435,
+      "record": "I12",
+      "same_polarity": false,
+      "sample": 439807
+    },
+    {
+      "amp_ratio": 2.0545454545454547,
+      "category": "post_qrs_near",
+      "dt_next_ms": 762.6459143968872,
+      "dt_prev_ms": 101.16731517509727,
+      "nearest_ref_index": 447,
+      "operating_threshold": 0.2751648051220502,
+      "probability": 0.56886310487323,
+      "record": "I26",
+      "same_polarity": true,
+      "sample": 126281
+    },
+    {
+      "amp_ratio": 1.1835443037974684,
+      "category": "post_qrs_t_window",
+      "dt_next_ms": 680.9338521400778,
+      "dt_prev_ms": 287.9377431906615,
+      "nearest_ref_index": 441,
+      "operating_threshold": 0.2751648051220502,
+      "probability": 0.3365494200902803,
+      "record": "I05",
+      "same_polarity": true,
+      "sample": 113784
+    },
+    {
+      "amp_ratio": 0.6164772727272727,
+      "category": "post_qrs_t_window",
+      "dt_next_ms": 774.3190661478599,
+      "dt_prev_ms": 245.13618677042803,
+      "nearest_ref_index": 2186,
+      "operating_threshold": 0.2751648051220502,
+      "probability": 0.37570042452885893,
+      "record": "I03",
+      "same_polarity": false,
+      "sample": 408626
+    },
+    {
+      "amp_ratio": 0.7704918032786885,
+      "category": "post_qrs_near",
+      "dt_next_ms": 747.0817120622568,
+      "dt_prev_ms": 132.29571984435796,
+      "nearest_ref_index": 660,
+      "operating_threshold": 0.2751648051220502,
+      "probability": 0.4506005592652726,
+      "record": "I29",
+      "same_polarity": true,
+      "sample": 135879
+    },
+    {
+      "amp_ratio": 0.6052631578947368,
+      "category": "post_qrs_t_window",
+      "dt_next_ms": 428.01556420233464,
+      "dt_prev_ms": 276.26459143968873,
+      "nearest_ref_index": 161,
+      "operating_threshold": 0.2751648051220502,
+      "probability": 0.3279603847097027,
+      "record": "I12",
+      "same_polarity": false,
+      "sample": 30149
+    },
+    {
+      "amp_ratio": 1.0382165605095541,
+      "category": "post_qrs_t_window",
+      "dt_next_ms": 599.2217898832685,
+      "dt_prev_ms": 291.8287937743191,
+      "nearest_ref_index": 665,
+      "operating_threshold": 0.2751648051220502,
+      "probability": 0.48737219585565145,
+      "record": "I26",
+      "same_polarity": true,
+      "sample": 181923
+    },
+    {
+      "amp_ratio": 0.9731800766283525,
+      "category": "post_qrs_t_window",
+      "dt_next_ms": 673.1517509727627,
+      "dt_prev_ms": 264.5914396887159,
+      "nearest_ref_index": 357,
+      "operating_threshold": 0.2751648051220502,
+      "probability": 0.5024652750727883,
+      "record": "I05",
+      "same_polarity": true,
+      "sample": 93299
+    },
+    {
+      "amp_ratio": 0.7538071065989848,
+      "category": "post_qrs_t_window",
+      "dt_next_ms": 334.63035019455253,
+      "dt_prev_ms": 365.75875486381324,
+      "nearest_ref_index": 807,
+      "operating_threshold": 0.2751648051220502,
+      "probability": 0.6553018494932126,
+      "record": "I03",
+      "same_polarity": true,
+      "sample": 146988
+    }
+  ],
+  "schema": "electrotrace.incart_fp_trace_samples/v1",
+  "skipped_records": [],
+  "software_version": "1.8.1"
+}

@@ -1,0 +1,167 @@
+name: post-ltstdb-zymed-selector-v3-audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/post-ltstdb-zymed-selector-v3-audit.yml'
+      - 'scripts/analyze_ltstdb_zymed_selector_v3_posthoc.py'
+      - 'tests/test_ltstdb_zymed_selector_v3_posthoc.py'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/post-ltstdb-zymed-selector-v3-audit.yml'
+      - 'scripts/analyze_ltstdb_zymed_selector_v3_posthoc.py'
+      - 'tests/test_ltstdb_zymed_selector_v3_posthoc.py'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install pinned audit runtime
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[test]"
+          python -m pip install \
+            "numpy==2.1.3" \
+            "pandas==2.2.3" \
+            "scipy==1.16.3" \
+            "scikit-learn==1.6.1" \
+            "skops==0.16.0" \
+            "wfdb==4.3.1"
+          python -m pip install -e . --no-deps
+
+      - name: Test post-hoc audit code
+        run: |
+          pytest -q \
+            tests/test_ltstdb_zymed_selector_v3_posthoc.py \
+            tests/test_ltstdb_zymed_selector_v3_prospective.py \
+            tests/test_lead_selection_v3.py \
+            tests/test_lead_quality.py
+
+      - name: Restore trusted frozen v4 model
+        run: |
+          set -euo pipefail
+          NAME="incart_mitbih_model_windowed_std_2026-09-09"
+          PKL="/tmp/${NAME}.pkl"
+          SKOPS="validation_reports/${NAME}.skops"
+          EXPECTED_PKL_SHA="8732aa47051c76b043bd56e4d9dc82dc01307e0d9bcc6c5ed046fca19a27f5bb"
+          HISTORICAL_COMMIT="201096a7eeb2c93f991851266903d0342b08c64b"
+          git cat-file -e "${HISTORICAL_COMMIT}^{commit}"
+          git show "${HISTORICAL_COMMIT}:validation_reports/${NAME}.pkl" > "${PKL}"
+          echo "${EXPECTED_PKL_SHA}  ${PKL}" | sha256sum -c -
+          mkdir -p validation_reports
+          python scripts/convert_model_pickle_to_skops.py "${PKL}" "${SKOPS}" --allow-pickle
+
+      - name: Recover immutable prospective inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/edb-first /tmp/ltstdb-first
+
+          gh run download 36442894752 \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name electrotrace-edb-prospective-first-run \
+            --dir /tmp/edb-first
+
+          gh run download 36532383204 \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name electrotrace-ltstdb-zymed-selector-v3-first-run \
+            --dir /tmp/ltstdb-first
+
+          DERIVE="/tmp/edb-first/2026-09-polarity-thresholds/mitdb_extended_derivation_v3.json"
+          FIRST="/tmp/ltstdb-first/ltstdb_zymed_selector_v3_first_run.json"
+          FIRST_SHA="/tmp/ltstdb-first/FIRST_RUN_SHA256.txt"
+
+          test -s "${DERIVE}"
+          test -s "${FIRST}"
+          test -s "${FIRST_SHA}"
+
+          echo "1d9d3966e7c3ab157d5ccf69c6770ec7db7ef29ebd6a59e623c2e45fc19d3369  ${DERIVE}" | sha256sum -c -
+          echo "853051f9c8921f053b72b52b418c79d33a01f642f254cea6b22ea6c694c46dd0  ${FIRST}" | sha256sum -c -
+          grep -Fx "git_head=0028d4773deb523b04b8cdea99fa9a97488543fb" "${FIRST_SHA}"
+          grep -F "853051f9c8921f053b72b52b418c79d33a01f642f254cea6b22ea6c694c46dd0" "${FIRST_SHA}"
+
+      - name: Download exact prospective Zymed LTSTDB source cohort
+        run: |
+          set -euo pipefail
+          OUT=".cache/physionet/ltstdb"
+          BASE="https://physionet.org/files/ltstdb/1.0.0"
+          mkdir -p "${OUT}"
+
+          wget -q --https-only --retry-connrefused --waitretry=2 --tries=5 \
+            -O "${OUT}/RECORDS" "${BASE}/RECORDS"
+
+          RECORDS=(
+            s30661 s30671 s30681 s30691 s30701 s30711
+            s30721 s30731 s30732 s30741 s30742 s30751
+            s30752 s30761 s30771 s30781 s30791 s30801
+          )
+
+          JOBS="/tmp/ltstdb-zymed-downloads.tsv"
+          : > "${JOBS}"
+          for record in "${RECORDS[@]}"; do
+            for suffix in hea dat atr; do
+              printf '%s\t%s\n' "${BASE}/${record}.${suffix}" "${OUT}/${record}.${suffix}" >> "${JOBS}"
+            done
+          done
+
+          xargs -P 8 -n 2 bash -c '
+            set -euo pipefail
+            url="$1"
+            dest="$2"
+            echo "Downloading ${url##*/}"
+            wget -q --https-only --retry-connrefused --waitretry=2 --tries=5 \
+              -O "${dest}" "${url}"
+            test -s "${dest}"
+          ' _ < "${JOBS}"
+
+          test -s "${OUT}/RECORDS"
+          test "$(find "${OUT}" -maxdepth 1 -name 's3*.hea' | wc -l)" -eq 18
+          test "$(find "${OUT}" -maxdepth 1 -name 's3*.dat' | wc -l)" -eq 18
+          test "$(find "${OUT}" -maxdepth 1 -name 's3*.atr' | wc -l)" -eq 18
+
+      - name: Run exposed comparator audit from hash-verified local files
+        run: |
+          python -u scripts/analyze_ltstdb_zymed_selector_v3_posthoc.py \
+            --ltstdb-dir .cache/physionet/ltstdb \
+            --model validation_reports/incart_mitbih_model_windowed_std_2026-09-09.skops \
+            --polarity-threshold-report \
+              /tmp/edb-first/2026-09-polarity-thresholds/mitdb_extended_derivation_v3.json \
+            --first-run-report \
+              /tmp/ltstdb-first/ltstdb_zymed_selector_v3_first_run.json \
+            --output \
+              validation_reports/experiments/2026-09-ltstdb-zymed-posthoc/ltstdb_zymed_selector_v3_posthoc_audit.json
+
+      - name: Hash post-hoc artifact
+        run: |
+          set -euo pipefail
+          OUT="validation_reports/experiments/2026-09-ltstdb-zymed-posthoc/ltstdb_zymed_selector_v3_posthoc_audit.json"
+          {
+            echo "git_head=$(git rev-parse HEAD)"
+            sha256sum "${OUT}"
+          } | tee validation_reports/experiments/2026-09-ltstdb-zymed-posthoc/POSTHOC_SHA256.txt
+
+      - name: Upload post-hoc comparator artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: electrotrace-ltstdb-zymed-selector-v3-posthoc-audit
+          retention-days: 90
+          if-no-files-found: error
+          path: |
+            validation_reports/experiments/2026-09-ltstdb-zymed-posthoc/ltstdb_zymed_selector_v3_posthoc_audit.json
+            validation_reports/experiments/2026-09-ltstdb-zymed-posthoc/POSTHOC_SHA256.txt

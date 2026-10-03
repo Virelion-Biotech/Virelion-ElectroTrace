@@ -40,8 +40,13 @@ pooled MIT-BIH performance.
 | two-stage adaptive **1.8.1** | ~0.92 | ~0.91 | ~0.91 |
 
 Polarity selection is a fixed rule in code. The confidence threshold 0.15 was
-chosen on full-pool polarity strategy comparisons; the held-out two-stage
-metrics are the locked primary claim.
+chosen on full-pool polarity strategy comparisons, including behavior of record
+207. Therefore the 12-record split remains a locked data partition, but the
+adaptive-polarity result on that partition is **legacy validation/non-regression
+evidence rather than prospective held-out evidence for the polarity mechanism**.
+Issue #14 tracks development-only re-derivation of the gate. Re-deriving the
+numeric threshold can prevent further tuning; it cannot erase the historical
+mechanism-selection exposure.
 
 ### 4. Evaluation is retrospective full-record, not streaming
 
@@ -79,7 +84,7 @@ enforced. Full-record normalization is retrospective design, not sample mixing.
 
 | Field | Value |
 |-------|--------|
-| Primary endpoint | Held-out test records only (seed=42, test_fraction=0.25) |
+| Primary endpoint | Locked 12-record split for model comparison; adaptive-polarity interpretation is legacy non-regression because of historical mechanism exposure |
 | Matching tolerance | 75 ms |
 | Stage-1 polarity | adaptive count + v2 if confidence < 0.15 |
 | Stage-2 | RF n_estimators=200 |
@@ -87,9 +92,22 @@ enforced. Full-record normalization is retrospective design, not sample mixing.
 | Recovery | off by default |
 | Evaluation mode | retrospective full-record |
 
-## Remaining work for algorithm-paper strength
+## Completion status for algorithm-paper infrastructure
 
-1. Locked baseline comparison (Pan–Tompkins / Hamilton / open detectors).
-2. Independent external database beyond MIT-BIH/QTDB.
-3. Prespecified QTDB delineation protocol with uncertainty intervals.
-4. Frozen tagged release with regenerated artifacts only.
+The repository work corresponding to the original reviewer checklist is now
+complete:
+
+1. Locked baseline comparison is preserved, and certified WFDB `gqrs`/`sqrs`
+   reference-binary results are archived with exact toolkit provenance.
+2. Independent prospective external evaluation was completed on all 90
+   preregistered European ST-T Database records, with the heterogeneous negative
+   tail retained rather than tuned away.
+3. QTDB completed a prespecified 105-record QRS-boundary tolerance-curve study
+   with record-bootstrap uncertainty and interobserver analysis.
+4. The complete 75-record INCART source cohort is characterized with strict
+   source-reference integrity rules and same-cohort certified baselines.
+5. ElectroTrace 1.9.0 release metadata, CI/security, tag/version guards, and
+   Trusted Publishing workflow are prepared in-repo.
+
+An actual PyPI/Zenodo publication remains an external release action rather than
+a scientific-validation blocker.

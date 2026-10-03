@@ -6,3 +6,10 @@ venv/
 .pytest_cache/
 .DS_Store
 .cache/
+
+# Model artifacts are local/release assets, never source-controlled.
+validation_reports/*.pkl
+validation_reports/*.skops
+validation_reports/*.skops.json
+*.skops
+*.skops.json

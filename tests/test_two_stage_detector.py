@@ -27,10 +27,14 @@ def test_two_stage_detector_returns_retained_peaks_and_probabilities():
     model.feature_names = names
 
     retained, probabilities = detect_r_peaks_two_stage(signal, fs, model)
-    stage1_candidates = detect_r_peaks(signal, fs)
     assert retained.ndim == 1
-    assert probabilities.shape[0] == len(stage1_candidates)
+    assert probabilities.shape[0] == retained.shape[0]
     assert np.isfinite(probabilities).all()
+    assert np.all(probabilities >= model.metadata.threshold)
+
+    stage1_candidates = detect_r_peaks(signal, fs)
+    all_candidates, all_probabilities = detect_r_peaks_two_stage(signal, fs, model, threshold=0.0)
+    assert len(all_candidates) == len(stage1_candidates) == len(all_probabilities)
 
 
 def test_adaptive_polarity_returns_supported_conservative_decision():
