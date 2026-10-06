@@ -6,7 +6,7 @@
 [![Release](https://img.shields.io/github/v/release/Virelion-Biotech/Virelion-ElectroTrace)](https://github.com/Virelion-Biotech/Virelion-ElectroTrace/releases/latest)
 [![License](https://img.shields.io/github/license/Virelion-Biotech/Virelion-ElectroTrace)](LICENSE)
 
-**Current release: 1.9.0**
+**Current release: 1.10.0**
 
 A reproducible ECG/electrophysiology annotation, benchmarking, and research-validation toolkit.
 
@@ -21,21 +21,21 @@ Python 3.10+ is required.
 Minimal installation:
 
 ```bash
-python -m pip install electrotrace==1.9.0
+python -m pip install electrotrace==1.10.0
 ```
 
 Install common optional format/model support:
 
 ```bash
-python -m pip install "electrotrace[all]==1.9.0"
+python -m pip install "electrotrace[all]==1.10.0"
 ```
 
 Useful extras can also be installed separately:
 
 ```bash
-python -m pip install "electrotrace[wfdb]==1.9.0"    # WFDB / PhysioNet records
-python -m pip install "electrotrace[edf]==1.9.0"     # EDF files
-python -m pip install "electrotrace[models]==1.9.0"  # .skops model artifacts
+python -m pip install "electrotrace[wfdb]==1.10.0"    # WFDB / PhysioNet records
+python -m pip install "electrotrace[edf]==1.10.0"     # EDF files
+python -m pip install "electrotrace[models]==1.10.0"  # .skops model artifacts
 ```
 
 Confirm the installation:
@@ -50,7 +50,7 @@ electrotrace list
 No external ECG dataset is required for the first run. Download the repository's small example CSV and detect R peaks:
 
 ```bash
-python -c "from urllib.request import urlretrieve; urlretrieve('https://raw.githubusercontent.com/Virelion-Biotech/Virelion-ElectroTrace/v1.9.0/sample_data/sample_ecg.csv','sample_ecg.csv')" && electrotrace detect sample_ecg.csv --detector pan-tompkins --channel 0 -o peaks.csv
+python -c "from urllib.request import urlretrieve; urlretrieve('https://raw.githubusercontent.com/Virelion-Biotech/Virelion-ElectroTrace/v1.10.0/sample_data/sample_ecg.csv','sample_ecg.csv')" && electrotrace detect sample_ecg.csv --detector pan-tompkins --channel 0 -o peaks.csv
 ```
 
 That creates:
@@ -223,9 +223,9 @@ For the complete evidence history, hashes, workflow IDs, and interpretation boun
 
 ## Citation
 
-Software citation metadata is provided in `CITATION.cff`. Release metadata is also prepared in `zenodo.json`.
+Software citation metadata is provided in `CITATION.cff`. Release metadata is provided in `.zenodo.json` for Zenodo GitHub integration.
 
-GitHub release: https://github.com/Virelion-Biotech/Virelion-ElectroTrace/releases/tag/v1.9.0
+GitHub release: https://github.com/Virelion-Biotech/Virelion-ElectroTrace/releases/tag/v1.10.0
 
 ## Contributing
 
