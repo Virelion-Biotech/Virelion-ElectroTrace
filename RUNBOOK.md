@@ -94,6 +94,6 @@ Phase 5 is complete. The repository now contains:
 5. certified WFDB comparator artifacts;
 6. QTDB 105-record delineation characterization;
 7. complete 75-record INCART source-cohort characterization;
-8. green CI/security and a 1.9.0 release candidate.
+8. green CI/security and the released 1.9.0 package.
 
 Future detector changes are new research work, not unfinished Phase-5 validation.
