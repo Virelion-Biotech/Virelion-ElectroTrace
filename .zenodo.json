@@ -1,0 +1,30 @@
+{
+  "title": "ElectroTrace: reproducible ECG/electrophysiology annotation and benchmarking",
+  "description": "Research software for ECG/electrophysiology annotation, detector benchmarking, leakage-aware validation, provenance, subject-level analysis, and calibration-grade ECG/EAM handoffs for downstream electrophysiology modeling.",
+  "license": "AGPL-3.0-or-later",
+  "upload_type": "software",
+  "keywords": [
+    "ECG",
+    "electrophysiology",
+    "QRS detection",
+    "benchmarking",
+    "reproducibility",
+    "biomedical signal processing",
+    "digital twin",
+    "model calibration"
+  ],
+  "creators": [
+    {
+      "name": "Hannan, Syed Umer",
+      "affiliation": "Virelion Biotech"
+    }
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/Virelion-Biotech/Virelion-ElectroTrace",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ],
+  "version": "1.10.0"
+}
