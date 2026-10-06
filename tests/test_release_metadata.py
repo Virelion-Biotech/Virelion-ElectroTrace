@@ -35,13 +35,14 @@ def _citation_version() -> str:
 
 
 def _zenodo_version() -> str:
-    data = json.loads((ROOT / "zenodo.json").read_text(encoding="utf-8"))
+    data = json.loads((ROOT / ".zenodo.json").read_text(encoding="utf-8"))
     return str(data["version"])
 
 
 def test_release_version_metadata_is_synchronized():
     expected = _project_version()
-    assert expected == "1.9.0"
+    assert expected == "1.10.0"
     assert _runtime_version() == expected
     assert _citation_version() == expected
     assert _zenodo_version() == expected
+    assert not (ROOT / "zenodo.json").exists()
