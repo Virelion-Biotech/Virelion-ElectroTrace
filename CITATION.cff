@@ -2,9 +2,11 @@ cff-version: 1.2.0
 message: "Please cite ElectroTrace using the software citation below."
 title: "ElectroTrace: reproducible ECG/electrophysiology annotation and benchmarking"
 type: software
-version: "1.9.0"
-date-released: "2026-10-01"
+version: "1.10.0"
+date-released: "2026-10-06"
 license: "AGPL-3.0-or-later"
 repository-code: "https://github.com/Virelion-Biotech/Virelion-ElectroTrace"
 authors:
-  - name: "Virelion Biotech"
+  - family-names: "Hannan"
+    given-names: "Syed Umer"
+    affiliation: "Virelion Biotech"
