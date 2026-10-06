@@ -1,6 +1,6 @@
 # Validation status
 
-**Software:** electrotrace 1.9.0 release candidate; immutable historical locked artifacts retain their original 1.8.1 version labels  
+**Software:** electrotrace 1.10.0; immutable historical locked artifacts retain their original 1.8.1 version labels  
 **Primary historical model-comparison endpoint:** held-out MIT-BIH test records only (not full-pool)  
 **Repository scientific-validation backlog:** complete on `main` as of 2026-09-30
 
@@ -147,7 +147,6 @@ selection procedure.
 For comparison, the historical-default 0.15/0.38 audit had F1 0.9901 and record
 207 F1 0.9080. That earlier result remains useful as legacy non-regression
 history but cannot be used to select gates after seeing the locked split.
-
 The v3 locked report is explicitly labeled
 `legacy_validation_non_regression`, not prospective validation. Historical
 mechanism-selection exposure remains: MIT-BIH informed the adaptive polarity

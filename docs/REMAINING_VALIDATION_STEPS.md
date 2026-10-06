@@ -17,7 +17,7 @@
 | Prospective EDB external evaluation | **90/90 complete** | `validation_reports/VALIDATION_STATUS.md` |
 | Prospective selector v1 / v2 / v3 transfer studies | Complete | LTAFDB / SVDB / Zymed LTSTDB sections in `VALIDATION_STATUS.md` |
 | CI/security/release automation | Complete in repo | `.github/workflows/` |
-| 1.9.0 package/citation/release metadata | Release candidate prepared | `pyproject.toml`, `CITATION.cff`, `CHANGELOG.md` |
+| 1.9.0 package/citation/release metadata | Released 2026-10-01 | `pyproject.toml`, `CITATION.cff`, `CHANGELOG.md` |
 
 ## Scientific closeout
 

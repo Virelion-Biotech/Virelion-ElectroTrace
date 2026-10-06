@@ -5,20 +5,20 @@ title: Quickstart
 
 # Quickstart
 
-ElectroTrace 1.9.0 is available from PyPI and requires Python 3.10+.
+ElectroTrace 1.10.0 is available from PyPI and requires Python 3.10+.
 
 ## Install
 
 Minimal:
 
 ```bash
-python -m pip install electrotrace==1.9.0
+python -m pip install electrotrace==1.10.0
 ```
 
 With common optional dependencies:
 
 ```bash
-python -m pip install "electrotrace[all]==1.9.0"
+python -m pip install "electrotrace[all]==1.10.0"
 ```
 
 Check the installation:
@@ -33,7 +33,7 @@ electrotrace list
 Download the repository's onboarding CSV and run Pan-Tompkins:
 
 ```bash
-python -c "from urllib.request import urlretrieve; urlretrieve('https://raw.githubusercontent.com/Virelion-Biotech/Virelion-ElectroTrace/v1.9.0/sample_data/sample_ecg.csv','sample_ecg.csv')" && electrotrace detect sample_ecg.csv --detector pan-tompkins --channel 0 -o peaks.csv
+python -c "from urllib.request import urlretrieve; urlretrieve('https://raw.githubusercontent.com/Virelion-Biotech/Virelion-ElectroTrace/v1.10.0/sample_data/sample_ecg.csv','sample_ecg.csv')" && electrotrace detect sample_ecg.csv --detector pan-tompkins --channel 0 -o peaks.csv
 ```
 
 Outputs:
@@ -64,7 +64,7 @@ electrotrace detect recording.csv --detector pan-tompkins --channel 0 -o peaks.c
 Install EDF support first:
 
 ```bash
-python -m pip install "electrotrace[edf]==1.9.0"
+python -m pip install "electrotrace[edf]==1.10.0"
 electrotrace detect recording.edf --detector pan-tompkins --channel 0 -o peaks.csv
 ```
 
@@ -73,7 +73,7 @@ electrotrace detect recording.edf --detector pan-tompkins --channel 0 -o peaks.c
 Install WFDB support:
 
 ```bash
-python -m pip install "electrotrace[wfdb]==1.9.0"
+python -m pip install "electrotrace[wfdb]==1.10.0"
 ```
 
 Then validate a local annotated record:
@@ -81,6 +81,22 @@ Then validate a local annotated record:
 ```bash
 electrotrace validate .cache/physionet/mitdb/100 --detector pan-tompkins -o validation.json
 ```
+
+## EP calibration handoff
+
+Prepare a measured ECG as a provenance-linked calibration observation for downstream electrophysiology modeling:
+
+```bash
+electrotrace calibration prepare recording.csv \
+  --entity-id subject-001 \
+  --kind ecg \
+  --detector stage1 \
+  --units mV \
+  --output-dir calibration/ \
+  -o calibration-handoff.json
+```
+
+The handoff preserves aligned beat morphology, timing, QC/uncertainty fields, source hashes, and typed artifact metadata. It is an inverse-model input contract, not a clinical-validation claim.
 
 ## Batch processing
 

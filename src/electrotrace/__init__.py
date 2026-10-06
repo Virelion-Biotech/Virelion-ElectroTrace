@@ -1,6 +1,6 @@
 """ElectroTrace: reproducible ECG/electrophysiology research and benchmarking tools."""
 
-__version__ = "1.9.0"
+__version__ = "1.10.0"
 
 from .calibration import (
     build_ecg_calibration_bundle,

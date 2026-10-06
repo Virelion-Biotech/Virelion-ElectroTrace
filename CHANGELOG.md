@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.10.0 — 2026-10-06
+
+### Added
+- Calibration-grade ECG observation handoffs for downstream CardiEP/CardiInfer workflows, including aligned multi-lead median-beat templates, R-relative timing, QRS delineation summaries, robust residual-noise estimates, lead-quality metadata, source SHA-256 hashes, uncertainty/QC fields, typed artifact references, and likelihood hints.
+- Registration of pre-aligned EAM activation, activation-map, and repolarization-map observations with explicit coordinate-frame and unit requirements; ElectroTrace does not invent spatial registration.
+- `electrotrace calibration prepare` and HeartTwin `electrical.prepare_calibration` routing for the new calibration handoff contract.
+- Regression coverage for release metadata, documentation onboarding, and calibration handoff behavior.
+
+### Changed
+- Public documentation is now centered on the released package and first-run sample while retaining explicit scientific-evidence boundaries.
+- Release/citation metadata is synchronized at 1.10.0 and Zenodo metadata now uses the canonical `.zenodo.json` filename.
+- Software citation authorship now credits Syed Umer Hannan with Virelion Biotech affiliation.
+- The release workflow can bootstrap an explicitly named `release: vX.Y.Z` main-branch release commit, extract curated notes from this changelog, publish to PyPI with Trusted Publishing, and create or update the GitHub Release idempotently.
+
+### Scientific boundaries
+- This release adds software/integration capability; it does not retrain, retune, or upgrade the scientific evidence status of the frozen detector generations.
+- Historical validation artifacts retain their original version labels and evidence classifications.
+- Calibration handoffs are inverse-model input contracts, not evidence that downstream EP models, discrepancy functions, or inferred patient parameters are clinically valid.
+- ElectroTrace remains research software: no clinical-device, streaming, population-generalization, regulatory, or universal detector-superiority claim is made.
+
 ## 1.9.0 — 2026-10-01
 
 ### Added
