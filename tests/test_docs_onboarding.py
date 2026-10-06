@@ -28,10 +28,12 @@ def test_readme_first_run_sample_executes(tmp_path):
     assert output.with_name(output.name + ".manifest.json").exists()
 
 
-def test_public_docs_do_not_call_1_9_0_a_release_candidate():
+def test_public_docs_identify_current_release():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "1.9.0 (release candidate)" not in readme
-    assert "Current release: 1.9.0" in readme
+    quickstart = (ROOT / "docs" / "QUICKSTART.md").read_text(encoding="utf-8")
+    assert "1.10.0 (release candidate)" not in readme
+    assert "Current release: 1.10.0" in readme
+    assert "ElectroTrace 1.10.0 is available from PyPI" in quickstart
 
 
 def test_mkdocs_navigation_targets_exist():
