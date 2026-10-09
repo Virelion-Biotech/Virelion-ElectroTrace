@@ -4,6 +4,7 @@ This module converts ElectroTrace measurements into small, provenance-linked
 artifacts intended for inverse-model calibration.  It deliberately separates
 measurement preparation from the EP forward model and inference engine.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -47,9 +48,7 @@ def _channel(record: Recording, channel: int | str) -> tuple[int, str, np.ndarra
     else:
         index = int(channel)
         if index < 0 or index >= len(names):
-            raise ValueError(
-                f"Calibration channel {channel!r} is out of range; available: {names}"
-            )
+            raise ValueError(f"Calibration channel {channel!r} is out of range; available: {names}")
     name = names[index]
     return index, name, np.asarray(record.signals[name], dtype=float)
 
@@ -135,9 +134,7 @@ def build_ecg_calibration_bundle(
         positions = np.linspace(0, usable.size - 1, max_beats).round().astype(int)
         usable = usable[np.unique(positions)]
     if usable.size < min_beats:
-        raise ValueError(
-            f"Need at least {min_beats} complete beats for calibration; found {usable.size}"
-        )
+        raise ValueError(f"Need at least {min_beats} complete beats for calibration; found {usable.size}")
 
     beat_stack = np.stack(
         [
@@ -221,9 +218,7 @@ def build_ecg_calibration_bundle(
         "lead_names": lead_names,
         "lead_units": {name: units.get(name) or None for name in lead_names},
         "primary_channel": {"index": channel_index, "name": channel_name},
-        "beat_template": {
-            name: template[i].astype(float).tolist() for i, name in enumerate(lead_names)
-        },
+        "beat_template": {name: template[i].astype(float).tolist() for i, name in enumerate(lead_names)},
         "n_detected_beats": int(peaks.size),
         "n_template_beats": int(usable.size),
         "template_peak_indices": usable.astype(int).tolist(),
@@ -249,9 +244,7 @@ def build_ecg_calibration_bundle(
 
 def _write_json_artifact(path: Path, payload: dict[str, Any]) -> tuple[str, int]:
     path.parent.mkdir(parents=True, exist_ok=True)
-    raw = (json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n").encode(
-        "utf-8"
-    )
+    raw = (json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n").encode("utf-8")
     path.write_bytes(raw)
     return hashlib.sha256(raw).hexdigest(), len(raw)
 
@@ -285,15 +278,13 @@ def prepare_ecg_calibration(
     }
 
     out_dir = Path(output_dir)
-    observation_id = str(
-        params.get("observation_id") or f"{entity_id}-electrotrace-ecg-calibration"
-    )
+    observation_id = str(params.get("observation_id") or f"{entity_id}-electrotrace-ecg-calibration")
     artifact_path = out_dir / f"{observation_id}.json"
     digest, byte_count = _write_json_artifact(artifact_path, bundle)
 
     lead_units = {value for value in bundle["lead_units"].values() if value}
-    units = str(params.get("units")) if params.get("units") else (
-        next(iter(lead_units)) if len(lead_units) == 1 else None
+    units = (
+        str(params.get("units")) if params.get("units") else (next(iter(lead_units)) if len(lead_units) == 1 else None)
     )
     artifact_id = f"electrotrace-{digest[:20]}"
     observation = {
@@ -349,12 +340,11 @@ def prepare_ecg_calibration(
                 "model_output": "qrs_duration_ms",
                 "discrepancy": "gaussian",
                 "weight": float(params.get("qrs_weight", 0.25)),
-                "noise_parameters": {
-                    "sigma_ms": max(float(sigma_ms or 0.0), 1.0)
-                },
+                "noise_parameters": {"sigma": max(float(sigma_ms or 0.0), 1.0)},
                 "metadata": {
                     "artifact_field": "qrs.median_duration_ms",
                     "observed_value_ms": float(qrs_duration),
+                    "noise_unit": "ms",
                 },
             }
         )
@@ -393,10 +383,7 @@ def register_map_calibration(
     params = dict(params or {})
     normalized = str(kind)
     if normalized not in SUPPORTED_MAP_KINDS:
-        raise ValueError(
-            f"Unsupported map observation kind {kind!r}; expected one of "
-            f"{sorted(SUPPORTED_MAP_KINDS)}"
-        )
+        raise ValueError(f"Unsupported map observation kind {kind!r}; expected one of {sorted(SUPPORTED_MAP_KINDS)}")
     if not str(coordinate_frame).strip():
         raise ValueError("coordinate_frame is required for map calibration observations")
     if not str(units).strip():
@@ -406,9 +393,7 @@ def register_map_calibration(
     if not source.is_file():
         raise FileNotFoundError(source)
     digest = _sha256_file(source)
-    observation_id = str(
-        params.get("observation_id") or f"{entity_id}-electrotrace-{normalized}"
-    )
+    observation_id = str(params.get("observation_id") or f"{entity_id}-electrotrace-{normalized}")
     artifact = {
         "artifact_id": f"electrotrace-{digest[:20]}",
         "kind": f"electrotrace_{normalized}",
@@ -483,7 +468,4 @@ def prepare_calibration(
             units=str(params.get("units") or ""),
             params=params,
         )
-    raise ValueError(
-        f"Unsupported observation_kind {kind!r}; expected 'ecg' or one of "
-        f"{sorted(SUPPORTED_MAP_KINDS)}"
-    )
+    raise ValueError(f"Unsupported observation_kind {kind!r}; expected 'ecg' or one of {sorted(SUPPORTED_MAP_KINDS)}")
