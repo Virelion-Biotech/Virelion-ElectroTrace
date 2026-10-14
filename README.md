@@ -14,6 +14,21 @@ ElectroTrace is built around a simple principle: **the evidence is the product**
 
 > ElectroTrace is research software, not a clinical device. The current release does not claim clinical validation, real-time/streaming validation, population-wide generalization, or universal detector superiority.
 
+
+<!-- VALIDATION_PRODUCT_STATUS:BEGIN -->
+## Validation and product completion status
+
+**Reviewed 2026-10-14; implementation base `bd3d3da98a12`.** **Status: External algorithmic characterization exists; clinical/streaming claims unestablished.** This is an evidence-backed scope assessment, not a percentage-complete estimate or a declaration that the product is finished.
+
+| Area | Current evidence / remaining gate |
+|---|---|
+| Software / operational checks | Automated test sources and CI definitions are present; this documentation audit does not report a new algorithm/data-validation run. |
+| Scientific or domain evidence | Version 1.10.0 preserves cross-database detector evidence, exposure boundaries and QTDB QRS-boundary tolerance results. Previously exposed cohorts are development/regression evidence, not fresh external tests. |
+| Remaining for the declared product scope | Predeclare and evaluate a genuinely unused cohort with subject-level uncertainty and failure accounting; qualify lead-selection benefit prospectively; validate streaming latency/robustness if shipping a streaming product; freeze intended-use/device boundaries and operational acceptance criteria. |
+
+Evidence and limits: [repository report](validation_reports/VALIDATION_STATUS.md). The [organization status index](https://github.com/Virelion-Biotech/Virelion-HeartTwin/blob/main/docs/STACK_VALIDATION_STATUS.md) separates software, numerical, data-readiness and empirical qualification. Code/schema execution or a completed download is not a substitute for endpoint-specific validation.
+<!-- VALIDATION_PRODUCT_STATUS:END -->
+
 ## Install
 
 Python 3.10+ is required.
