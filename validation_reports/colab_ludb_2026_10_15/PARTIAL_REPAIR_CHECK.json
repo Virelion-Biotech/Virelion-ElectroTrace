@@ -1,0 +1,39 @@
+{
+  "audit": {
+    "qrs_markers": 4017,
+    "eligible_paired_qrs": 3983,
+    "excluded_qrs": 34,
+    "leads": 452
+  },
+  "failures": [],
+  "replayed_patients": [
+    {
+      "record": "data/1",
+      "excluded_qrs": 0
+    },
+    {
+      "record": "data/2",
+      "excluded_qrs": 0
+    },
+    {
+      "record": "data/3",
+      "excluded_qrs": 0
+    },
+    {
+      "record": "data/4",
+      "excluded_qrs": 0
+    },
+    {
+      "record": "data/5",
+      "excluded_qrs": 0
+    },
+    {
+      "record": "data/6",
+      "excluded_qrs": 0
+    },
+    {
+      "record": "data/7",
+      "excluded_qrs": 18
+    }
+  ]
+}
