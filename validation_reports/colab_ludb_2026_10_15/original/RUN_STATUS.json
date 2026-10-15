@@ -1,0 +1,713 @@
+{
+  "error": "Traceback (most recent call last):\n  File \"/content/18_ElectroTrace_LUDB_v1/launcher/worker.py\", line 259, in <module>\n    else:status=globals()[handler](r)\n                ~~~~~~~~~~~~~~~~~~^^^\n  File \"/content/18_ElectroTrace_LUDB_v1/launcher/worker.py\", line 64, in ludb\n    rows.append(r.task('ludb-'+Path(name).name,one))\n                ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/content/18_ElectroTrace_LUDB_v1/launcher/runtime.py\", line 101, in task\n    result=fn()\n  File \"/content/18_ElectroTrace_LUDB_v1/launcher/worker.py\", line 52, in one\n    if len(ann.symbol)%3:raise ValueError('Unexpected LUDB annotation layout')\n                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nValueError: Unexpected LUDB annotation layout\n",
+  "input_receipts": {
+    "data/ludb/RECORDS.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "2a6ec024c409dfabe22b684e7e8f78011099f9e552c253c27de9cbec25630a5c",
+      "sha256": "2a6ec024c409dfabe22b684e7e8f78011099f9e552c253c27de9cbec25630a5c",
+      "size": 1692,
+      "url": "https://physionet.org/files/ludb/1.0.1/RECORDS"
+    },
+    "data/ludb/SHA256SUMS.txt.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "cccef1f3529519db8f26a333c97a6872a7d0e3e5c64a1448b76b161fd87fb75f",
+      "sha256": "cccef1f3529519db8f26a333c97a6872a7d0e3e5c64a1448b76b161fd87fb75f",
+      "size": 215460,
+      "url": "https://physionet.org/files/ludb/1.0.1/SHA256SUMS.txt"
+    },
+    "data/ludb/data/1.avf.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "cd8125ee0b1d51d5ab699b22342325f2c269c4fa02064d444dafc6e5923c6ef1",
+      "sha256": "cd8125ee0b1d51d5ab699b22342325f2c269c4fa02064d444dafc6e5923c6ef1",
+      "size": 98,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/1.avf"
+    },
+    "data/ludb/data/1.avl.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "6576941fca020deba83c961fb2218f8be225c48a5185a224d43817de4927e2d7",
+      "sha256": "6576941fca020deba83c961fb2218f8be225c48a5185a224d43817de4927e2d7",
+      "size": 98,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/1.avl"
+    },
+    "data/ludb/data/1.avr.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "98d2d3f8fdcc74bde50832a66556cd025d8e359d2991cf1300b9c3832f8a0c1a",
+      "sha256": "98d2d3f8fdcc74bde50832a66556cd025d8e359d2991cf1300b9c3832f8a0c1a",
+      "size": 98,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/1.avr"
+    },
+    "data/ludb/data/1.dat.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "7d669747badd7cb39f5a1e26b7f61b13fb897ce56f6a82a5f565da3c5123231e",
+      "sha256": "7d669747badd7cb39f5a1e26b7f61b13fb897ce56f6a82a5f565da3c5123231e",
+      "size": 120000,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/1.dat"
+    },
+    "data/ludb/data/1.hea.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "5bec2c548bf69c3bbd7bb8133769431345af55624cde309333d348c87f13f932",
+      "sha256": "5bec2c548bf69c3bbd7bb8133769431345af55624cde309333d348c87f13f932",
+      "size": 723,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/1.hea"
+    },
+    "data/ludb/data/1.i.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "2551d7ee687809fe3ed852b76d5c4a85981f188e0a1d5dcf0f616666577500a2",
+      "sha256": "2551d7ee687809fe3ed852b76d5c4a85981f188e0a1d5dcf0f616666577500a2",
+      "size": 98,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/1.i"
+    },
+    "data/ludb/data/1.ii.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "157df852e1665c4361c0e599b8e76f8d0204161f813bc88850feec5161d870e6",
+      "sha256": "157df852e1665c4361c0e599b8e76f8d0204161f813bc88850feec5161d870e6",
+      "size": 98,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/1.ii"
+    },
+    "data/ludb/data/1.iii.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "befb878781459ab7f6c094972c361511533737a2e295a3307785d608afd6fdae",
+      "sha256": "befb878781459ab7f6c094972c361511533737a2e295a3307785d608afd6fdae",
+      "size": 98,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/1.iii"
+    },
+    "data/ludb/data/1.v1.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "b9f1ce752cdbbf7025ec3ccf5cd6d8ff96f27903324b7dfa52f1e016782dad48",
+      "sha256": "b9f1ce752cdbbf7025ec3ccf5cd6d8ff96f27903324b7dfa52f1e016782dad48",
+      "size": 98,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/1.v1"
+    },
+    "data/ludb/data/1.v2.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "7dda8b6d51328dfd77522fb92e04b93d911c796ff22849deb6b209ab45ae4e84",
+      "sha256": "7dda8b6d51328dfd77522fb92e04b93d911c796ff22849deb6b209ab45ae4e84",
+      "size": 98,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/1.v2"
+    },
+    "data/ludb/data/1.v3.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "21e075698a0c61f0ddaf96981321bcf7d42061c97f34229db86b2948d45df0e8",
+      "sha256": "21e075698a0c61f0ddaf96981321bcf7d42061c97f34229db86b2948d45df0e8",
+      "size": 98,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/1.v3"
+    },
+    "data/ludb/data/1.v4.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "87b51b335d4613bd75994530c90019422ae044600fde0df642b6bbc2611ef113",
+      "sha256": "87b51b335d4613bd75994530c90019422ae044600fde0df642b6bbc2611ef113",
+      "size": 98,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/1.v4"
+    },
+    "data/ludb/data/1.v5.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "a0f432c43cf9c98aad680d88df82b55fb4d8d759a0e1f43a2723c6077af67400",
+      "sha256": "a0f432c43cf9c98aad680d88df82b55fb4d8d759a0e1f43a2723c6077af67400",
+      "size": 98,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/1.v5"
+    },
+    "data/ludb/data/1.v6.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "c377db89c3564e4d3708fb30646e7ec11ea709cb376181d984b8eaa662340611",
+      "sha256": "c377db89c3564e4d3708fb30646e7ec11ea709cb376181d984b8eaa662340611",
+      "size": 98,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/1.v6"
+    },
+    "data/ludb/data/2.avf.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "111d8f42a89e80b38c32e875eebe88ec75b88178b1e9a694d3b8f468e5e937be",
+      "sha256": "111d8f42a89e80b38c32e875eebe88ec75b88178b1e9a694d3b8f468e5e937be",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/2.avf"
+    },
+    "data/ludb/data/2.avl.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "d399f8bbaece248076747e32c1395aae2d51030427b94a2f68326ed6477b9de8",
+      "sha256": "d399f8bbaece248076747e32c1395aae2d51030427b94a2f68326ed6477b9de8",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/2.avl"
+    },
+    "data/ludb/data/2.avr.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "9f65e2a7ff226fddab0dea22d079dcd000dd066ac7150ca8cbbd77a91201ebac",
+      "sha256": "9f65e2a7ff226fddab0dea22d079dcd000dd066ac7150ca8cbbd77a91201ebac",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/2.avr"
+    },
+    "data/ludb/data/2.dat.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "d90c0262bed07f6dc0183ada1904831d8759d4e18135226f3b1915a28e614b36",
+      "sha256": "d90c0262bed07f6dc0183ada1904831d8759d4e18135226f3b1915a28e614b36",
+      "size": 120000,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/2.dat"
+    },
+    "data/ludb/data/2.hea.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "cd8c26c310cb79c5d1f9e539d7034df785ecd0bc366c64205618bbbe1f4e69b8",
+      "sha256": "cd8c26c310cb79c5d1f9e539d7034df785ecd0bc366c64205618bbbe1f4e69b8",
+      "size": 690,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/2.hea"
+    },
+    "data/ludb/data/2.i.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "830a6a18cb6bcecc7f803620e63dffff5223a0e2988c916e5b548914675ed8c0",
+      "sha256": "830a6a18cb6bcecc7f803620e63dffff5223a0e2988c916e5b548914675ed8c0",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/2.i"
+    },
+    "data/ludb/data/2.ii.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "26c6072ae40896d5e5b6055bf99606f6b9455901043b40da15aca59da482f212",
+      "sha256": "26c6072ae40896d5e5b6055bf99606f6b9455901043b40da15aca59da482f212",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/2.ii"
+    },
+    "data/ludb/data/2.iii.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "76480b5e588b1af5bae9e3e39f4f0db2696a450b1216e79351e5bcc7f60deb7a",
+      "sha256": "76480b5e588b1af5bae9e3e39f4f0db2696a450b1216e79351e5bcc7f60deb7a",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/2.iii"
+    },
+    "data/ludb/data/2.v1.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "9dd2d5e7dd3d4098dd3e096fa16aa0f55b26ce5e2cdfed2efa81e13fb2eded5e",
+      "sha256": "9dd2d5e7dd3d4098dd3e096fa16aa0f55b26ce5e2cdfed2efa81e13fb2eded5e",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/2.v1"
+    },
+    "data/ludb/data/2.v2.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "8fa71bcbc996488896bdd95b72b4a2a771cfaa7c2da1e4be9e2691c5f2e3007c",
+      "sha256": "8fa71bcbc996488896bdd95b72b4a2a771cfaa7c2da1e4be9e2691c5f2e3007c",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/2.v2"
+    },
+    "data/ludb/data/2.v3.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "6ecda8d01d44220b5dc542b7f9db724e015fc8d7b7af2a62d2e4e30017f62ad6",
+      "sha256": "6ecda8d01d44220b5dc542b7f9db724e015fc8d7b7af2a62d2e4e30017f62ad6",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/2.v3"
+    },
+    "data/ludb/data/2.v4.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "f0bf5c37839673609db638a08664a05d257ecda231cef5302fd3f3287248768b",
+      "sha256": "f0bf5c37839673609db638a08664a05d257ecda231cef5302fd3f3287248768b",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/2.v4"
+    },
+    "data/ludb/data/2.v5.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "4173787eaa033a7d099c887409b042951d41ff401a11361b916b5ae7e25bd1ed",
+      "sha256": "4173787eaa033a7d099c887409b042951d41ff401a11361b916b5ae7e25bd1ed",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/2.v5"
+    },
+    "data/ludb/data/2.v6.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "23b388803f3409ce394e9fc4850d09eb6077569a49764be5af843d11186bf3d2",
+      "sha256": "23b388803f3409ce394e9fc4850d09eb6077569a49764be5af843d11186bf3d2",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/2.v6"
+    },
+    "data/ludb/data/3.avf.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "b5ff133092b7a8ae887d3d5957426ddb229f231cd55b4e3a736a25c59d145159",
+      "sha256": "b5ff133092b7a8ae887d3d5957426ddb229f231cd55b4e3a736a25c59d145159",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/3.avf"
+    },
+    "data/ludb/data/3.avl.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "99d9d52023da0ae3c924dcc625a32a5fc4fc93033e3e6cdc043e1e6528bdc429",
+      "sha256": "99d9d52023da0ae3c924dcc625a32a5fc4fc93033e3e6cdc043e1e6528bdc429",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/3.avl"
+    },
+    "data/ludb/data/3.avr.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "74360f186ec3b7659a9fbd651710419d1050e6f4b4246a31f2cee2a4fbb87faf",
+      "sha256": "74360f186ec3b7659a9fbd651710419d1050e6f4b4246a31f2cee2a4fbb87faf",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/3.avr"
+    },
+    "data/ludb/data/3.dat.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "ea6828d46f662f1201ff6f85b4350cc86ac78c83ba8a0f703628505bb73f83f4",
+      "sha256": "ea6828d46f662f1201ff6f85b4350cc86ac78c83ba8a0f703628505bb73f83f4",
+      "size": 120000,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/3.dat"
+    },
+    "data/ludb/data/3.hea.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "e96943d1dede5269a501a26278a27c53978c2eb9c45b98e50bde1e1901426e9c",
+      "sha256": "e96943d1dede5269a501a26278a27c53978c2eb9c45b98e50bde1e1901426e9c",
+      "size": 693,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/3.hea"
+    },
+    "data/ludb/data/3.i.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "35cfdfa522f0dee65856bd8c93b9d73b14266d97fca35815d83c3165be6459d3",
+      "sha256": "35cfdfa522f0dee65856bd8c93b9d73b14266d97fca35815d83c3165be6459d3",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/3.i"
+    },
+    "data/ludb/data/3.ii.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "5052d1e3525a5e366a5813f0485a7e8f70b48d7a7eff171e52db5d66a4ace75e",
+      "sha256": "5052d1e3525a5e366a5813f0485a7e8f70b48d7a7eff171e52db5d66a4ace75e",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/3.ii"
+    },
+    "data/ludb/data/3.iii.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "fb648f6f4daab648a3526091128c3be7faaac65320105a55887bed3bdf22773e",
+      "sha256": "fb648f6f4daab648a3526091128c3be7faaac65320105a55887bed3bdf22773e",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/3.iii"
+    },
+    "data/ludb/data/3.v1.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "ee4aad31a4e67d27019565049bb14f960a26e2fad706d96bcbfbb94c55e97dc9",
+      "sha256": "ee4aad31a4e67d27019565049bb14f960a26e2fad706d96bcbfbb94c55e97dc9",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/3.v1"
+    },
+    "data/ludb/data/3.v2.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "5869d54b3a43376aaeced8342bae0b536eac5f7bf3052630407f02460a05becc",
+      "sha256": "5869d54b3a43376aaeced8342bae0b536eac5f7bf3052630407f02460a05becc",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/3.v2"
+    },
+    "data/ludb/data/3.v3.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "43b88d4b699ad8424abf11260892a0a0df8f57cfa4031c7b9db779b9ef1445a3",
+      "sha256": "43b88d4b699ad8424abf11260892a0a0df8f57cfa4031c7b9db779b9ef1445a3",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/3.v3"
+    },
+    "data/ludb/data/3.v4.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "1aebaeca689459f6d0c111f716e340aa46127bb082a870964bad5d1ca7e14757",
+      "sha256": "1aebaeca689459f6d0c111f716e340aa46127bb082a870964bad5d1ca7e14757",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/3.v4"
+    },
+    "data/ludb/data/3.v5.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "9b807d452b8de550c7a03580cc2771bf4e2b325398945f0238f202c17520d51d",
+      "sha256": "9b807d452b8de550c7a03580cc2771bf4e2b325398945f0238f202c17520d51d",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/3.v5"
+    },
+    "data/ludb/data/3.v6.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "75a34e53858681d17d8f491d2449e1669f680f0d32585037ae000e93433cda4a",
+      "sha256": "75a34e53858681d17d8f491d2449e1669f680f0d32585037ae000e93433cda4a",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/3.v6"
+    },
+    "data/ludb/data/4.avf.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "31aa73a323df511092c765c4c2a0c860e8c89a6a48087d9f24172a144c278a99",
+      "sha256": "31aa73a323df511092c765c4c2a0c860e8c89a6a48087d9f24172a144c278a99",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/4.avf"
+    },
+    "data/ludb/data/4.avl.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "27a8132c746b7e5bf4ded40c3587945ca414bd78174a2a5b3bacbbc00ee691cd",
+      "sha256": "27a8132c746b7e5bf4ded40c3587945ca414bd78174a2a5b3bacbbc00ee691cd",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/4.avl"
+    },
+    "data/ludb/data/4.avr.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "52064be43776cff5608a3d7c97fa455657664a4c09e624c07241ceb9c3b685ce",
+      "sha256": "52064be43776cff5608a3d7c97fa455657664a4c09e624c07241ceb9c3b685ce",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/4.avr"
+    },
+    "data/ludb/data/4.dat.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "532af05f6881ea7b342051cb5f7a94d6ac4a962f764c19b6882dcee2784def36",
+      "sha256": "532af05f6881ea7b342051cb5f7a94d6ac4a962f764c19b6882dcee2784def36",
+      "size": 120000,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/4.dat"
+    },
+    "data/ludb/data/4.hea.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "ef952e859ca1946b3826e7c08109d9e02280e83c28ce89c2632727429651ff5c",
+      "sha256": "ef952e859ca1946b3826e7c08109d9e02280e83c28ce89c2632727429651ff5c",
+      "size": 824,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/4.hea"
+    },
+    "data/ludb/data/4.i.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "337e4f06c594ae81102fdb12d207df0c8691d442368818c87c7eb5562627c7b2",
+      "sha256": "337e4f06c594ae81102fdb12d207df0c8691d442368818c87c7eb5562627c7b2",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/4.i"
+    },
+    "data/ludb/data/4.ii.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "919eb9f513cc7d609528aae956f3b9bccb1f29b45767a682fb7d7ea4fea330b2",
+      "sha256": "919eb9f513cc7d609528aae956f3b9bccb1f29b45767a682fb7d7ea4fea330b2",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/4.ii"
+    },
+    "data/ludb/data/4.iii.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "6795c4eeafb1f6ceec1c7789e474ef67be3c99c935293e00c4dff2daebefc970",
+      "sha256": "6795c4eeafb1f6ceec1c7789e474ef67be3c99c935293e00c4dff2daebefc970",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/4.iii"
+    },
+    "data/ludb/data/4.v1.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "b638c683845cbeb02953717d4bea49e9a9130d24c1fdd756a2375a28bfecbf2f",
+      "sha256": "b638c683845cbeb02953717d4bea49e9a9130d24c1fdd756a2375a28bfecbf2f",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/4.v1"
+    },
+    "data/ludb/data/4.v2.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "51e561eae7f7156fb25cd61cde3f5af4beb597aa407c10832c9ac36be7cf73e2",
+      "sha256": "51e561eae7f7156fb25cd61cde3f5af4beb597aa407c10832c9ac36be7cf73e2",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/4.v2"
+    },
+    "data/ludb/data/4.v3.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "027699e9c86c4d9d1be67d9998c08cbe94566134413cd5ac564c263616c45547",
+      "sha256": "027699e9c86c4d9d1be67d9998c08cbe94566134413cd5ac564c263616c45547",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/4.v3"
+    },
+    "data/ludb/data/4.v4.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "586573ca549ff7a07452fd4b655519e2dfc971d45a29031dcdcbf68276727cec",
+      "sha256": "586573ca549ff7a07452fd4b655519e2dfc971d45a29031dcdcbf68276727cec",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/4.v4"
+    },
+    "data/ludb/data/4.v5.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "a6bc54022c73eefc53601a4a52902e32be6b38f767549577702bbbc323ce1ced",
+      "sha256": "a6bc54022c73eefc53601a4a52902e32be6b38f767549577702bbbc323ce1ced",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/4.v5"
+    },
+    "data/ludb/data/4.v6.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "9b4bd9b336a4dfab458bf82c519adf9b92a903371004976cf6f39e0f8e0345ba",
+      "sha256": "9b4bd9b336a4dfab458bf82c519adf9b92a903371004976cf6f39e0f8e0345ba",
+      "size": 152,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/4.v6"
+    },
+    "data/ludb/data/5.avf.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "d57bc198a02eaa89837a766d97b223dce3b644139d4d73ee97f7c7b439ff8a3f",
+      "sha256": "d57bc198a02eaa89837a766d97b223dce3b644139d4d73ee97f7c7b439ff8a3f",
+      "size": 116,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/5.avf"
+    },
+    "data/ludb/data/5.avl.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "8313d513d766066346e4003592a6d5563dd9c65198bc49a890215d3f929c492b",
+      "sha256": "8313d513d766066346e4003592a6d5563dd9c65198bc49a890215d3f929c492b",
+      "size": 116,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/5.avl"
+    },
+    "data/ludb/data/5.avr.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "9c4e4c492dd52cf542d9d9ae8eba73b2423acc2143fa63235303226388e21a89",
+      "sha256": "9c4e4c492dd52cf542d9d9ae8eba73b2423acc2143fa63235303226388e21a89",
+      "size": 116,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/5.avr"
+    },
+    "data/ludb/data/5.dat.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "2b708aba671d23b60a41b814ea698200b9b7583a2405839c41a724e22eb4f251",
+      "sha256": "2b708aba671d23b60a41b814ea698200b9b7583a2405839c41a724e22eb4f251",
+      "size": 120000,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/5.dat"
+    },
+    "data/ludb/data/5.hea.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "1717cefd502a3ad15fd05fbeb0bbcae6f14c9eaaef58a4deb880e2569a35bb57",
+      "sha256": "1717cefd502a3ad15fd05fbeb0bbcae6f14c9eaaef58a4deb880e2569a35bb57",
+      "size": 659,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/5.hea"
+    },
+    "data/ludb/data/5.i.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "449112b20b73d9fd2afb059d06fdc45501983f7f388bfcc0768e13c593a8733b",
+      "sha256": "449112b20b73d9fd2afb059d06fdc45501983f7f388bfcc0768e13c593a8733b",
+      "size": 116,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/5.i"
+    },
+    "data/ludb/data/5.ii.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "c69c9d3c0bf78b94c2249c213534fe4286c069eed647a76cf833c48568425f0b",
+      "sha256": "c69c9d3c0bf78b94c2249c213534fe4286c069eed647a76cf833c48568425f0b",
+      "size": 116,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/5.ii"
+    },
+    "data/ludb/data/5.iii.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "0e2912adabaeec75b1c601a607ed063c11c0b957ea48ca76a3646885422be4bb",
+      "sha256": "0e2912adabaeec75b1c601a607ed063c11c0b957ea48ca76a3646885422be4bb",
+      "size": 116,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/5.iii"
+    },
+    "data/ludb/data/5.v1.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "c618a9b948a105d15b2bd829d33da7d522dc587ddec0201bcb86b9b947bdb25f",
+      "sha256": "c618a9b948a105d15b2bd829d33da7d522dc587ddec0201bcb86b9b947bdb25f",
+      "size": 116,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/5.v1"
+    },
+    "data/ludb/data/5.v2.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "dbc970aa5a1244ad96c2c07f27f36ef41acefa33dd7080028287d3393f31e0b7",
+      "sha256": "dbc970aa5a1244ad96c2c07f27f36ef41acefa33dd7080028287d3393f31e0b7",
+      "size": 116,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/5.v2"
+    },
+    "data/ludb/data/5.v3.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "9d967c3925a18b7f81f1d9a22222e35587ff7dce72cf78b7cb1a0362eaadb078",
+      "sha256": "9d967c3925a18b7f81f1d9a22222e35587ff7dce72cf78b7cb1a0362eaadb078",
+      "size": 116,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/5.v3"
+    },
+    "data/ludb/data/5.v4.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "bf5e6d851e2b6d02f704e895297b7fa111da16526a9ed609aab78ca6309fc7b7",
+      "sha256": "bf5e6d851e2b6d02f704e895297b7fa111da16526a9ed609aab78ca6309fc7b7",
+      "size": 116,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/5.v4"
+    },
+    "data/ludb/data/5.v5.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "107bb2c8ff3bb1fe52c1a084c2d0823538538c8b7cd6243bf6fe2ec56cd7b216",
+      "sha256": "107bb2c8ff3bb1fe52c1a084c2d0823538538c8b7cd6243bf6fe2ec56cd7b216",
+      "size": 116,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/5.v5"
+    },
+    "data/ludb/data/5.v6.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "e0d91f822bc91fcb170c82b6b9f88b3b11b28d8bc82b063a6e4386d622e1ba6c",
+      "sha256": "e0d91f822bc91fcb170c82b6b9f88b3b11b28d8bc82b063a6e4386d622e1ba6c",
+      "size": 116,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/5.v6"
+    },
+    "data/ludb/data/6.avf.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "ac7273609d1330324693f074691c9cbd2e120efc2168ebef84dc93344a3a9690",
+      "sha256": "ac7273609d1330324693f074691c9cbd2e120efc2168ebef84dc93344a3a9690",
+      "size": 116,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/6.avf"
+    },
+    "data/ludb/data/6.avl.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "50c83ced41b5b9606c80a98f49c9433d750919570c3fc6d5f27342ab5cf48ff6",
+      "sha256": "50c83ced41b5b9606c80a98f49c9433d750919570c3fc6d5f27342ab5cf48ff6",
+      "size": 116,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/6.avl"
+    },
+    "data/ludb/data/6.avr.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "09405b7b64cbc0d62016a2719a85eb69f1d9eeaae6d638fb85d59145c3c88dd5",
+      "sha256": "09405b7b64cbc0d62016a2719a85eb69f1d9eeaae6d638fb85d59145c3c88dd5",
+      "size": 116,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/6.avr"
+    },
+    "data/ludb/data/6.dat.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "72a82bed6ca887b8429edcde544d1e138c8283f05f4cb95fc1b18f2d2611c505",
+      "sha256": "72a82bed6ca887b8429edcde544d1e138c8283f05f4cb95fc1b18f2d2611c505",
+      "size": 120000,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/6.dat"
+    },
+    "data/ludb/data/6.hea.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "7257f0ec856a5f447ff0342dc96dba247707980f14fd81cff79807856e9b56c4",
+      "sha256": "7257f0ec856a5f447ff0342dc96dba247707980f14fd81cff79807856e9b56c4",
+      "size": 716,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/6.hea"
+    },
+    "data/ludb/data/6.i.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "7838b44b8e1e3e08de73857ff3798cb3f94582e7a7acb61931227240638f0bc4",
+      "sha256": "7838b44b8e1e3e08de73857ff3798cb3f94582e7a7acb61931227240638f0bc4",
+      "size": 116,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/6.i"
+    },
+    "data/ludb/data/6.ii.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "a71d1576229169bfefb6da8b94e61991b0ba556d486b229df700c07508538f7c",
+      "sha256": "a71d1576229169bfefb6da8b94e61991b0ba556d486b229df700c07508538f7c",
+      "size": 116,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/6.ii"
+    },
+    "data/ludb/data/6.iii.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "b6546b3f5f24edd2911bd62ce98af3a0a2c112ce421c215fde15f8e64161c19c",
+      "sha256": "b6546b3f5f24edd2911bd62ce98af3a0a2c112ce421c215fde15f8e64161c19c",
+      "size": 116,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/6.iii"
+    },
+    "data/ludb/data/6.v1.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "ca5bc9eae1a2e5315966b3f6b00376407ac885e26ca2331f336a90edec5d4b52",
+      "sha256": "ca5bc9eae1a2e5315966b3f6b00376407ac885e26ca2331f336a90edec5d4b52",
+      "size": 116,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/6.v1"
+    },
+    "data/ludb/data/6.v2.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "21798483809434ed5cb42bffd5a60db7f1eb62d9a18cba33f6e6d106c97849ad",
+      "sha256": "21798483809434ed5cb42bffd5a60db7f1eb62d9a18cba33f6e6d106c97849ad",
+      "size": 116,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/6.v2"
+    },
+    "data/ludb/data/6.v3.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "55373be9ee9c33825a73c5d29d3e062f8ce260b6b9732198b1673fa60a5f858a",
+      "sha256": "55373be9ee9c33825a73c5d29d3e062f8ce260b6b9732198b1673fa60a5f858a",
+      "size": 116,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/6.v3"
+    },
+    "data/ludb/data/6.v4.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "733fa0585f5e7625ef689238a244e3c1a0831521a3dda9cbf2f0b5975a393447",
+      "sha256": "733fa0585f5e7625ef689238a244e3c1a0831521a3dda9cbf2f0b5975a393447",
+      "size": 116,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/6.v4"
+    },
+    "data/ludb/data/6.v5.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "57e20bf5913680c590edeca2061d31a2adeac7c40280332fe451f124e9105072",
+      "sha256": "57e20bf5913680c590edeca2061d31a2adeac7c40280332fe451f124e9105072",
+      "size": 116,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/6.v5"
+    },
+    "data/ludb/data/6.v6.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "e1337b7ff4471e0125886d313e11ecd2c072d460c6d411f1be19e0d089c339fc",
+      "sha256": "e1337b7ff4471e0125886d313e11ecd2c072d460c6d411f1be19e0d089c339fc",
+      "size": 116,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/6.v6"
+    },
+    "data/ludb/data/7.avf.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "1e4ff9022140c017b7aced0cc358df9abd89b2c0b7afc5f6f4cc88bba7b3eb17",
+      "sha256": "1e4ff9022140c017b7aced0cc358df9abd89b2c0b7afc5f6f4cc88bba7b3eb17",
+      "size": 134,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/7.avf"
+    },
+    "data/ludb/data/7.avl.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "a3a2393a17837106a0b4649c58f255c5767bce0ef1b0ce20baec0109d3f054d1",
+      "sha256": "a3a2393a17837106a0b4649c58f255c5767bce0ef1b0ce20baec0109d3f054d1",
+      "size": 134,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/7.avl"
+    },
+    "data/ludb/data/7.avr.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "d107b12a3cfd074c19395024d84b437e6e454943246f784faf64af8805303d71",
+      "sha256": "d107b12a3cfd074c19395024d84b437e6e454943246f784faf64af8805303d71",
+      "size": 134,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/7.avr"
+    },
+    "data/ludb/data/7.dat.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "2f547082da4e4ae80d1251ca4a5a7dd1e95af59856f787066dcabbdb2fffc712",
+      "sha256": "2f547082da4e4ae80d1251ca4a5a7dd1e95af59856f787066dcabbdb2fffc712",
+      "size": 120000,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/7.dat"
+    },
+    "data/ludb/data/7.hea.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "719747bfb7a66e9f56c72e38c33f8f39208b805b38049f28ef6adebf4f6a541a",
+      "sha256": "719747bfb7a66e9f56c72e38c33f8f39208b805b38049f28ef6adebf4f6a541a",
+      "size": 849,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/7.hea"
+    },
+    "data/ludb/data/7.i.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "0d50b58ba95ec9194c8d5ae2130b30e8667d63a3987534d422fea99a3dcd0a8d",
+      "sha256": "0d50b58ba95ec9194c8d5ae2130b30e8667d63a3987534d422fea99a3dcd0a8d",
+      "size": 134,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/7.i"
+    },
+    "data/ludb/data/7.ii.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "41f5e963dabb84200ef3e3f66d9986a57e03aaec3e5f9483a37a4753476a588b",
+      "sha256": "41f5e963dabb84200ef3e3f66d9986a57e03aaec3e5f9483a37a4753476a588b",
+      "size": 134,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/7.ii"
+    },
+    "data/ludb/data/7.iii.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "5d2ace8b89c141ece20806087d2b778b2793e73e599c3ea9aaa4e8a4b6636f58",
+      "sha256": "5d2ace8b89c141ece20806087d2b778b2793e73e599c3ea9aaa4e8a4b6636f58",
+      "size": 134,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/7.iii"
+    },
+    "data/ludb/data/7.v1.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "6b4539850f2bdec9512963c5b9228636aca359e17c255176c26f217ab11184f6",
+      "sha256": "6b4539850f2bdec9512963c5b9228636aca359e17c255176c26f217ab11184f6",
+      "size": 124,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/7.v1"
+    },
+    "data/ludb/data/7.v2.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "55b15422c7eebf84a3d196d954ae87cb036138f2b7d89a5ea7533d006ef1901c",
+      "sha256": "55b15422c7eebf84a3d196d954ae87cb036138f2b7d89a5ea7533d006ef1901c",
+      "size": 128,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/7.v2"
+    },
+    "data/ludb/data/7.v3.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "edc4137419e7f03f5d7fa0516c1fe51b1d02ce565945f07a13c4bfa8854d2967",
+      "sha256": "edc4137419e7f03f5d7fa0516c1fe51b1d02ce565945f07a13c4bfa8854d2967",
+      "size": 130,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/7.v3"
+    },
+    "data/ludb/data/7.v4.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "49545cb00db8b3d929cda269aef8e12252fbcf2f2ac6fa26300872c81b9d60db",
+      "sha256": "49545cb00db8b3d929cda269aef8e12252fbcf2f2ac6fa26300872c81b9d60db",
+      "size": 134,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/7.v4"
+    },
+    "data/ludb/data/7.v5.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "45b29d387864de70eabd909b537acd243d3f9a93572f1310ffa790045494b025",
+      "sha256": "45b29d387864de70eabd909b537acd243d3f9a93572f1310ffa790045494b025",
+      "size": 134,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/7.v5"
+    },
+    "data/ludb/data/7.v6.receipt.json": {
+      "producer_algorithm": "sha256",
+      "producer_checksum": "4eeaa15bfdc26dae5338db820074175cea391ecc8cdd4646e06f4d903bfbc338",
+      "sha256": "4eeaa15bfdc26dae5338db820074175cea391ecc8cdd4646e06f4d903bfbc338",
+      "size": 134,
+      "url": "https://physionet.org/files/ludb/1.0.1/data/7.v6"
+    }
+  },
+  "protocol_sha256": "b96b0d2e99b36a1581489420fbadb0bec140beb3c1a3d9952e1003f26ef18bdb",
+  "scientific_validation": "NOT_ESTABLISHED_BY_EXECUTION",
+  "scope": "Frozen QRS delineator at manually centered QRS on every lead of 200 patients; per-lead and patient-clustered tolerance curves.",
+  "seconds_this_session": 91.45975754000006,
+  "source_pins": {
+    "Virelion-ElectroTrace": "bd3d3da98a12c6caf39c46a7203cabf22560bf5a"
+  },
+  "status": "FAILED"
+}

@@ -1,0 +1,53 @@
+{
+  "environment_sha256": "f441bac7c3bed888a864bf18384195e37ef7bada94c2a57e5a26cb0d838c7a77",
+  "fitness": "FIT for exploratory multi-lead QRS boundary characterization.",
+  "handler": "ludb",
+  "hash_manifest": "cccef1f3529519db8f26a333c97a6872a7d0e3e5c64a1448b76b161fd87fb75f",
+  "launcher_sha256": {
+    "runtime.py": "42099bbb908333a480c11eca9f0586759d57162a1c11b977067a9696c45d0985",
+    "training.py": "c63aee5893f194932f786c5054bd5ff5938bde40a69328d43fd39fb8b0faf112",
+    "worker.py": "76a8b3ddbe6411bea07d353948f7bed3a708ddd3dd46624e6569c377b3eb88b3"
+  },
+  "limits": "This newly assembled protocol is exploratory because the dataset is public and existing exposure is not proven absent. Manual centers are oracle assisted. P/T accuracy, R detection, device transport and lead selector qualification are not evaluated. Leads are nested within patients.",
+  "name": "18_ElectroTrace_LUDB",
+  "repo_paths": {
+    "Virelion-ElectroTrace": "/content/18_ElectroTrace_LUDB_v1/Virelion-ElectroTrace"
+  },
+  "repos": {
+    "Virelion-ElectroTrace": "bd3d3da98a12c6caf39c46a7203cabf22560bf5a"
+  },
+  "requirements": [
+    "numba==0.61.2",
+    "llvmlite==0.44.0",
+    "numpy==2.2.6",
+    "scipy==1.15.3",
+    "pandas==2.2.3",
+    "scikit-learn==1.6.1",
+    "pydantic==2.11.7",
+    "pyyaml==6.0.2",
+    "requests==2.32.4",
+    "matplotlib==3.10.1",
+    "seaborn==0.13.2",
+    "click==8.1.8",
+    "jinja2==3.1.6",
+    "opencv-python-headless==4.12.0.88",
+    "tifffile==2025.6.11",
+    "pillow==11.3.0",
+    "defusedxml==0.7.1",
+    "openpyxl==3.1.5",
+    "meshio==5.3.5",
+    "nibabel==5.3.2",
+    "pydicom==3.0.1",
+    "arviz==0.21.0",
+    "xarray==2025.3.1",
+    "wfdb==4.2.0",
+    "jsonschema==4.24.0"
+  ],
+  "run_root": "/content/drive/MyDrive/HeartTwinValidation/18_ElectroTrace_LUDB_v1",
+  "scope": "Frozen QRS delineator at manually centered QRS on every lead of 200 patients; per-lead and patient-clustered tolerance curves.",
+  "session_seconds": 8100,
+  "source_archive_sha256": {
+    "Virelion-ElectroTrace": "584d766e8ea489ed44a0d02a1a54011f26410e7d088ec6bf3c6e3ad45de78497"
+  },
+  "title": "All 200 patients and 12 leads: manual QRS boundaries"
+}

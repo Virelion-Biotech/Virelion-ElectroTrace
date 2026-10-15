@@ -422,3 +422,6 @@ New models should be stored outside git in .skops format with a JSON metadata si
 - No population generalization claim.
 - No detector-superiority claim.
 - Historical validation artifacts are not silently rewritten during release hardening.
+## LUDB Colab recovery (2026-10-15)
+
+The uploaded v1 notebook failed after six patients; it does not establish complete-cohort performance. The [failure and recovery review](COLAB_LUDB_REVIEW_2026-10-15.md) records the verified annotation defect, conservative reference exclusions, frozen delineator, and remaining scientific gates. The recovery reports paired-reference coverage and preserves patient-clustered uncertainty. No missing labels are imputed.
