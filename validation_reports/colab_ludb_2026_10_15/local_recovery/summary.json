@@ -1,0 +1,1934 @@
+{
+  "all_leads_patient_clustered": {
+    "100": {
+      "both": {
+        "denominator": 21843,
+        "estimate": 0.9992217186283935,
+        "numerator": 21826,
+        "record_bootstrap_interval": [
+          0.9983221765989684,
+          0.9998193573640863
+        ]
+      },
+      "offset": {
+        "denominator": 21843,
+        "estimate": 0.9994048436570068,
+        "numerator": 21830,
+        "record_bootstrap_interval": [
+          0.9986148033447472,
+          0.999953378811411
+        ]
+      },
+      "onset": {
+        "denominator": 21843,
+        "estimate": 0.9994964061713134,
+        "numerator": 21832,
+        "record_bootstrap_interval": [
+          0.9988797448800989,
+          0.9999531015124199
+        ]
+      }
+    },
+    "20": {
+      "both": {
+        "denominator": 21843,
+        "estimate": 0.6899693265577073,
+        "numerator": 15071,
+        "record_bootstrap_interval": [
+          0.6575684220377238,
+          0.7189248961341007
+        ]
+      },
+      "offset": {
+        "denominator": 21843,
+        "estimate": 0.793480748981367,
+        "numerator": 17332,
+        "record_bootstrap_interval": [
+          0.7650790645286148,
+          0.8199192888582655
+        ]
+      },
+      "onset": {
+        "denominator": 21843,
+        "estimate": 0.8421462253353477,
+        "numerator": 18395,
+        "record_bootstrap_interval": [
+          0.8161799788733874,
+          0.8664344482521346
+        ]
+      }
+    },
+    "40": {
+      "both": {
+        "denominator": 21843,
+        "estimate": 0.9183720184956279,
+        "numerator": 20060,
+        "record_bootstrap_interval": [
+          0.8921174028664351,
+          0.9425256178308197
+        ]
+      },
+      "offset": {
+        "denominator": 21843,
+        "estimate": 0.938332646614476,
+        "numerator": 20496,
+        "record_bootstrap_interval": [
+          0.9156507282347144,
+          0.9581897693457575
+        ]
+      },
+      "onset": {
+        "denominator": 21843,
+        "estimate": 0.9639701506203361,
+        "numerator": 21056,
+        "record_bootstrap_interval": [
+          0.9489784530830302,
+          0.9776244606306033
+        ]
+      }
+    },
+    "60": {
+      "both": {
+        "denominator": 21843,
+        "estimate": 0.9692807764501213,
+        "numerator": 21172,
+        "record_bootstrap_interval": [
+          0.9531738828114518,
+          0.9832065429978675
+        ]
+      },
+      "offset": {
+        "denominator": 21843,
+        "estimate": 0.9760106212516596,
+        "numerator": 21319,
+        "record_bootstrap_interval": [
+          0.9626089247751426,
+          0.9872578081464042
+        ]
+      },
+      "onset": {
+        "denominator": 21843,
+        "estimate": 0.9861282790825436,
+        "numerator": 21540,
+        "record_bootstrap_interval": [
+          0.9780043506315228,
+          0.9931476470327713
+        ]
+      }
+    },
+    "80": {
+      "both": {
+        "denominator": 21843,
+        "estimate": 0.993453280227075,
+        "numerator": 21700,
+        "record_bootstrap_interval": [
+          0.9859915351198797,
+          0.9981263222379323
+        ]
+      },
+      "offset": {
+        "denominator": 21843,
+        "estimate": 0.9946435929130614,
+        "numerator": 21726,
+        "record_bootstrap_interval": [
+          0.9883974457128047,
+          0.9985345716569601
+        ]
+      },
+      "onset": {
+        "denominator": 21843,
+        "estimate": 0.9967037494849609,
+        "numerator": 21771,
+        "record_bootstrap_interval": [
+          0.9933229650401302,
+          0.9990401305683563
+        ]
+      }
+    }
+  },
+  "bootstrap_unit": "patient (all twelve leads retained together)",
+  "end_to_end_detection_evaluated": false,
+  "estimand": "Boundary tolerance success among complete adjacent manually labeled QRS triplets",
+  "lead_selector_qualification": false,
+  "limitations": [
+    "Public dataset with unproven absence of prior exposure: exploratory characterization.",
+    "Reference exclusions are counted, not imputed; results do not cover all marked QRS.",
+    "No P/T, device transport, independent-cohort or clinical qualification."
+  ],
+  "n_leads": 2400,
+  "n_patients": 200,
+  "oracle_assisted": true,
+  "parser_version": "adjacent-complete-qrs-v2",
+  "per_lead": {
+    "avf": {
+      "100": {
+        "both": {
+          "denominator": 1815,
+          "estimate": 0.9988980716253444,
+          "numerator": 1813,
+          "record_bootstrap_interval": [
+            0.9972298785094373,
+            1.0
+          ]
+        },
+        "offset": {
+          "denominator": 1815,
+          "estimate": 0.9994490358126722,
+          "numerator": 1814,
+          "record_bootstrap_interval": [
+            0.9983089064261556,
+            1.0
+          ]
+        },
+        "onset": {
+          "denominator": 1815,
+          "estimate": 0.9994490358126722,
+          "numerator": 1814,
+          "record_bootstrap_interval": [
+            0.9983145593458121,
+            1.0
+          ]
+        }
+      },
+      "20": {
+        "both": {
+          "denominator": 1815,
+          "estimate": 0.6396694214876033,
+          "numerator": 1161,
+          "record_bootstrap_interval": [
+            0.5930494259121075,
+            0.6858261257160199
+          ]
+        },
+        "offset": {
+          "denominator": 1815,
+          "estimate": 0.7680440771349862,
+          "numerator": 1394,
+          "record_bootstrap_interval": [
+            0.726608246411405,
+            0.8056773130572806
+          ]
+        },
+        "onset": {
+          "denominator": 1815,
+          "estimate": 0.8236914600550964,
+          "numerator": 1495,
+          "record_bootstrap_interval": [
+            0.7851871670507969,
+            0.8609430078232018
+          ]
+        }
+      },
+      "40": {
+        "both": {
+          "denominator": 1815,
+          "estimate": 0.9140495867768595,
+          "numerator": 1659,
+          "record_bootstrap_interval": [
+            0.8880219532638425,
+            0.9374716649357835
+          ]
+        },
+        "offset": {
+          "denominator": 1815,
+          "estimate": 0.9449035812672176,
+          "numerator": 1715,
+          "record_bootstrap_interval": [
+            0.9256177834099912,
+            0.9619370256023081
+          ]
+        },
+        "onset": {
+          "denominator": 1815,
+          "estimate": 0.9592286501377411,
+          "numerator": 1741,
+          "record_bootstrap_interval": [
+            0.939934251928364,
+            0.9763319676848646
+          ]
+        }
+      },
+      "60": {
+        "both": {
+          "denominator": 1815,
+          "estimate": 0.9796143250688705,
+          "numerator": 1778,
+          "record_bootstrap_interval": [
+            0.9678469824191536,
+            0.9896127998918418
+          ]
+        },
+        "offset": {
+          "denominator": 1815,
+          "estimate": 0.9851239669421488,
+          "numerator": 1788,
+          "record_bootstrap_interval": [
+            0.975274532241227,
+            0.9932888716513215
+          ]
+        },
+        "onset": {
+          "denominator": 1815,
+          "estimate": 0.9911845730027549,
+          "numerator": 1799,
+          "record_bootstrap_interval": [
+            0.9842607062489815,
+            0.9972115714492213
+          ]
+        }
+      },
+      "80": {
+        "both": {
+          "denominator": 1815,
+          "estimate": 0.996694214876033,
+          "numerator": 1809,
+          "record_bootstrap_interval": [
+            0.9933806786287822,
+            0.9994432380598862
+          ]
+        },
+        "offset": {
+          "denominator": 1815,
+          "estimate": 0.9977961432506887,
+          "numerator": 1811,
+          "record_bootstrap_interval": [
+            0.9954875546470052,
+            0.9994588744588745
+          ]
+        },
+        "onset": {
+          "denominator": 1815,
+          "estimate": 0.9983471074380166,
+          "numerator": 1812,
+          "record_bootstrap_interval": [
+            0.9961767956312808,
+            1.0
+          ]
+        }
+      }
+    },
+    "avl": {
+      "100": {
+        "both": {
+          "denominator": 1831,
+          "estimate": 0.9989077007099946,
+          "numerator": 1829,
+          "record_bootstrap_interval": [
+            0.9972329445413769,
+            1.0
+          ]
+        },
+        "offset": {
+          "denominator": 1831,
+          "estimate": 0.9989077007099946,
+          "numerator": 1829,
+          "record_bootstrap_interval": [
+            0.9972329445413769,
+            1.0
+          ]
+        },
+        "onset": {
+          "denominator": 1831,
+          "estimate": 0.9994538503549972,
+          "numerator": 1830,
+          "record_bootstrap_interval": [
+            0.9983442792885191,
+            1.0
+          ]
+        }
+      },
+      "20": {
+        "both": {
+          "denominator": 1831,
+          "estimate": 0.6630256690333152,
+          "numerator": 1214,
+          "record_bootstrap_interval": [
+            0.6155499535051966,
+            0.7096633382663046
+          ]
+        },
+        "offset": {
+          "denominator": 1831,
+          "estimate": 0.7373020207536866,
+          "numerator": 1350,
+          "record_bootstrap_interval": [
+            0.6914711704936648,
+            0.7822813452005696
+          ]
+        },
+        "onset": {
+          "denominator": 1831,
+          "estimate": 0.8634625887493174,
+          "numerator": 1581,
+          "record_bootstrap_interval": [
+            0.8265052458317544,
+            0.8986728465778184
+          ]
+        }
+      },
+      "40": {
+        "both": {
+          "denominator": 1831,
+          "estimate": 0.900600764609503,
+          "numerator": 1649,
+          "record_bootstrap_interval": [
+            0.8666980979451383,
+            0.9317676635138303
+          ]
+        },
+        "offset": {
+          "denominator": 1831,
+          "estimate": 0.9240851993446204,
+          "numerator": 1692,
+          "record_bootstrap_interval": [
+            0.8948466057140753,
+            0.9510074649604793
+          ]
+        },
+        "onset": {
+          "denominator": 1831,
+          "estimate": 0.9481157837247406,
+          "numerator": 1736,
+          "record_bootstrap_interval": [
+            0.9220843697338222,
+            0.9708803189405218
+          ]
+        }
+      },
+      "60": {
+        "both": {
+          "denominator": 1831,
+          "estimate": 0.965592572364828,
+          "numerator": 1768,
+          "record_bootstrap_interval": [
+            0.9438139997754122,
+            0.9843144136704357
+          ]
+        },
+        "offset": {
+          "denominator": 1831,
+          "estimate": 0.977607864554888,
+          "numerator": 1790,
+          "record_bootstrap_interval": [
+            0.9625405595786111,
+            0.9902132634901802
+          ]
+        },
+        "onset": {
+          "denominator": 1831,
+          "estimate": 0.977607864554888,
+          "numerator": 1790,
+          "record_bootstrap_interval": [
+            0.9574923149611383,
+            0.9933231275516379
+          ]
+        }
+      },
+      "80": {
+        "both": {
+          "denominator": 1831,
+          "estimate": 0.9972692517749864,
+          "numerator": 1826,
+          "record_bootstrap_interval": [
+            0.9930104704083937,
+            1.0
+          ]
+        },
+        "offset": {
+          "denominator": 1831,
+          "estimate": 0.997815401419989,
+          "numerator": 1827,
+          "record_bootstrap_interval": [
+            0.994674402049383,
+            1.0
+          ]
+        },
+        "onset": {
+          "denominator": 1831,
+          "estimate": 0.9989077007099946,
+          "numerator": 1829,
+          "record_bootstrap_interval": [
+            0.996688558577038,
+            1.0
+          ]
+        }
+      }
+    },
+    "avr": {
+      "100": {
+        "both": {
+          "denominator": 1820,
+          "estimate": 0.9989010989010989,
+          "numerator": 1818,
+          "record_bootstrap_interval": [
+            0.9972035011310941,
+            1.0
+          ]
+        },
+        "offset": {
+          "denominator": 1820,
+          "estimate": 0.9989010989010989,
+          "numerator": 1818,
+          "record_bootstrap_interval": [
+            0.9972035011310941,
+            1.0
+          ]
+        },
+        "onset": {
+          "denominator": 1820,
+          "estimate": 0.9994505494505495,
+          "numerator": 1819,
+          "record_bootstrap_interval": [
+            0.9983174189077162,
+            1.0
+          ]
+        }
+      },
+      "20": {
+        "both": {
+          "denominator": 1820,
+          "estimate": 0.6357142857142857,
+          "numerator": 1157,
+          "record_bootstrap_interval": [
+            0.5821354997751484,
+            0.6864412194488952
+          ]
+        },
+        "offset": {
+          "denominator": 1820,
+          "estimate": 0.7186813186813187,
+          "numerator": 1308,
+          "record_bootstrap_interval": [
+            0.6650611400024107,
+            0.768391829358239
+          ]
+        },
+        "onset": {
+          "denominator": 1820,
+          "estimate": 0.8516483516483516,
+          "numerator": 1550,
+          "record_bootstrap_interval": [
+            0.8150128148634431,
+            0.8853765518347714
+          ]
+        }
+      },
+      "40": {
+        "both": {
+          "denominator": 1820,
+          "estimate": 0.9186813186813186,
+          "numerator": 1672,
+          "record_bootstrap_interval": [
+            0.8816055527162312,
+            0.949597446499037
+          ]
+        },
+        "offset": {
+          "denominator": 1820,
+          "estimate": 0.9313186813186813,
+          "numerator": 1695,
+          "record_bootstrap_interval": [
+            0.8964553188178981,
+            0.9597623779387253
+          ]
+        },
+        "onset": {
+          "denominator": 1820,
+          "estimate": 0.9752747252747253,
+          "numerator": 1775,
+          "record_bootstrap_interval": [
+            0.9609229336870575,
+            0.9871196135265701
+          ]
+        }
+      },
+      "60": {
+        "both": {
+          "denominator": 1820,
+          "estimate": 0.9763736263736263,
+          "numerator": 1777,
+          "record_bootstrap_interval": [
+            0.9595681879639564,
+            0.9907662636782565
+          ]
+        },
+        "offset": {
+          "denominator": 1820,
+          "estimate": 0.978021978021978,
+          "numerator": 1780,
+          "record_bootstrap_interval": [
+            0.9614744582621483,
+            0.9920968500962183
+          ]
+        },
+        "onset": {
+          "denominator": 1820,
+          "estimate": 0.9934065934065934,
+          "numerator": 1808,
+          "record_bootstrap_interval": [
+            0.9881474794095971,
+            0.9978010197608879
+          ]
+        }
+      },
+      "80": {
+        "both": {
+          "denominator": 1820,
+          "estimate": 0.9961538461538462,
+          "numerator": 1813,
+          "record_bootstrap_interval": [
+            0.9927696435723115,
+            0.9989053391760732
+          ]
+        },
+        "offset": {
+          "denominator": 1820,
+          "estimate": 0.9967032967032967,
+          "numerator": 1814,
+          "record_bootstrap_interval": [
+            0.9933369424393855,
+            0.9994435478712902
+          ]
+        },
+        "onset": {
+          "denominator": 1820,
+          "estimate": 0.9983516483516484,
+          "numerator": 1817,
+          "record_bootstrap_interval": [
+            0.9961831019367313,
+            1.0
+          ]
+        }
+      }
+    },
+    "i": {
+      "100": {
+        "both": {
+          "denominator": 1829,
+          "estimate": 0.9989065062875888,
+          "numerator": 1827,
+          "record_bootstrap_interval": [
+            0.9972268056753358,
+            1.0
+          ]
+        },
+        "offset": {
+          "denominator": 1829,
+          "estimate": 0.9994532531437944,
+          "numerator": 1828,
+          "record_bootstrap_interval": [
+            0.998303982336496,
+            1.0
+          ]
+        },
+        "onset": {
+          "denominator": 1829,
+          "estimate": 0.9994532531437944,
+          "numerator": 1828,
+          "record_bootstrap_interval": [
+            0.9983295748262583,
+            1.0
+          ]
+        }
+      },
+      "20": {
+        "both": {
+          "denominator": 1829,
+          "estimate": 0.7545106615636961,
+          "numerator": 1380,
+          "record_bootstrap_interval": [
+            0.7103607809012956,
+            0.7956976552117667
+          ]
+        },
+        "offset": {
+          "denominator": 1829,
+          "estimate": 0.8201202843083653,
+          "numerator": 1500,
+          "record_bootstrap_interval": [
+            0.7776554608393687,
+            0.857540322580645
+          ]
+        },
+        "onset": {
+          "denominator": 1829,
+          "estimate": 0.8687807545106616,
+          "numerator": 1589,
+          "record_bootstrap_interval": [
+            0.8324296745725318,
+            0.9015602460366858
+          ]
+        }
+      },
+      "40": {
+        "both": {
+          "denominator": 1829,
+          "estimate": 0.9119737561509021,
+          "numerator": 1668,
+          "record_bootstrap_interval": [
+            0.8776697231258257,
+            0.9422410748667251
+          ]
+        },
+        "offset": {
+          "denominator": 1829,
+          "estimate": 0.9283761618370694,
+          "numerator": 1698,
+          "record_bootstrap_interval": [
+            0.8973648541484934,
+            0.9565450791323767
+          ]
+        },
+        "onset": {
+          "denominator": 1829,
+          "estimate": 0.9546200109349371,
+          "numerator": 1746,
+          "record_bootstrap_interval": [
+            0.9278014293933449,
+            0.9776946576671309
+          ]
+        }
+      },
+      "60": {
+        "both": {
+          "denominator": 1829,
+          "estimate": 0.9589939857845817,
+          "numerator": 1754,
+          "record_bootstrap_interval": [
+            0.9344933350542445,
+            0.9810891423815035
+          ]
+        },
+        "offset": {
+          "denominator": 1829,
+          "estimate": 0.9661016949152542,
+          "numerator": 1767,
+          "record_bootstrap_interval": [
+            0.9452676763945114,
+            0.9841361008477718
+          ]
+        },
+        "onset": {
+          "denominator": 1829,
+          "estimate": 0.9737561509021323,
+          "numerator": 1781,
+          "record_bootstrap_interval": [
+            0.9518436968919136,
+            0.991625489719046
+          ]
+        }
+      },
+      "80": {
+        "both": {
+          "denominator": 1829,
+          "estimate": 0.9907053034445052,
+          "numerator": 1812,
+          "record_bootstrap_interval": [
+            0.9779201301940142,
+            0.998887699269779
+          ]
+        },
+        "offset": {
+          "denominator": 1829,
+          "estimate": 0.9945325314379442,
+          "numerator": 1819,
+          "record_bootstrap_interval": [
+            0.9887759055325157,
+            0.9988944320753507
+          ]
+        },
+        "onset": {
+          "denominator": 1829,
+          "estimate": 0.9917987971569163,
+          "numerator": 1814,
+          "record_bootstrap_interval": [
+            0.978807978203208,
+            0.9994577079989889
+          ]
+        }
+      }
+    },
+    "ii": {
+      "100": {
+        "both": {
+          "denominator": 1817,
+          "estimate": 0.9994496422674739,
+          "numerator": 1816,
+          "record_bootstrap_interval": [
+            0.998314606741573,
+            1.0
+          ]
+        },
+        "offset": {
+          "denominator": 1817,
+          "estimate": 0.9994496422674739,
+          "numerator": 1816,
+          "record_bootstrap_interval": [
+            0.998314606741573,
+            1.0
+          ]
+        },
+        "onset": {
+          "denominator": 1817,
+          "estimate": 0.9994496422674739,
+          "numerator": 1816,
+          "record_bootstrap_interval": [
+            0.998314606741573,
+            1.0
+          ]
+        }
+      },
+      "20": {
+        "both": {
+          "denominator": 1817,
+          "estimate": 0.6725371491469455,
+          "numerator": 1222,
+          "record_bootstrap_interval": [
+            0.6225631380051795,
+            0.7183417134981367
+          ]
+        },
+        "offset": {
+          "denominator": 1817,
+          "estimate": 0.7980187121629059,
+          "numerator": 1450,
+          "record_bootstrap_interval": [
+            0.7511794614965435,
+            0.8375125274574409
+          ]
+        },
+        "onset": {
+          "denominator": 1817,
+          "estimate": 0.8244358833241607,
+          "numerator": 1498,
+          "record_bootstrap_interval": [
+            0.787727176203241,
+            0.859844893089741
+          ]
+        }
+      },
+      "40": {
+        "both": {
+          "denominator": 1817,
+          "estimate": 0.9223995597138139,
+          "numerator": 1676,
+          "record_bootstrap_interval": [
+            0.8946440112800694,
+            0.947642317698585
+          ]
+        },
+        "offset": {
+          "denominator": 1817,
+          "estimate": 0.9444138690148597,
+          "numerator": 1716,
+          "record_bootstrap_interval": [
+            0.9223245541185396,
+            0.9644843992285641
+          ]
+        },
+        "onset": {
+          "denominator": 1817,
+          "estimate": 0.9620253164556962,
+          "numerator": 1748,
+          "record_bootstrap_interval": [
+            0.9436558839933074,
+            0.9794277618261085
+          ]
+        }
+      },
+      "60": {
+        "both": {
+          "denominator": 1817,
+          "estimate": 0.9702806824435883,
+          "numerator": 1763,
+          "record_bootstrap_interval": [
+            0.9531751512297163,
+            0.9868231202420562
+          ]
+        },
+        "offset": {
+          "denominator": 1817,
+          "estimate": 0.9779856906989544,
+          "numerator": 1777,
+          "record_bootstrap_interval": [
+            0.9636465248518793,
+            0.991329314262448
+          ]
+        },
+        "onset": {
+          "denominator": 1817,
+          "estimate": 0.9845899834892681,
+          "numerator": 1789,
+          "record_bootstrap_interval": [
+            0.9723720086002742,
+            0.9948473947860854
+          ]
+        }
+      },
+      "80": {
+        "both": {
+          "denominator": 1817,
+          "estimate": 0.9939460649422125,
+          "numerator": 1806,
+          "record_bootstrap_interval": [
+            0.987885462555066,
+            0.9984193465519524
+          ]
+        },
+        "offset": {
+          "denominator": 1817,
+          "estimate": 0.996147495872317,
+          "numerator": 1810,
+          "record_bootstrap_interval": [
+            0.9915914558875397,
+            0.9994580019202142
+          ]
+        },
+        "onset": {
+          "denominator": 1817,
+          "estimate": 0.996147495872317,
+          "numerator": 1810,
+          "record_bootstrap_interval": [
+            0.9922522447158552,
+            0.9989505005602736
+          ]
+        }
+      }
+    },
+    "iii": {
+      "100": {
+        "both": {
+          "denominator": 1815,
+          "estimate": 0.9994490358126722,
+          "numerator": 1814,
+          "record_bootstrap_interval": [
+            0.9983145830570135,
+            1.0
+          ]
+        },
+        "offset": {
+          "denominator": 1815,
+          "estimate": 0.9994490358126722,
+          "numerator": 1814,
+          "record_bootstrap_interval": [
+            0.9983145830570135,
+            1.0
+          ]
+        },
+        "onset": {
+          "denominator": 1815,
+          "estimate": 0.9994490358126722,
+          "numerator": 1814,
+          "record_bootstrap_interval": [
+            0.9983145830570135,
+            1.0
+          ]
+        }
+      },
+      "20": {
+        "both": {
+          "denominator": 1815,
+          "estimate": 0.5691460055096419,
+          "numerator": 1033,
+          "record_bootstrap_interval": [
+            0.5167424009269149,
+            0.6196836002561307
+          ]
+        },
+        "offset": {
+          "denominator": 1815,
+          "estimate": 0.7052341597796143,
+          "numerator": 1280,
+          "record_bootstrap_interval": [
+            0.656034871590703,
+            0.7521596401655021
+          ]
+        },
+        "onset": {
+          "denominator": 1815,
+          "estimate": 0.7840220385674931,
+          "numerator": 1423,
+          "record_bootstrap_interval": [
+            0.742055153065283,
+            0.8246438456020249
+          ]
+        }
+      },
+      "40": {
+        "both": {
+          "denominator": 1815,
+          "estimate": 0.8721763085399449,
+          "numerator": 1583,
+          "record_bootstrap_interval": [
+            0.8346500017774302,
+            0.9054156919575973
+          ]
+        },
+        "offset": {
+          "denominator": 1815,
+          "estimate": 0.9057851239669421,
+          "numerator": 1644,
+          "record_bootstrap_interval": [
+            0.8743092652364579,
+            0.9328620924268904
+          ]
+        },
+        "onset": {
+          "denominator": 1815,
+          "estimate": 0.9454545454545454,
+          "numerator": 1716,
+          "record_bootstrap_interval": [
+            0.9201800988892362,
+            0.9682981090100111
+          ]
+        }
+      },
+      "60": {
+        "both": {
+          "denominator": 1815,
+          "estimate": 0.9647382920110192,
+          "numerator": 1751,
+          "record_bootstrap_interval": [
+            0.9464180753075003,
+            0.9814611943404079
+          ]
+        },
+        "offset": {
+          "denominator": 1815,
+          "estimate": 0.9763085399449036,
+          "numerator": 1772,
+          "record_bootstrap_interval": [
+            0.9641853503155646,
+            0.9873633302005013
+          ]
+        },
+        "onset": {
+          "denominator": 1815,
+          "estimate": 0.9829201101928374,
+          "numerator": 1784,
+          "record_bootstrap_interval": [
+            0.9697452992070683,
+            0.9933702572675882
+          ]
+        }
+      },
+      "80": {
+        "both": {
+          "denominator": 1815,
+          "estimate": 0.9961432506887052,
+          "numerator": 1808,
+          "record_bootstrap_interval": [
+            0.9922432286857495,
+            0.9994260858866554
+          ]
+        },
+        "offset": {
+          "denominator": 1815,
+          "estimate": 0.9977961432506887,
+          "numerator": 1811,
+          "record_bootstrap_interval": [
+            0.9946823226898415,
+            1.0
+          ]
+        },
+        "onset": {
+          "denominator": 1815,
+          "estimate": 0.9972451790633609,
+          "numerator": 1810,
+          "record_bootstrap_interval": [
+            0.9940050401274549,
+            0.9994556415904959
+          ]
+        }
+      }
+    },
+    "v1": {
+      "100": {
+        "both": {
+          "denominator": 1816,
+          "estimate": 0.9994493392070485,
+          "numerator": 1815,
+          "record_bootstrap_interval": [
+            0.9982896237172177,
+            1.0
+          ]
+        },
+        "offset": {
+          "denominator": 1816,
+          "estimate": 0.9994493392070485,
+          "numerator": 1815,
+          "record_bootstrap_interval": [
+            0.9982896237172177,
+            1.0
+          ]
+        },
+        "onset": {
+          "denominator": 1816,
+          "estimate": 0.9994493392070485,
+          "numerator": 1815,
+          "record_bootstrap_interval": [
+            0.9982896237172177,
+            1.0
+          ]
+        }
+      },
+      "20": {
+        "both": {
+          "denominator": 1816,
+          "estimate": 0.6855726872246696,
+          "numerator": 1245,
+          "record_bootstrap_interval": [
+            0.6369168773034504,
+            0.7304772609451211
+          ]
+        },
+        "offset": {
+          "denominator": 1816,
+          "estimate": 0.7522026431718062,
+          "numerator": 1366,
+          "record_bootstrap_interval": [
+            0.7065009462458793,
+            0.7947218914525885
+          ]
+        },
+        "onset": {
+          "denominator": 1816,
+          "estimate": 0.8970264317180616,
+          "numerator": 1629,
+          "record_bootstrap_interval": [
+            0.8629583333333333,
+            0.9274743204804046
+          ]
+        }
+      },
+      "40": {
+        "both": {
+          "denominator": 1816,
+          "estimate": 0.9322687224669604,
+          "numerator": 1693,
+          "record_bootstrap_interval": [
+            0.9013223293834719,
+            0.9609348022723292
+          ]
+        },
+        "offset": {
+          "denominator": 1816,
+          "estimate": 0.9487885462555066,
+          "numerator": 1723,
+          "record_bootstrap_interval": [
+            0.9211648868442195,
+            0.9729581271412258
+          ]
+        },
+        "onset": {
+          "denominator": 1816,
+          "estimate": 0.9790748898678414,
+          "numerator": 1778,
+          "record_bootstrap_interval": [
+            0.9632627083609311,
+            0.9923482261675108
+          ]
+        }
+      },
+      "60": {
+        "both": {
+          "denominator": 1816,
+          "estimate": 0.9757709251101322,
+          "numerator": 1772,
+          "record_bootstrap_interval": [
+            0.9555146544630905,
+            0.9913004441506612
+          ]
+        },
+        "offset": {
+          "denominator": 1816,
+          "estimate": 0.9790748898678414,
+          "numerator": 1778,
+          "record_bootstrap_interval": [
+            0.9597464258778334,
+            0.993424747558103
+          ]
+        },
+        "onset": {
+          "denominator": 1816,
+          "estimate": 0.9944933920704846,
+          "numerator": 1806,
+          "record_bootstrap_interval": [
+            0.987340767530641,
+            0.9994394775759645
+          ]
+        }
+      },
+      "80": {
+        "both": {
+          "denominator": 1816,
+          "estimate": 0.9961453744493393,
+          "numerator": 1809,
+          "record_bootstrap_interval": [
+            0.990596562447821,
+            0.9994574211070381
+          ]
+        },
+        "offset": {
+          "denominator": 1816,
+          "estimate": 0.9961453744493393,
+          "numerator": 1809,
+          "record_bootstrap_interval": [
+            0.990596562447821,
+            0.9994574211070381
+          ]
+        },
+        "onset": {
+          "denominator": 1816,
+          "estimate": 0.9994493392070485,
+          "numerator": 1815,
+          "record_bootstrap_interval": [
+            0.9982896237172177,
+            1.0
+          ]
+        }
+      }
+    },
+    "v2": {
+      "100": {
+        "both": {
+          "denominator": 1817,
+          "estimate": 0.9994496422674739,
+          "numerator": 1816,
+          "record_bootstrap_interval": [
+            0.998291376281647,
+            1.0
+          ]
+        },
+        "offset": {
+          "denominator": 1817,
+          "estimate": 0.9994496422674739,
+          "numerator": 1816,
+          "record_bootstrap_interval": [
+            0.998291376281647,
+            1.0
+          ]
+        },
+        "onset": {
+          "denominator": 1817,
+          "estimate": 1.0,
+          "numerator": 1817,
+          "record_bootstrap_interval": [
+            1.0,
+            1.0
+          ]
+        }
+      },
+      "20": {
+        "both": {
+          "denominator": 1817,
+          "estimate": 0.6615299944964227,
+          "numerator": 1202,
+          "record_bootstrap_interval": [
+            0.6128148959474261,
+            0.7070383319607696
+          ]
+        },
+        "offset": {
+          "denominator": 1817,
+          "estimate": 0.7787561915244909,
+          "numerator": 1415,
+          "record_bootstrap_interval": [
+            0.7307856964254853,
+            0.8231068837400985
+          ]
+        },
+        "onset": {
+          "denominator": 1817,
+          "estimate": 0.8359933957072097,
+          "numerator": 1519,
+          "record_bootstrap_interval": [
+            0.7962839191579797,
+            0.8712408131449357
+          ]
+        }
+      },
+      "40": {
+        "both": {
+          "denominator": 1817,
+          "estimate": 0.93010456796918,
+          "numerator": 1690,
+          "record_bootstrap_interval": [
+            0.8980027493493767,
+            0.9595642359993748
+          ]
+        },
+        "offset": {
+          "denominator": 1817,
+          "estimate": 0.9422124380847551,
+          "numerator": 1712,
+          "record_bootstrap_interval": [
+            0.9129451959924281,
+            0.9679914991883466
+          ]
+        },
+        "onset": {
+          "denominator": 1817,
+          "estimate": 0.9774353329664281,
+          "numerator": 1776,
+          "record_bootstrap_interval": [
+            0.9601273409348201,
+            0.9909740934025996
+          ]
+        }
+      },
+      "60": {
+        "both": {
+          "denominator": 1817,
+          "estimate": 0.9675288937809576,
+          "numerator": 1758,
+          "record_bootstrap_interval": [
+            0.9444141537911616,
+            0.9867852289926836
+          ]
+        },
+        "offset": {
+          "denominator": 1817,
+          "estimate": 0.9746835443037974,
+          "numerator": 1771,
+          "record_bootstrap_interval": [
+            0.9539911308203991,
+            0.9918439460637737
+          ]
+        },
+        "onset": {
+          "denominator": 1817,
+          "estimate": 0.9906439185470556,
+          "numerator": 1800,
+          "record_bootstrap_interval": [
+            0.9808730069615988,
+            0.9972767625367158
+          ]
+        }
+      },
+      "80": {
+        "both": {
+          "denominator": 1817,
+          "estimate": 0.9895432030820033,
+          "numerator": 1798,
+          "record_bootstrap_interval": [
+            0.9738150601248508,
+            0.9983889370875348
+          ]
+        },
+        "offset": {
+          "denominator": 1817,
+          "estimate": 0.9906439185470556,
+          "numerator": 1800,
+          "record_bootstrap_interval": [
+            0.9754760789704164,
+            0.9989212658868273
+          ]
+        },
+        "onset": {
+          "denominator": 1817,
+          "estimate": 0.9977985690698954,
+          "numerator": 1813,
+          "record_bootstrap_interval": [
+            0.9946114858560979,
+            1.0
+          ]
+        }
+      }
+    },
+    "v3": {
+      "100": {
+        "both": {
+          "denominator": 1817,
+          "estimate": 0.9994496422674739,
+          "numerator": 1816,
+          "record_bootstrap_interval": [
+            0.9983323837059397,
+            1.0
+          ]
+        },
+        "offset": {
+          "denominator": 1817,
+          "estimate": 0.9994496422674739,
+          "numerator": 1816,
+          "record_bootstrap_interval": [
+            0.9983323837059397,
+            1.0
+          ]
+        },
+        "onset": {
+          "denominator": 1817,
+          "estimate": 1.0,
+          "numerator": 1817,
+          "record_bootstrap_interval": [
+            1.0,
+            1.0
+          ]
+        }
+      },
+      "20": {
+        "both": {
+          "denominator": 1817,
+          "estimate": 0.6455696202531646,
+          "numerator": 1173,
+          "record_bootstrap_interval": [
+            0.5932391839952695,
+            0.6920289369894337
+          ]
+        },
+        "offset": {
+          "denominator": 1817,
+          "estimate": 0.8354430379746836,
+          "numerator": 1518,
+          "record_bootstrap_interval": [
+            0.7913669064748201,
+            0.8774400926461656
+          ]
+        },
+        "onset": {
+          "denominator": 1817,
+          "estimate": 0.7666483214089158,
+          "numerator": 1393,
+          "record_bootstrap_interval": [
+            0.7260649295689499,
+            0.8049691609083589
+          ]
+        }
+      },
+      "40": {
+        "both": {
+          "denominator": 1817,
+          "estimate": 0.9284534947716016,
+          "numerator": 1687,
+          "record_bootstrap_interval": [
+            0.8948490067880549,
+            0.9597607395323545
+          ]
+        },
+        "offset": {
+          "denominator": 1817,
+          "estimate": 0.937809576224546,
+          "numerator": 1704,
+          "record_bootstrap_interval": [
+            0.9051276138366463,
+            0.967350250234595
+          ]
+        },
+        "onset": {
+          "denominator": 1817,
+          "estimate": 0.9845899834892681,
+          "numerator": 1789,
+          "record_bootstrap_interval": [
+            0.975151095746533,
+            0.9923587022632346
+          ]
+        }
+      },
+      "60": {
+        "both": {
+          "denominator": 1817,
+          "estimate": 0.9708310401761144,
+          "numerator": 1764,
+          "record_bootstrap_interval": [
+            0.9488571395224397,
+            0.9889884418499791
+          ]
+        },
+        "offset": {
+          "denominator": 1817,
+          "estimate": 0.9735828288387451,
+          "numerator": 1769,
+          "record_bootstrap_interval": [
+            0.9519059516422265,
+            0.9916859476027872
+          ]
+        },
+        "onset": {
+          "denominator": 1817,
+          "estimate": 0.9939460649422125,
+          "numerator": 1806,
+          "record_bootstrap_interval": [
+            0.988479416523086,
+            0.9983589517261808
+          ]
+        }
+      },
+      "80": {
+        "both": {
+          "denominator": 1817,
+          "estimate": 0.9917446340121079,
+          "numerator": 1802,
+          "record_bootstrap_interval": [
+            0.9766164527872482,
+            1.0
+          ]
+        },
+        "offset": {
+          "denominator": 1817,
+          "estimate": 0.9917446340121079,
+          "numerator": 1802,
+          "record_bootstrap_interval": [
+            0.9766164527872482,
+            1.0
+          ]
+        },
+        "onset": {
+          "denominator": 1817,
+          "estimate": 0.9994496422674739,
+          "numerator": 1816,
+          "record_bootstrap_interval": [
+            0.9983323837059397,
+            1.0
+          ]
+        }
+      }
+    },
+    "v4": {
+      "100": {
+        "both": {
+          "denominator": 1824,
+          "estimate": 0.9978070175438597,
+          "numerator": 1820,
+          "record_bootstrap_interval": [
+            0.9940215765009226,
+            1.0
+          ]
+        },
+        "offset": {
+          "denominator": 1824,
+          "estimate": 0.9989035087719298,
+          "numerator": 1822,
+          "record_bootstrap_interval": [
+            0.9966722129783694,
+            1.0
+          ]
+        },
+        "onset": {
+          "denominator": 1824,
+          "estimate": 0.9978070175438597,
+          "numerator": 1820,
+          "record_bootstrap_interval": [
+            0.9940215765009226,
+            1.0
+          ]
+        }
+      },
+      "20": {
+        "both": {
+          "denominator": 1824,
+          "estimate": 0.7379385964912281,
+          "numerator": 1346,
+          "record_bootstrap_interval": [
+            0.6916192287353599,
+            0.7812001087320299
+          ]
+        },
+        "offset": {
+          "denominator": 1824,
+          "estimate": 0.8771929824561403,
+          "numerator": 1600,
+          "record_bootstrap_interval": [
+            0.8383459383381896,
+            0.9149518476740862
+          ]
+        },
+        "onset": {
+          "denominator": 1824,
+          "estimate": 0.8097587719298246,
+          "numerator": 1477,
+          "record_bootstrap_interval": [
+            0.7716739005659857,
+            0.8442736295329349
+          ]
+        }
+      },
+      "40": {
+        "both": {
+          "denominator": 1824,
+          "estimate": 0.924890350877193,
+          "numerator": 1687,
+          "record_bootstrap_interval": [
+            0.8916184833672519,
+            0.9554405386592417
+          ]
+        },
+        "offset": {
+          "denominator": 1824,
+          "estimate": 0.9473684210526315,
+          "numerator": 1728,
+          "record_bootstrap_interval": [
+            0.9181017036255839,
+            0.9731663720065882
+          ]
+        },
+        "onset": {
+          "denominator": 1824,
+          "estimate": 0.956140350877193,
+          "numerator": 1744,
+          "record_bootstrap_interval": [
+            0.9334017634452193,
+            0.9764914875628505
+          ]
+        }
+      },
+      "60": {
+        "both": {
+          "denominator": 1824,
+          "estimate": 0.9714912280701754,
+          "numerator": 1772,
+          "record_bootstrap_interval": [
+            0.9508522821772507,
+            0.9885313264765844
+          ]
+        },
+        "offset": {
+          "denominator": 1824,
+          "estimate": 0.9808114035087719,
+          "numerator": 1789,
+          "record_bootstrap_interval": [
+            0.9622703235354255,
+            0.9945981683832628
+          ]
+        },
+        "onset": {
+          "denominator": 1824,
+          "estimate": 0.9797149122807017,
+          "numerator": 1787,
+          "record_bootstrap_interval": [
+            0.9638392654498137,
+            0.9932590871651064
+          ]
+        }
+      },
+      "80": {
+        "both": {
+          "denominator": 1824,
+          "estimate": 0.9884868421052632,
+          "numerator": 1803,
+          "record_bootstrap_interval": [
+            0.9718541029484004,
+            0.9983580087641097
+          ]
+        },
+        "offset": {
+          "denominator": 1824,
+          "estimate": 0.9906798245614035,
+          "numerator": 1807,
+          "record_bootstrap_interval": [
+            0.9750498020947979,
+            0.9994553451030203
+          ]
+        },
+        "onset": {
+          "denominator": 1824,
+          "estimate": 0.9917763157894737,
+          "numerator": 1809,
+          "record_bootstrap_interval": [
+            0.9801921887443741,
+            0.9989165763813651
+          ]
+        }
+      }
+    },
+    "v5": {
+      "100": {
+        "both": {
+          "denominator": 1819,
+          "estimate": 1.0,
+          "numerator": 1819,
+          "record_bootstrap_interval": [
+            1.0,
+            1.0
+          ]
+        },
+        "offset": {
+          "denominator": 1819,
+          "estimate": 1.0,
+          "numerator": 1819,
+          "record_bootstrap_interval": [
+            1.0,
+            1.0
+          ]
+        },
+        "onset": {
+          "denominator": 1819,
+          "estimate": 1.0,
+          "numerator": 1819,
+          "record_bootstrap_interval": [
+            1.0,
+            1.0
+          ]
+        }
+      },
+      "20": {
+        "both": {
+          "denominator": 1819,
+          "estimate": 0.8323254535459044,
+          "numerator": 1514,
+          "record_bootstrap_interval": [
+            0.7910197376616258,
+            0.8709003987361856
+          ]
+        },
+        "offset": {
+          "denominator": 1819,
+          "estimate": 0.8993952721275426,
+          "numerator": 1636,
+          "record_bootstrap_interval": [
+            0.8644377475947934,
+            0.9319734716302283
+          ]
+        },
+        "onset": {
+          "denominator": 1819,
+          "estimate": 0.8878504672897196,
+          "numerator": 1615,
+          "record_bootstrap_interval": [
+            0.8541932373501633,
+            0.9189495189290647
+          ]
+        }
+      },
+      "40": {
+        "both": {
+          "denominator": 1819,
+          "estimate": 0.9433754810335349,
+          "numerator": 1716,
+          "record_bootstrap_interval": [
+            0.9151038347102445,
+            0.968369645371158
+          ]
+        },
+        "offset": {
+          "denominator": 1819,
+          "estimate": 0.9609675645959318,
+          "numerator": 1748,
+          "record_bootstrap_interval": [
+            0.9363759361404705,
+            0.9814123787538221
+          ]
+        },
+        "onset": {
+          "denominator": 1819,
+          "estimate": 0.9681143485431556,
+          "numerator": 1761,
+          "record_bootstrap_interval": [
+            0.9501909521177225,
+            0.9840749027536407
+          ]
+        }
+      },
+      "60": {
+        "both": {
+          "denominator": 1819,
+          "estimate": 0.9703133589884552,
+          "numerator": 1765,
+          "record_bootstrap_interval": [
+            0.9491537884183227,
+            0.9871249433231695
+          ]
+        },
+        "offset": {
+          "denominator": 1819,
+          "estimate": 0.9763606377130292,
+          "numerator": 1776,
+          "record_bootstrap_interval": [
+            0.9562813328975472,
+            0.9922310699370741
+          ]
+        },
+        "onset": {
+          "denominator": 1819,
+          "estimate": 0.9884551951621771,
+          "numerator": 1798,
+          "record_bootstrap_interval": [
+            0.9802412216059619,
+            0.9951636810842587
+          ]
+        }
+      },
+      "80": {
+        "both": {
+          "denominator": 1819,
+          "estimate": 0.994502473886751,
+          "numerator": 1809,
+          "record_bootstrap_interval": [
+            0.9889258028792912,
+            0.9988870648783733
+          ]
+        },
+        "offset": {
+          "denominator": 1819,
+          "estimate": 0.9950522264980759,
+          "numerator": 1810,
+          "record_bootstrap_interval": [
+            0.9895881825781139,
+            0.9994388720256095
+          ]
+        },
+        "onset": {
+          "denominator": 1819,
+          "estimate": 0.9967014843320505,
+          "numerator": 1813,
+          "record_bootstrap_interval": [
+            0.9933253590298745,
+            0.9994407236992658
+          ]
+        }
+      }
+    },
+    "v6": {
+      "100": {
+        "both": {
+          "denominator": 1823,
+          "estimate": 1.0,
+          "numerator": 1823,
+          "record_bootstrap_interval": [
+            1.0,
+            1.0
+          ]
+        },
+        "offset": {
+          "denominator": 1823,
+          "estimate": 1.0,
+          "numerator": 1823,
+          "record_bootstrap_interval": [
+            1.0,
+            1.0
+          ]
+        },
+        "onset": {
+          "denominator": 1823,
+          "estimate": 1.0,
+          "numerator": 1823,
+          "record_bootstrap_interval": [
+            1.0,
+            1.0
+          ]
+        }
+      },
+      "20": {
+        "both": {
+          "denominator": 1823,
+          "estimate": 0.7811300054854635,
+          "numerator": 1424,
+          "record_bootstrap_interval": [
+            0.7370362437688419,
+            0.8243073946512617
+          ]
+        },
+        "offset": {
+          "denominator": 1823,
+          "estimate": 0.8310477235326386,
+          "numerator": 1515,
+          "record_bootstrap_interval": [
+            0.7902619158964767,
+            0.8709094676214382
+          ]
+        },
+        "onset": {
+          "denominator": 1823,
+          "estimate": 0.8919363686231486,
+          "numerator": 1626,
+          "record_bootstrap_interval": [
+            0.8577647810503927,
+            0.9238929324894515
+          ]
+        }
+      },
+      "40": {
+        "both": {
+          "denominator": 1823,
+          "estimate": 0.9215578716401536,
+          "numerator": 1680,
+          "record_bootstrap_interval": [
+            0.8882667651869051,
+            0.9515431829526565
+          ]
+        },
+        "offset": {
+          "denominator": 1823,
+          "estimate": 0.9440482720789907,
+          "numerator": 1721,
+          "record_bootstrap_interval": [
+            0.9160304296092708,
+            0.9687717139420962
+          ]
+        },
+        "onset": {
+          "denominator": 1823,
+          "estimate": 0.9577619308831596,
+          "numerator": 1746,
+          "record_bootstrap_interval": [
+            0.9361903492648761,
+            0.9772108324031308
+          ]
+        }
+      },
+      "60": {
+        "both": {
+          "denominator": 1823,
+          "estimate": 0.9599561162918266,
+          "numerator": 1750,
+          "record_bootstrap_interval": [
+            0.9355689640969068,
+            0.9798263416658307
+          ]
+        },
+        "offset": {
+          "denominator": 1823,
+          "estimate": 0.9665386725178278,
+          "numerator": 1762,
+          "record_bootstrap_interval": [
+            0.9444144630329195,
+            0.9845231144552719
+          ]
+        },
+        "onset": {
+          "denominator": 1823,
+          "estimate": 0.9829950630828305,
+          "numerator": 1792,
+          "record_bootstrap_interval": [
+            0.9696304555314533,
+            0.993899141674445
+          ]
+        }
+      },
+      "80": {
+        "both": {
+          "denominator": 1823,
+          "estimate": 0.9901261656609983,
+          "numerator": 1805,
+          "record_bootstrap_interval": [
+            0.9789181681681681,
+            0.9988713795186469
+          ]
+        },
+        "offset": {
+          "denominator": 1823,
+          "estimate": 0.9906747120131651,
+          "numerator": 1806,
+          "record_bootstrap_interval": [
+            0.9797140768158039,
+            0.9988846131046322
+          ]
+        },
+        "onset": {
+          "denominator": 1823,
+          "estimate": 0.9945145364783324,
+          "numerator": 1813,
+          "record_bootstrap_interval": [
+            0.9880617098016188,
+            0.9994425863991081
+          ]
+        }
+      }
+    }
+  },
+  "reference_coverage": {
+    "eligible_paired_qrs": 21843,
+    "excluded_qrs": 122,
+    "qrs_markers": 21965
+  },
+  "status": "COMPLETE_SCOPED"
+}

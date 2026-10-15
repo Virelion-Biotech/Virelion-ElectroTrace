@@ -1,6 +1,12 @@
 {
   "18_ElectroTrace_LUDB_v1_results.zip": "0a7a8ca1b1fb9f671173e6cefeadaea0f0df98258e5ab1b9eb5294f009e5b46a",
   "PARTIAL_REPAIR_CHECK.json": "db64f9507fe84b428e6ea1499437b167a445cb20968fbb2e9fb36f4b5d9e9744",
+  "local_recovery/CHECKPOINT_TESTS.json": "1cf1f9e5db7b90c9d0dc185b6d40c62fe3d8fbe05493aaa0521f10e9cd4d571d",
+  "local_recovery/REVIEW.json": "aabb896734729de9c626b33f385eb3c4ea0d8d289ee991e09f6ee06fbe9515f6",
+  "local_recovery/local_recovery_results.zip": "a3f54df329bee5fd97b0db4cfad22c4d734583b8888770a87825ae5218434d94",
+  "local_recovery/notebook_e2e.log": "da0f4f82aad38366aedd93812a3f743ef9524f6a2d5e25f0d649bd490c7cc4cf",
+  "local_recovery/notebook_resume_e2e.log": "da0f4f82aad38366aedd93812a3f743ef9524f6a2d5e25f0d649bd490c7cc4cf",
+  "local_recovery/summary.json": "9a7efd5fbdbe5aa24a22387d7afba67d0334c09e0b9ebe3116afc4e17859b5e3",
   "original/ARTIFACT_HASHES.json": "74f7affd8b6c74d43e67e4c7da80cf31cfb594c9a1c5358c5c6925b867edd9a7",
   "original/RUN_STATUS.json": "03997ff5a8b30a25097398cbd6216501d6b0c5b1bed4ea8c9ff103f65cfe546e",
   "original/protocol.json": "ee12f6e617e45d3350523f5c9fb835f2d4574b24cde9d4ff93d9d9a8412688db",

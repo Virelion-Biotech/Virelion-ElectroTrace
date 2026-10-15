@@ -1,0 +1,120 @@
+{
+  "scope": "Complete adjacent manual QRS pairs; oracle-assisted; exploratory",
+  "all_patients_completed": 200,
+  "leads": 2400,
+  "qrs_markers": 21965,
+  "eligible_paired_qrs": 21843,
+  "excluded_qrs": 122,
+  "patients_with_reference_exclusions": 6,
+  "reason_counts": {
+    "missing_or_nonadjacent_onset": 122,
+    "missing_or_nonadjacent_offset": 19
+  },
+  "local_notebook_test": "Full delivered code executed with only Colab APIs and filesystem paths substituted; immutable source and data caches hash verified; actual pinned environment install and computations run. Hosted Colab execution not observed.",
+  "onset_error_ms": {
+    "median": 8.0,
+    "mean": 8.209861282790825
+  },
+  "offset_error_ms": {
+    "median": -4.0,
+    "mean": -7.067985166872682
+  },
+  "per_lead_both_boundary_success": {
+    "avf": {
+      "20": 0.6396694214876033,
+      "40": 0.9140495867768595,
+      "60": 0.9796143250688705,
+      "80": 0.996694214876033,
+      "100": 0.9988980716253444
+    },
+    "avl": {
+      "20": 0.6630256690333152,
+      "40": 0.900600764609503,
+      "60": 0.965592572364828,
+      "80": 0.9972692517749864,
+      "100": 0.9989077007099946
+    },
+    "avr": {
+      "20": 0.6357142857142857,
+      "40": 0.9186813186813186,
+      "60": 0.9763736263736263,
+      "80": 0.9961538461538462,
+      "100": 0.9989010989010989
+    },
+    "i": {
+      "20": 0.7545106615636961,
+      "40": 0.9119737561509021,
+      "60": 0.9589939857845817,
+      "80": 0.9907053034445052,
+      "100": 0.9989065062875888
+    },
+    "ii": {
+      "20": 0.6725371491469455,
+      "40": 0.9223995597138139,
+      "60": 0.9702806824435883,
+      "80": 0.9939460649422125,
+      "100": 0.9994496422674739
+    },
+    "iii": {
+      "20": 0.5691460055096419,
+      "40": 0.8721763085399449,
+      "60": 0.9647382920110192,
+      "80": 0.9961432506887052,
+      "100": 0.9994490358126722
+    },
+    "v1": {
+      "20": 0.6855726872246696,
+      "40": 0.9322687224669604,
+      "60": 0.9757709251101322,
+      "80": 0.9961453744493393,
+      "100": 0.9994493392070485
+    },
+    "v2": {
+      "20": 0.6615299944964227,
+      "40": 0.93010456796918,
+      "60": 0.9675288937809576,
+      "80": 0.9895432030820033,
+      "100": 0.9994496422674739
+    },
+    "v3": {
+      "20": 0.6455696202531646,
+      "40": 0.9284534947716016,
+      "60": 0.9708310401761144,
+      "80": 0.9917446340121079,
+      "100": 0.9994496422674739
+    },
+    "v4": {
+      "20": 0.7379385964912281,
+      "40": 0.924890350877193,
+      "60": 0.9714912280701754,
+      "80": 0.9884868421052632,
+      "100": 0.9978070175438597
+    },
+    "v5": {
+      "20": 0.8323254535459044,
+      "40": 0.9433754810335349,
+      "60": 0.9703133589884552,
+      "80": 0.994502473886751,
+      "100": 1.0
+    },
+    "v6": {
+      "20": 0.7811300054854635,
+      "40": 0.9215578716401536,
+      "60": 0.9599561162918266,
+      "80": 0.9901261656609983,
+      "100": 1.0
+    }
+  },
+  "algorithm_changes": false,
+  "remaining": [
+    "Expert reference adjudication required for incomplete/ambiguous QRS; never inferred by algorithm.",
+    "No blinded new-cohort or clinical qualification; do not tune from this exploratory run.",
+    "Tighter boundary accuracy remains a development target; low 20 ms performance is retained without posthoc gate relaxation."
+  ],
+  "error_summary_scope": "All eligible cases including fallback estimates; 1 onset was not found. Means are not conditional-on-found accuracy.",
+  "boundary_found_counts": {
+    "onset": 21842,
+    "offset": 21843,
+    "eligible": 21843
+  }
+}
