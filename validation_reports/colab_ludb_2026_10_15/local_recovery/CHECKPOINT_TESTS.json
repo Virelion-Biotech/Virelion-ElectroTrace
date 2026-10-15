@@ -1,0 +1,6 @@
+{
+  "all_200_patient_checkpoints_reused_without_rewrite": true,
+  "summary_byte_identical_after_resume": true,
+  "budget_pause_and_partial_continuation": true,
+  "tampered_result_rejected": true
+}

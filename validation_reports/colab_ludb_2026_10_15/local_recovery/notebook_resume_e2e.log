@@ -1,0 +1,4 @@
+Completed all 200 patients. Reference coverage: {'eligible_paired_qrs': 21843, 'excluded_qrs': 122, 'qrs_markers': 21965}
+Exploratory, manual-center boundary characterization; not end-to-end or clinical validation.
+Results ZIP: /workspace/scratch/16c6ed495deb/ludb_notebook_e2e/content/18_ElectroTrace_LUDB_v2_reference_audit_results.zip
+FULL NOTEBOOK E2E PASSED /workspace/scratch/16c6ed495deb/ludb_notebook_e2e/content/18_ElectroTrace_LUDB_v2_reference_audit_results.zip

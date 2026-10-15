@@ -425,3 +425,5 @@ New models should be stored outside git in .skops format with a JSON metadata si
 ## LUDB Colab recovery (2026-10-15)
 
 The uploaded v1 notebook failed after six patients; it does not establish complete-cohort performance. The [failure and recovery review](COLAB_LUDB_REVIEW_2026-10-15.md) records the verified annotation defect, conservative reference exclusions, frozen delineator, and remaining scientific gates. The recovery reports paired-reference coverage and preserves patient-clustered uncertainty. No missing labels are imputed.
+
+The repaired notebook subsequently completed all 200 patients / 2,400 leads locally. It reports 21,843 eligible paired QRS references and 122 exclusions; both-boundary success at 20 ms is 69.0% (patient-bootstrap 95% interval 65.76–71.89%). All 411 recovery artifact hashes verify, and checkpoint continuation/tamper tests pass. This is exploratory manual-center characterization among scorable references, not a clinical acceptance claim or fresh hosted Colab execution. See the linked review for the complete tolerance curve and remaining gates.
