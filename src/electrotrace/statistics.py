@@ -52,7 +52,17 @@ def compare_groups(
     b, units_b = _unit_reduce(values_b, unit_ids_b, "group_b")
     if len(a) < 2 or len(b) < 2:
         raise ValueError("Each group needs at least two finite experimental units/observations")
-    t = stats.ttest_ind(a, b, equal_var=False)
+    # Welch's statistic is undefined when both groups have no sample variance.
+    # Avoid emitting NaN/Infinity into JSON or presenting a p-value for that case.
+    if np.var(a, ddof=1) == 0 and np.var(b, ddof=1) == 0:
+        welch_t, welch_p = None, None
+        welch_status = "undefined_zero_variance"
+    else:
+        t = stats.ttest_ind(a, b, equal_var=False)
+        finite = math.isfinite(float(t.statistic)) and math.isfinite(float(t.pvalue))
+        welch_t = float(t.statistic) if finite else None
+        welch_p = float(t.pvalue) if finite else None
+        welch_status = "computed" if finite else "undefined_numerical"
     u = stats.mannwhitneyu(a, b, alternative="two-sided")
     pooled = math.sqrt(
         ((len(a) - 1) * np.var(a, ddof=1) + (len(b) - 1) * np.var(b, ddof=1))
@@ -73,8 +83,9 @@ def compare_groups(
         "mean_b": float(np.mean(b)),
         "median_a": float(np.median(a)),
         "median_b": float(np.median(b)),
-        "welch_t": float(t.statistic),
-        "welch_p": float(t.pvalue),
+        "welch_t": welch_t,
+        "welch_p": welch_p,
+        "welch_status": welch_status,
         "mann_whitney_u": float(u.statistic),
         "mann_whitney_p": float(u.pvalue),
         "cohens_d": cohens_d,
