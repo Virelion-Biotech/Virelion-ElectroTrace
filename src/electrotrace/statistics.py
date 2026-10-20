@@ -52,8 +52,29 @@ def compare_groups(
     b, units_b = _unit_reduce(values_b, unit_ids_b, "group_b")
     if len(a) < 2 or len(b) < 2:
         raise ValueError("Each group needs at least two finite experimental units/observations")
-    t = stats.ttest_ind(a, b, equal_var=False)
-    u = stats.mannwhitneyu(a, b, alternative="two-sided")
+    # Welch's statistic is undefined when both groups have no sample variance.
+    # Avoid emitting NaN/Infinity into JSON or presenting a p-value for that case.
+    if np.var(a, ddof=1) == 0 and np.var(b, ddof=1) == 0:
+        welch_t, welch_p = None, None
+        welch_status = "undefined_zero_variance"
+    else:
+        t = stats.ttest_ind(a, b, equal_var=False)
+        finite = math.isfinite(float(t.statistic)) and math.isfinite(float(t.pvalue))
+        welch_t = float(t.statistic) if finite else None
+        welch_p = float(t.pvalue) if finite else None
+        welch_status = "computed" if finite else "undefined_numerical"
+    if np.all(a == a[0]) and np.all(b == a[0]):
+        # Every relabelling has the same U: its exact two-sided p-value is 1.
+        # Handle this case explicitly across SciPy versions.
+        mann_whitney_u = float(len(a) * len(b) / 2)
+        mann_whitney_p = 1.0
+        mann_whitney_status = "all_values_identical"
+    else:
+        u = stats.mannwhitneyu(a, b, alternative="two-sided")
+        finite_u = math.isfinite(float(u.statistic)) and math.isfinite(float(u.pvalue))
+        mann_whitney_u = float(u.statistic) if finite_u else None
+        mann_whitney_p = float(u.pvalue) if finite_u else None
+        mann_whitney_status = "computed" if finite_u else "undefined_numerical"
     pooled = math.sqrt(
         ((len(a) - 1) * np.var(a, ddof=1) + (len(b) - 1) * np.var(b, ddof=1))
         / (len(a) + len(b) - 2)
@@ -73,10 +94,12 @@ def compare_groups(
         "mean_b": float(np.mean(b)),
         "median_a": float(np.median(a)),
         "median_b": float(np.median(b)),
-        "welch_t": float(t.statistic),
-        "welch_p": float(t.pvalue),
-        "mann_whitney_u": float(u.statistic),
-        "mann_whitney_p": float(u.pvalue),
+        "welch_t": welch_t,
+        "welch_p": welch_p,
+        "welch_status": welch_status,
+        "mann_whitney_u": mann_whitney_u,
+        "mann_whitney_p": mann_whitney_p,
+        "mann_whitney_status": mann_whitney_status,
         "cohens_d": cohens_d,
     }
 
