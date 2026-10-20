@@ -41,3 +41,11 @@ def test_zero_variance_checked_after_experimental_unit_aggregation():
     assert result["welch_status"] == "undefined_zero_variance"
     assert result["n_units_a"] == result["n_units_b"] == 2
     json.dumps(result, allow_nan=False)
+
+
+def test_all_tied_mann_whitney_has_exact_degenerate_null():
+    result = compare_groups([1., 1., 1.], [1., 1.])
+    assert result["mann_whitney_u"] == 3.
+    assert result["mann_whitney_p"] == 1.
+    assert result["mann_whitney_status"] == "all_values_identical"
+    json.dumps(result, allow_nan=False)

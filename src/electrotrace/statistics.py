@@ -63,7 +63,18 @@ def compare_groups(
         welch_t = float(t.statistic) if finite else None
         welch_p = float(t.pvalue) if finite else None
         welch_status = "computed" if finite else "undefined_numerical"
-    u = stats.mannwhitneyu(a, b, alternative="two-sided")
+    if np.all(a == a[0]) and np.all(b == a[0]):
+        # Every relabelling has the same U: its exact two-sided p-value is 1.
+        # Handle this case explicitly across SciPy versions.
+        mann_whitney_u = float(len(a) * len(b) / 2)
+        mann_whitney_p = 1.0
+        mann_whitney_status = "all_values_identical"
+    else:
+        u = stats.mannwhitneyu(a, b, alternative="two-sided")
+        finite_u = math.isfinite(float(u.statistic)) and math.isfinite(float(u.pvalue))
+        mann_whitney_u = float(u.statistic) if finite_u else None
+        mann_whitney_p = float(u.pvalue) if finite_u else None
+        mann_whitney_status = "computed" if finite_u else "undefined_numerical"
     pooled = math.sqrt(
         ((len(a) - 1) * np.var(a, ddof=1) + (len(b) - 1) * np.var(b, ddof=1))
         / (len(a) + len(b) - 2)
@@ -86,8 +97,9 @@ def compare_groups(
         "welch_t": welch_t,
         "welch_p": welch_p,
         "welch_status": welch_status,
-        "mann_whitney_u": float(u.statistic),
-        "mann_whitney_p": float(u.pvalue),
+        "mann_whitney_u": mann_whitney_u,
+        "mann_whitney_p": mann_whitney_p,
+        "mann_whitney_status": mann_whitney_status,
         "cohens_d": cohens_d,
     }
 
