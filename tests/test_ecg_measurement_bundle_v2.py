@@ -168,6 +168,21 @@ def test_automated_detection_rejects_irregular_sample_time_axis():
         )
 
 
+def test_regular_rr_with_unannotated_morphology_change_blocks_single_template_fit():
+    record = _recording()
+    peaks = [200, 400, 600, 800, 1000, 1200, 1400, 1600]
+    record.signals["I"][795:806] *= -1.0
+    bundle = _build(record, peaks)
+    by_peak = {beat["sample_index"]: beat for beat in bundle["beat_analysis"]["beats"]}
+    changed = by_peak[800]
+    assert "high_template_residual_variability" in changed["quality"]["flags"]
+    assert bundle["beat_analysis"]["rhythm_characterization"]["pattern_screen"] == "regular_rr_pattern"
+    assert bundle["calibration_recommendation"]["template_fit_eligible"] is False
+    assert any(reason.endswith(":high_template_residual_variability")
+               for reason in bundle["calibration_recommendation"]["reasons"])
+    # Even a morphology-outlier beat is retained, not averaged away or discarded.
+    assert len(changed["waveform_by_lead_original_units"]["I"]) == len(bundle["relative_time_s"])
+
 def test_noisy_unknown_units_missing_lead_and_irregular_rhythm_are_qualified():
     peaks = [200, 400, 600, 900, 1100, 1300, 1500, 1700]
     record = _recording(noise=0.8, peaks=peaks, units=False)
