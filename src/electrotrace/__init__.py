@@ -11,8 +11,10 @@ from .calibration import (
 from .ecg_measurement import (
     ECGCalibrationBundle,
     ECG_MEASUREMENT_SCHEMA_VERSION,
+    apply_uncertainty_calibration_map,
     build_ecg_measurement_bundle,
     evaluate_uncertainty_calibration,
+    fit_uncertainty_calibration_map,
     validate_ecg_measurement_bundle,
 )
 from .candidate_suppressor import CandidateSuppressor
@@ -30,8 +32,10 @@ __all__ = [
     "build_ecg_calibration_bundle",
     "ECGCalibrationBundle",
     "ECG_MEASUREMENT_SCHEMA_VERSION",
+    "apply_uncertainty_calibration_map",
     "build_ecg_measurement_bundle",
     "evaluate_uncertainty_calibration",
+    "fit_uncertainty_calibration_map",
     "validate_ecg_measurement_bundle",
     "prepare_calibration",
     "prepare_ecg_calibration",
