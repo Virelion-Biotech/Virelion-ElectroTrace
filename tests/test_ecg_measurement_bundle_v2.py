@@ -134,7 +134,10 @@ def test_uncertainty_evaluation_requires_independent_manual_reference():
     with pytest.raises(ValueError, match="independent validation/test"):
         evaluate_uncertainty_calibration(
             [1.0, 2.0], [1.0, 2.0],
-            adjudication_source="manual-review", reference_split="training",
+            adjudication_source="manual-review",
+            measurement_unit="ms",
+            reference_split="training",
+            independent_reference=True,
         )
 
 
@@ -147,6 +150,7 @@ def test_uncertainty_evaluation_reports_empirical_error_curve_without_probabilit
         uncertainty,
         errors,
         adjudication_source="independent-manual-adjudication-v1",
+        measurement_unit="ms",
         subject_ids=subjects,
         encounter_ids=encounters,
         independent_reference=True,
