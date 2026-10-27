@@ -293,6 +293,7 @@ def prepare_ecg_calibration(
         beat_annotations=params.get("beat_annotations"),
         preprocessing_steps=params.get("preprocessing_steps"),
         irregular_rr_threshold=float(params.get("irregular_rr_threshold", 0.20)),
+        max_template_residual_fraction=float(params.get("max_template_residual_fraction", 0.25)),
     )
     bundle["source"] = {
         "filename": source.name,
