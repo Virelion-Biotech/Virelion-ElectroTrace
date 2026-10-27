@@ -383,22 +383,31 @@ def prepare_ecg_calibration(
                 "qrs_measurement_sigma_source is required when supplying qrs_measurement_sigma_ms; "
                 "beat-to-beat spread is not a substitute for measurement uncertainty"
             )
-        hints.append(
-            {
-                "term_id": f"{observation_id}:qrs_duration",
-                "observation_id": observation_id,
+        if bundle["calibration_recommendation"]["template_fit_eligible"]:
+            hints.append(
+                {
+                    "term_id": f"{observation_id}:qrs_duration",
+                    "observation_id": observation_id,
+                    "model_output": "qrs_duration_ms",
+                    "discrepancy": "gaussian",
+                    "weight": float(params.get("qrs_weight", 0.25)),
+                    "noise_parameters": {"sigma": qrs_sigma_ms},
+                    "metadata": {
+                        "artifact_field": "qrs.median_duration_ms",
+                        "observed_value_ms": float(qrs_duration),
+                        "noise_unit": "ms",
+                        "measurement_sigma_source": sigma_source,
+                        "quality_status": bundle["quality"]["status"],
+                        "source_sha256": bundle["source"]["sha256"],
+                    },
+                }
+            )
+        else:
+            suppressed_terms.append({
                 "model_output": "qrs_duration_ms",
-                "discrepancy": "gaussian",
-                "weight": float(params.get("qrs_weight", 0.25)),
-                "noise_parameters": {"sigma": qrs_sigma_ms},
-                "metadata": {
-                    "artifact_field": "qrs.median_duration_ms",
-                    "observed_value_ms": float(qrs_duration),
-                    "noise_unit": "ms",
-                    "measurement_sigma_source": sigma_source,
-                },
-            }
-        )
+                "reason": "measurement_or_rhythm_quality_gate_not_met",
+                "gate_reasons": bundle["calibration_recommendation"]["reasons"],
+            })
     elif qrs_duration is not None:
         suppressed_terms.append({
             "model_output": "qrs_duration_ms",
