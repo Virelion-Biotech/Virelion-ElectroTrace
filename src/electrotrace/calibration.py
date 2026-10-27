@@ -367,7 +367,8 @@ def prepare_ecg_calibration(
     else:
         suppressed_terms.append({
             "model_output": "ecg",
-            "reason": "no_stable_template_meets_the_configured_minimum_beat_gate",
+            "reason": "measurement_or_rhythm_quality_gate_not_met",
+            "gate_reasons": bundle["calibration_recommendation"]["reasons"],
         })
 
     qrs_duration = bundle["qrs"].get("median_duration_ms")
