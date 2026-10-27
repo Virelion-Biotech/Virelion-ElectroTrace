@@ -457,39 +457,52 @@ def build_ecg_measurement_bundle(
     residual_sigma_by_lead: dict[str, float | None] = {}
     lead_quality: dict[str, dict[str, Any]] = {}
     for name in ordered_leads:
-        stack = (
+        all_stack = (
+            np.stack([arrays[name][int(peak) - pre_n:int(peak) + post_n + 1] for peak in selected_peaks], axis=0)
+            if len(selected_peaks) else np.empty((0, len(relative_time)), dtype=float)
+        )
+        if len(all_stack):
+            all_median = np.median(all_stack, axis=0)
+            all_abs_dev = np.abs(all_stack - all_median[None, :])
+            all_samplewise_mad = 1.4826 * np.median(all_abs_dev, axis=0)
+            beat_to_beat_variability[name] = {
+                "method": "1.4826 * pointwise median absolute deviation across all retained beat windows",
+                "samplewise_mad": all_samplewise_mad.astype(float).tolist(),
+                "median_samplewise_mad": float(np.median(all_samplewise_mad)),
+                "units": units.get(name),
+                "beat_population": "all selected complete beats, including flagged/annotated beats",
+                "not_a_probability": True,
+            }
+        else:
+            all_median = np.asarray([], dtype=float)
+            beat_to_beat_variability[name] = {
+                "method": "not_estimable_no_complete_beats", "samplewise_mad": [],
+                "median_samplewise_mad": None, "units": units.get(name),
+                "beat_population": "no complete beats", "not_a_probability": True,
+            }
+
+        template_stack = (
             np.stack([arrays[name][int(peak) - pre_n:int(peak) + post_n + 1] for peak in template_peaks], axis=0)
             if template_peaks else np.empty((0, len(relative_time)), dtype=float)
         )
-        if len(stack):
-            median = np.median(stack, axis=0)
-            template[name] = median.astype(float).tolist()
-            abs_dev = np.abs(stack - median[None, :])
-            samplewise_mad = 1.4826 * np.median(abs_dev, axis=0)
-            residual_scale = _robust_sigma(stack - median[None, :])
-            residual_sigma_by_lead[name] = residual_scale
-            beat_to_beat_variability[name] = {
-                "method": "1.4826 * pointwise median absolute deviation across retained beats",
-                "samplewise_mad": samplewise_mad.astype(float).tolist(),
-                "median_samplewise_mad": float(np.median(samplewise_mad)),
-                "units": units.get(name),
-                "not_a_probability": True,
-            }
-            amplitude = float(np.ptp(median))
+        if len(template_stack):
+            template_median = np.median(template_stack, axis=0)
+            template[name] = template_median.astype(float).tolist()
+            template_residual_scale = _robust_sigma(template_stack - template_median[None, :])
+            residual_sigma_by_lead[name] = template_residual_scale
+            amplitude = float(np.ptp(template_median))
         else:
-            median = np.asarray([], dtype=float)
-            residual_scale = None
+            template_median = np.asarray([], dtype=float)
+            template_residual_scale = None
             residual_sigma_by_lead[name] = None
-            beat_to_beat_variability[name] = {
-                "method": "not_estimable_no_complete_beats", "samplewise_mad": [],
-                "median_samplewise_mad": None, "units": units.get(name), "not_a_probability": True,
-            }
             amplitude = 0.0
         noise = baseline_noise_by_lead.get(name)
-        snr = amplitude / max(float(noise or 0.0), np.finfo(float).eps) if len(median) else None
+        snr = amplitude / max(float(noise or 0.0), np.finfo(float).eps) if len(template_median) else None
         flags = []
         if normalized_units.get(name) is None:
             flags.append("voltage_unit_unknown_or_unrecognized")
+        elif unit_sources.get(name) == "caller_declared":
+            flags.append("voltage_unit_is_caller_declared_not_source_verified")
         if noise is None:
             flags.append("baseline_noise_not_estimable")
         if noise is not None and amplitude < 5.0 * noise:
@@ -497,7 +510,7 @@ def build_ecg_measurement_bundle(
         lead_quality[name] = {
             "baseline_noise_sigma_proxy": noise,
             "baseline_noise_method": NOISE_ESTIMATOR_VERSION,
-            "beat_to_template_residual_scale": residual_scale,
+            "beat_to_template_residual_scale": template_residual_scale,
             "template_peak_to_peak_original_units": amplitude,
             "heuristic_snr_ratio": float(snr) if snr is not None else None,
             "flags": flags,
