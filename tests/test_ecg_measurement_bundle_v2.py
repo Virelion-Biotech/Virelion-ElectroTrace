@@ -181,6 +181,8 @@ def test_noisy_unknown_units_missing_lead_and_irregular_rhythm_are_qualified():
     assert "expected_leads_missing" in bundle["quality"]["reasons"]
     assert bundle["beat_analysis"]["rhythm_characterization"]["pattern_screen"] == "variable_rr_pattern"
     assert any(beat["rr_outlier_screen"]["flagged"] for beat in bundle["beat_analysis"]["beats"])
+    assert bundle["calibration_recommendation"]["template_fit_eligible"] is False
+    assert "variable_rr_pattern_requires_rhythm_aware_fit_selection" in bundle["calibration_recommendation"]["reasons"]
 
 
 def test_short_recording_is_explicitly_rejected_not_silently_averaged():
@@ -303,6 +305,9 @@ def test_prepare_calibration_writes_v2_artifact_with_source_hash_and_preserves_h
             "pre_s": 0.20,
             "post_s": 0.40,
             "units": "mV",
+            "expected_leads": ["I", "II"],
+            "device_metadata": {"manufacturer": "synthetic", "model": "fixture"},
+            "filter_metadata": {"filtering": "fixture declaration"},
         },
     )
     observation = handoff["observations"][0]
