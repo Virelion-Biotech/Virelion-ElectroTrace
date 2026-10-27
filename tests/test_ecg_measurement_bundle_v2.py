@@ -319,6 +319,30 @@ def test_prepare_calibration_writes_v2_artifact_with_source_hash_and_preserves_h
     assert handoff["summary"]["schema_version"] == ECG_MEASUREMENT_SCHEMA_VERSION
     assert handoff["likelihood_hints"][0]["model_output"] == "ecg"
     assert handoff["summary"]["acceptance_gate_status"] == "not_demonstrated"
+
+    first_artifact_bytes = artifact.read_bytes()
+    repeated_handoff = prepare_ecg_calibration(
+        source,
+        entity_id="case-01",
+        output_dir=tmp_path / "calibration",
+        params={
+            "patient_id": "patient-01",
+            "encounter_id": "encounter-01",
+            "primary_channel": "I",
+            "r_indices": [200, 400, 600, 800, 1000, 1200, 1400, 1600],
+            "pre_s": 0.20,
+            "post_s": 0.40,
+            "units": "mV",
+            "expected_leads": ["I", "II"],
+            "device_metadata": {"manufacturer": "synthetic", "model": "fixture"},
+            "filter_metadata": {"filtering": "fixture declaration"},
+        },
+    )
+    repeated_observation = repeated_handoff["observations"][0]
+    repeated_artifact = Path(repeated_observation["artifact"]["uri"].replace("file://", ""))
+    assert repeated_artifact.read_bytes() == first_artifact_bytes
+    assert repeated_observation["artifact"]["sha256"] == observation["artifact"]["sha256"]
+
     # QRS repeatability across beats is not silently reused as measurement error.
     assert all(h["model_output"] != "qrs_duration_ms" for h in handoff["likelihood_hints"])
     if payload["qrs"]["median_duration_ms"] is not None:
