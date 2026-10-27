@@ -7,7 +7,7 @@ proxies are clinically validated measurements.
 from __future__ import annotations
 
 from importlib.metadata import PackageNotFoundError, version
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Sequence, TypedDict
 
 import numpy as np
 from scipy.stats import spearmanr
@@ -20,6 +20,27 @@ ECG_MEASUREMENT_SCHEMA_VERSION = "electrotrace-ecg-measurement-v2"
 RHYTHM_SCREEN_VERSION = "rr-variability-screen-v1"
 MORPHOLOGY_PROXY_VERSION = "p-st-t-window-proxy-v1"
 NOISE_ESTIMATOR_VERSION = "pre-qrs-difference-mad-v1"
+
+
+class ECGCalibrationBundle(TypedDict):
+    """Top-level type for the v2 ECG calibration artifact.
+
+    Nested payloads remain JSON objects to support forward-compatible additions;
+    the machine-readable JSON Schema defines their structural requirements.
+    """
+
+    schema_version: str
+    kind: str
+    representation: str
+    acquisition: dict[str, Any]
+    raw_measurements: dict[str, Any]
+    beat_analysis: dict[str, Any]
+    morphology: dict[str, Any]
+    measurement_uncertainty: dict[str, Any]
+    provenance: dict[str, Any]
+    quality: dict[str, Any]
+    acceptance_gate: dict[str, Any]
+    calibration_recommendation: dict[str, Any]
 
 
 def _robust_sigma(values: np.ndarray) -> float | None:
