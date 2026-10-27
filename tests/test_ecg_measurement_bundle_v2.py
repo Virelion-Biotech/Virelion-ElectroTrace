@@ -8,8 +8,10 @@ import pytest
 from electrotrace.calibration import CALIBRATION_SCHEMA_VERSION, prepare_ecg_calibration
 from electrotrace.ecg_measurement import (
     ECG_MEASUREMENT_SCHEMA_VERSION,
+    apply_uncertainty_calibration_map,
     build_ecg_measurement_bundle,
     evaluate_uncertainty_calibration,
+    fit_uncertainty_calibration_map,
     validate_ecg_measurement_bundle,
 )
 from electrotrace.io import Recording
@@ -139,14 +141,61 @@ def test_uncertainty_evaluation_requires_independent_manual_reference():
 def test_uncertainty_evaluation_reports_empirical_error_curve_without_probability_claim():
     uncertainty = np.linspace(0.1, 2.0, 30)
     errors = uncertainty * 1.4 + 0.05
+    subjects = [f"subject-{i % 10}" for i in range(30)]
+    encounters = [f"encounter-{i}" for i in range(30)]
     report = evaluate_uncertainty_calibration(
-        uncertainty, errors, adjudication_source="independent-manual-adjudication-v1",
+        uncertainty,
+        errors,
+        adjudication_source="independent-manual-adjudication-v1",
+        subject_ids=subjects,
+        encounter_ids=encounters,
+        independent_reference=True,
         reference_split="independent_test",
     )
     assert report["status"] == "empirical_reference_available"
     assert report["n_measurements"] == 30
+    assert report["n_distinct_subjects"] == 10
+    assert report["n_distinct_encounters"] == 30
     assert report["spearman_scale_error_correlation"] > 0.99
     assert "not a probability" in report["interpretation"]
+
+
+def test_uncertainty_map_is_fit_only_on_declared_adjudicated_calibration_split():
+    uncertainty = np.linspace(0.1, 2.0, 30)
+    errors = uncertainty * 1.4 + 0.05
+    subjects = [f"subject-{i % 10}" for i in range(30)]
+    encounters = [f"encounter-{i}" for i in range(30)]
+    with pytest.raises(ValueError, match="independent adjudicated"):
+        fit_uncertainty_calibration_map(
+            uncertainty, errors,
+            adjudication_source="manual-review-v1",
+            measurement_unit="ms",
+            subject_ids=subjects,
+            encounter_ids=encounters,
+        )
+    calibration_map = fit_uncertainty_calibration_map(
+        uncertainty, errors,
+        adjudication_source="manual-review-v1",
+        measurement_unit="ms",
+        subject_ids=subjects,
+        encounter_ids=encounters,
+        independent_reference=True,
+        reference_split="adjudicated_calibration",
+    )
+    calibrated = apply_uncertainty_calibration_map([0.2, 1.0, 1.8], calibration_map)
+    assert len(calibrated) == 3
+    assert calibrated[0] <= calibrated[1] <= calibrated[2]
+    assert calibration_map["measurement_unit"] == "ms"
+    with pytest.raises(ValueError, match="declared adjudicated calibration split"):
+        fit_uncertainty_calibration_map(
+            uncertainty, errors,
+            adjudication_source="manual-review-v1",
+            measurement_unit="ms",
+            subject_ids=subjects,
+            encounter_ids=encounters,
+            independent_reference=True,
+            reference_split="independent_test",
+        )
 
 
 def test_prepare_calibration_writes_v2_artifact_with_source_hash_and_preserves_hint(tmp_path: Path):
