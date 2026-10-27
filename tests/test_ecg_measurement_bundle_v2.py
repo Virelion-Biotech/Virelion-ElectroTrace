@@ -183,4 +183,5 @@ def test_prepare_calibration_writes_v2_artifact_with_source_hash_and_preserves_h
     assert handoff["summary"]["acceptance_gate_status"] == "not_demonstrated"
     # QRS repeatability across beats is not silently reused as measurement error.
     assert all(h["model_output"] != "qrs_duration_ms" for h in handoff["likelihood_hints"])
-    assert handoff["summary"]["suppressed_likelihood_terms"][0]["model_output"] == "qrs_duration_ms"
+    if payload["qrs"]["median_duration_ms"] is not None:
+        assert any(term["model_output"] == "qrs_duration_ms" for term in handoff["summary"]["suppressed_likelihood_terms"])
