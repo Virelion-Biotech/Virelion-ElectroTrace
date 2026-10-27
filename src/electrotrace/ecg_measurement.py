@@ -677,6 +677,38 @@ def build_ecg_measurement_bundle(
             "reason": "the independent, manually adjudicated frozen acceptance set has not been run by this function",
         },
     }
+    # The flat fields are a deliberate read-compatibility layer for consumers of
+    # electrotrace-ep-calibration-v1. New code should prefer the nested v2 sections.
+    bundle.update({
+        "sampling_rate_hz": fs,
+        "relative_time_s": relative_time,
+        "lead_names": ordered_leads,
+        "lead_units": units,
+        "primary_channel": {"index": primary_index, "name": primary_name},
+        "beat_template": template,
+        "n_detected_beats": int(len(peaks)),
+        "n_template_beats": int(len(template_peaks)),
+        "template_peak_indices": [int(p) for p in template_peaks],
+        "detector": detector_meta,
+        "qrs": qrs_summary,
+        "rr": {
+            "n_intervals": int(len(all_rr)),
+            "median_s": rr_median,
+            "robust_sigma_s": rr_scale,
+        },
+        "uncertainty": {
+            "method": "empirical beat-to-template scale; not measurement-error probability",
+            "noise_sigma_by_lead": residual_sigma_by_lead,
+            "baseline_noise_sigma_by_lead": baseline_noise_by_lead,
+        },
+        "preprocessing": {
+            "beat_window_pre_s": float(pre_s),
+            "beat_window_post_s": float(post_s),
+            "aggregation": "pointwise_median",
+            "resampling": "none",
+        },
+    })
+    bundle["quality"]["method"] = "heuristic baseline-noise and template-residual summaries; not a probability"
     validate_ecg_measurement_bundle(bundle)
     return bundle
 
