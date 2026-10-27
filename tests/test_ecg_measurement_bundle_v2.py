@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from electrotrace.calibration import prepare_ecg_calibration
+from electrotrace.calibration import CALIBRATION_SCHEMA_VERSION, prepare_ecg_calibration
 from electrotrace.ecg_measurement import (
     ECG_MEASUREMENT_SCHEMA_VERSION,
     build_ecg_measurement_bundle,
@@ -178,7 +178,8 @@ def test_prepare_calibration_writes_v2_artifact_with_source_hash_and_preserves_h
     payload = json.loads(artifact.read_text(encoding="utf-8"))
     assert payload["schema_version"] == ECG_MEASUREMENT_SCHEMA_VERSION
     assert payload["raw_measurements"]["source_reference"]["sha256"] == expected_hash
-    assert handoff["schema_version"] == ECG_MEASUREMENT_SCHEMA_VERSION
+    assert handoff["schema_version"] == CALIBRATION_SCHEMA_VERSION
+    assert handoff["summary"]["schema_version"] == ECG_MEASUREMENT_SCHEMA_VERSION
     assert handoff["likelihood_hints"][0]["model_output"] == "ecg"
     assert handoff["summary"]["acceptance_gate_status"] == "not_demonstrated"
     # QRS repeatability across beats is not silently reused as measurement error.
