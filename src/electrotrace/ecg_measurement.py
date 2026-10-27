@@ -846,31 +846,84 @@ def validate_ecg_measurement_bundle(bundle: Mapping[str, Any]) -> None:
     """Validate core v2 invariants without claiming scientific validity."""
     if bundle.get("schema_version") != ECG_MEASUREMENT_SCHEMA_VERSION:
         raise ValueError(f"Unsupported ECG measurement schema: {bundle.get('schema_version')!r}")
-    for section in ("acquisition", "raw_measurements", "beat_analysis", "morphology", "measurement_uncertainty", "provenance", "quality"):
+    sections = (
+        "acquisition",
+        "raw_measurements",
+        "beat_analysis",
+        "morphology",
+        "measurement_uncertainty",
+        "provenance",
+        "quality",
+        "acceptance_gate",
+        "calibration_recommendation",
+    )
+    for section in sections:
         if not isinstance(bundle.get(section), Mapping):
             raise ValueError(f"ECG measurement bundle section {section!r} must be an object")
+
     acquisition = bundle["acquisition"]
     fs = acquisition.get("sampling_frequency_hz")
     if not isinstance(fs, (int, float)) or not np.isfinite(fs) or fs <= 0:
         raise ValueError("sampling_frequency_hz must be positive and finite")
+    canonical_leads = acquisition.get("lead_names_and_order")
+    if not isinstance(canonical_leads, list) or not canonical_leads or len(canonical_leads) != len(set(canonical_leads)):
+        raise ValueError("acquisition.lead_names_and_order must contain unique output lead labels")
+
     raw = bundle["raw_measurements"]
     times = np.asarray(raw.get("sample_time_s_on_source_time_axis", []), dtype=float)
     if times.ndim != 1 or len(times) < 2 or not np.isfinite(times).all() or np.any(np.diff(times) <= 0):
         raise ValueError("raw sample time axis must be finite and strictly increasing")
-    leads = raw.get("samples_by_lead_original_units", {})
-    if not isinstance(leads, Mapping) or not leads:
-        raise ValueError("raw waveform must include at least one lead")
-    for name, values in leads.items():
+    if raw.get("sample_count") != len(times):
+        raise ValueError("raw sample_count must match the sample time axis length")
+    source_ref = raw.get("source_reference", {})
+    source_sha = source_ref.get("sha256") if isinstance(source_ref, Mapping) else None
+    if source_sha is not None and (
+        not isinstance(source_sha, str)
+        or len(source_sha) != 64
+        or any(character not in "0123456789abcdef" for character in source_sha.lower())
+    ):
+        raise ValueError("raw source_reference SHA-256 must be a 64-character hexadecimal digest or null")
+
+    source_leads = raw.get("samples_by_lead_original_units", {})
+    if not isinstance(source_leads, Mapping) or not source_leads:
+        raise ValueError("raw waveform must include at least one source lead")
+    for name, values in source_leads.items():
         signal = np.asarray(values, dtype=float)
         if signal.ndim != 1 or len(signal) != len(times) or not np.isfinite(signal).all():
-            raise ValueError(f"raw waveform for lead {name!r} does not match the sample axis")
+            raise ValueError(f"raw waveform for source lead {name!r} does not match the sample axis")
+
+    detected_indices = bundle["beat_analysis"].get("r_peak_sample_indices", [])
+    peaks = np.asarray(detected_indices)
+    if peaks.ndim != 1 or (len(peaks) and (
+        not np.issubdtype(peaks.dtype, np.integer)
+        or np.any(peaks < 0)
+        or np.any(peaks >= len(times))
+        or np.any(np.diff(peaks) <= 0)
+    )):
+        raise ValueError("R-peak sample indices must be strictly increasing integer positions inside the recording")
+    relative_time = np.asarray(bundle["beat_analysis"].get("relative_time_s", []), dtype=float)
+    if relative_time.ndim != 1 or len(relative_time) == 0 or not np.isfinite(relative_time).all():
+        raise ValueError("beat_analysis.relative_time_s must be a non-empty finite vector")
+
     for beat in bundle["beat_analysis"].get("beats", []):
-        if not isinstance(beat.get("waveform_by_lead_original_units"), Mapping):
+        if not isinstance(beat, Mapping):
+            raise ValueError("every beat record must be an object")
+        waveform_by_lead = beat.get("waveform_by_lead_original_units")
+        if not isinstance(waveform_by_lead, Mapping):
             raise ValueError("every selected beat must preserve per-lead waveforms")
-        for name, values in beat["waveform_by_lead_original_units"].items():
+        if set(waveform_by_lead) != set(canonical_leads):
+            raise ValueError("beat waveform lead labels must match the canonical acquisition lead list")
+        if len(relative_time) != len(beat.get("relative_time_s", relative_time)):
+            raise ValueError("beat-relative time vector must match the waveform sample count")
+        for name, values in waveform_by_lead.items():
             waveform = np.asarray(values, dtype=float)
-            if waveform.ndim != 1 or not np.isfinite(waveform).all():
-                raise ValueError(f"beat waveform for lead {name!r} must be a finite vector")
+            if waveform.ndim != 1 or len(waveform) != len(relative_time) or not np.isfinite(waveform).all():
+                raise ValueError(f"beat waveform for lead {name!r} must be a finite vector aligned to relative_time_s")
+
+    if bundle["acceptance_gate"].get("status") not in {"not_demonstrated", "passed", "failed"}:
+        raise ValueError("acceptance_gate.status must be not_demonstrated, passed, or failed")
+    if bundle["quality"].get("status") not in {"provisional_pass", "qualified", "rejected"}:
+        raise ValueError("quality.status must be provisional_pass, qualified, or rejected")
 
 
 def fit_uncertainty_calibration_map(
