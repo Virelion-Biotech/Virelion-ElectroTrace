@@ -555,6 +555,7 @@ def build_ecg_measurement_bundle(
     beat_to_beat_variability: dict[str, dict[str, Any]] = {}
     residual_sigma_by_lead: dict[str, float | None] = {}
     lead_quality: dict[str, dict[str, Any]] = {}
+    per_peak_template_residual_fraction: dict[str, dict[int, float]] = {}
     for name in ordered_leads:
         all_stack = (
             np.stack([arrays[name][int(peak) - pre_n:int(peak) + post_n + 1] for peak in selected_peaks], axis=0)
@@ -587,14 +588,24 @@ def build_ecg_measurement_bundle(
         if len(template_stack):
             template_median = np.median(template_stack, axis=0)
             template[name] = template_median.astype(float).tolist()
-            template_residual_scale = _robust_sigma(template_stack - template_median[None, :])
+            residual_matrix = template_stack - template_median[None, :]
+            template_residual_scale = _robust_sigma(residual_matrix)
             residual_sigma_by_lead[name] = template_residual_scale
             amplitude = float(np.ptp(template_median))
+            per_beat_rmse = np.sqrt(np.mean(np.square(residual_matrix), axis=1))
+            denominator = max(amplitude, np.finfo(float).eps)
+            per_peak_template_residual_fraction[name] = {
+                int(peak): float(error / denominator)
+                for peak, error in zip(template_peaks, per_beat_rmse)
+            }
+            maximum_beat_residual_fraction = max(per_peak_template_residual_fraction[name].values())
         else:
             template_median = np.asarray([], dtype=float)
             template_residual_scale = None
             residual_sigma_by_lead[name] = None
             amplitude = 0.0
+            per_peak_template_residual_fraction[name] = {}
+            maximum_beat_residual_fraction = None
         noise = baseline_noise_by_lead.get(name)
         snr = amplitude / max(float(noise or 0.0), np.finfo(float).eps) if len(template_median) else None
         residual_fraction = (
@@ -611,7 +622,7 @@ def build_ecg_measurement_bundle(
             flags.append("baseline_noise_not_estimable")
         if noise is not None and amplitude < 5.0 * noise:
             flags.append("low_template_amplitude_relative_to_baseline_noise")
-        if residual_fraction is not None and residual_fraction > max_template_residual_fraction:
+        if maximum_beat_residual_fraction is not None and maximum_beat_residual_fraction > max_template_residual_fraction:
             flags.append("high_template_residual_variability")
         lead_quality[name] = {
             "baseline_noise_sigma_proxy": noise,
@@ -619,12 +630,28 @@ def build_ecg_measurement_bundle(
             "beat_to_template_residual_scale": template_residual_scale,
             "beat_to_template_residual_fraction_of_template_amplitude": residual_fraction,
             "template_residual_fraction_threshold": float(max_template_residual_fraction),
+            "maximum_stable_beat_rmse_fraction_of_template_amplitude": maximum_beat_residual_fraction,
             "template_residual_fraction_threshold_validation_status": "heuristic_not_independently_validated",
             "template_peak_to_peak_original_units": amplitude,
             "heuristic_snr_ratio": float(snr) if snr is not None else None,
             "flags": flags,
             "score_semantics": "heuristic_ratio_not_a_probability_of_correctness",
         }
+
+    for beat in beat_records:
+        sample_index = int(beat["sample_index"])
+        beat_residual_fraction_by_lead = {
+            name: per_peak_template_residual_fraction[name].get(sample_index) for name in ordered_leads
+        }
+        beat["quality"]["morphology_residual_fraction_by_lead"] = beat_residual_fraction_by_lead
+        beat["quality"]["morphology_residual_screen_threshold"] = float(max_template_residual_fraction)
+        beat["quality"]["morphology_residual_screen_validation_status"] = "heuristic_not_independently_validated"
+        if any(
+            value is not None and value > max_template_residual_fraction
+            for value in beat_residual_fraction_by_lead.values()
+        ):
+            beat["quality"]["flags"].append("high_template_residual_variability")
+            beat["quality"]["status"] = "qualified"
 
     qrs_rows = []
     for beat in beat_records:
