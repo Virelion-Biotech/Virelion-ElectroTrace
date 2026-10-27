@@ -222,7 +222,7 @@ def build_ecg_measurement_bundle(
     r_indices: Sequence[int] | None = None,
     pre_s: float = 0.25,
     post_s: float = 0.45,
-    max_beats: int = 256,
+    max_beats: int | None = None,
     min_beats: int = 3,
     source_sha256: str | None = None,
     source_uri: str | None = None,
@@ -249,8 +249,12 @@ def build_ecg_measurement_bundle(
         raise ValueError("recording sampling_rate_hz must be positive and finite")
     if not np.isfinite(pre_s) or not np.isfinite(post_s) or pre_s <= 0 or post_s <= 0:
         raise ValueError("pre_s and post_s must be positive and finite")
-    if isinstance(max_beats, bool) or max_beats < 1 or isinstance(min_beats, bool) or min_beats < 1:
-        raise ValueError("max_beats and min_beats must be positive integers")
+    if max_beats is not None and (
+        isinstance(max_beats, bool) or not isinstance(max_beats, (int, np.integer)) or max_beats < 1
+    ):
+        raise ValueError("max_beats must be None or a positive integer")
+    if isinstance(min_beats, bool) or not isinstance(min_beats, (int, np.integer)) or min_beats < 1:
+        raise ValueError("min_beats must be a positive integer")
     if not 0 <= irregular_rr_threshold <= 1:
         raise ValueError("irregular_rr_threshold must be between 0 and 1")
 
