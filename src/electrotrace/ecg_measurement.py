@@ -272,6 +272,23 @@ def build_ecg_measurement_bundle(
         raise ValueError("raw ECG values must be finite; repair or explicitly reject missing/non-finite segments before bundling")
 
     acquisition = dict(acquisition_metadata or {})
+    source_metadata = dict(record.metadata or {})
+    raw_device_metadata = acquisition.get("device_metadata") or source_metadata.get("device_metadata")
+    if not raw_device_metadata and source_metadata.get("device") is not None:
+        raw_device_metadata = {"device": source_metadata.get("device")}
+    if isinstance(raw_device_metadata, Mapping):
+        device_metadata = dict(raw_device_metadata)
+    elif raw_device_metadata:
+        device_metadata = {"description": str(raw_device_metadata)}
+    else:
+        device_metadata = {}
+    raw_filter_metadata = acquisition.get("filter_metadata") or source_metadata.get("filter_metadata") or source_metadata.get("filters")
+    if isinstance(raw_filter_metadata, Mapping):
+        filter_metadata = dict(raw_filter_metadata)
+    elif raw_filter_metadata:
+        filter_metadata = {"description": str(raw_filter_metadata)}
+    else:
+        filter_metadata = {}
     primary_index, primary_name = _resolve_primary_channel(record, primary_channel)
     requested_order = [str(name) for name in (lead_order or observed_order)]
     if len(requested_order) != len(set(requested_order)) or any(not x.strip() for x in requested_order):
@@ -555,6 +572,10 @@ def build_ecg_measurement_bundle(
         reasons.append("patient_linkage_missing")
     if not encounter_id:
         reasons.append("encounter_linkage_missing")
+    if not device_metadata:
+        reasons.append("device_metadata_missing")
+    if not filter_metadata:
+        reasons.append("filter_metadata_missing")
     if any(normalized_units.get(name) is None for name in ordered_leads):
         reasons.append("one_or_more_voltage_units_unknown_or_unrecognized")
     if not sampling_rate_agrees:
@@ -608,8 +629,9 @@ def build_ecg_measurement_bundle(
             "recording_duration_s": float(time[-1] - time[0]),
             "source_time_start_s": float(time[0]),
             "source_time_end_s": float(time[-1]),
-            "device_metadata": dict(acquisition.get("device_metadata") or {}),
-            "filter_metadata": dict(acquisition.get("filter_metadata") or {}),
+            "device_metadata": device_metadata,
+            "filter_metadata": filter_metadata,
+            "source_metadata": source_metadata,
             "patient_id": patient_id, "encounter_id": encounter_id, "linked_entity_id": entity_id,
             "start_datetime": acquisition.get("start_datetime"), "timezone": acquisition.get("timezone"),
         },
