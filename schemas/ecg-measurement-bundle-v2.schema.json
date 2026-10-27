@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Virelion-Biotech/Virelion-ElectroTrace/blob/main/schemas/ecg-measurement-bundle-v2.schema.json",
-  "title": "ElectroTrace ECG Measurement Bundle v2",
+  "title": "ElectroTrace ECGCalibrationBundle v2",
   "description": "Versioned measurement artifact. Structural validity does not establish clinical validity or calibrated probabilities.",
   "type": "object",
   "required": [
