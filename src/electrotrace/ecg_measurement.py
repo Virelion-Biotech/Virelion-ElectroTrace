@@ -98,28 +98,33 @@ def _source_units(
 ) -> tuple[dict[str, str | None], dict[str, str]]:
     existing: dict[str, Any] = dict(record.channel_units or {})
     metadata_units = (record.metadata or {}).get("units")
+    metadata_names: set[str] = set(record.channel_units or {})
     if isinstance(metadata_units, Mapping):
         for name, unit in metadata_units.items():
             existing.setdefault(str(name), unit)
+            metadata_names.add(str(name))
     elif isinstance(metadata_units, (list, tuple)) and len(metadata_units) == len(record.signals):
         for name, unit in zip(list(record.signals), metadata_units):
             existing.setdefault(name, unit)
+            metadata_names.add(name)
 
     explicit = params.get("lead_units")
+    explicit_names: set[str] = set()
     if isinstance(explicit, Mapping):
         for name, unit in explicit.items():
             if name in lead_names and unit is not None and str(unit).strip():
                 existing[str(name)] = str(unit).strip()
+                explicit_names.add(str(name))
     global_unit = params.get("voltage_unit", params.get("units"))
     units: dict[str, str | None] = {}
     unit_source: dict[str, str] = {}
-    record_units = record.channel_units or {}
     for name in lead_names:
-        if existing.get(name) is not None and str(existing[name]).strip():
+        if name in explicit_names:
             units[name] = str(existing[name]).strip()
-            unit_source[name] = "recording_metadata" if name in record_units or (
-                isinstance(metadata_units, Mapping) and name in metadata_units
-            ) or (isinstance(metadata_units, (list, tuple)) and len(metadata_units) == len(record.signals)) else "caller_declared"
+            unit_source[name] = "caller_declared"
+        elif existing.get(name) is not None and str(existing[name]).strip():
+            units[name] = str(existing[name]).strip()
+            unit_source[name] = "recording_metadata" if name in metadata_names else "caller_declared"
         elif global_unit is not None and str(global_unit).strip():
             units[name] = str(global_unit).strip()
             unit_source[name] = "caller_declared"
