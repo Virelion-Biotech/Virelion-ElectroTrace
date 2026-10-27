@@ -272,6 +272,7 @@ def build_ecg_measurement_bundle(
     beat_annotations: Mapping[Any, Any] | None = None,
     preprocessing_steps: Sequence[Any] | None = None,
     irregular_rr_threshold: float = 0.20,
+    max_template_residual_fraction: float = 0.25,
 ) -> dict[str, Any]:
     """Build a bundle preserving decoded raw samples and each selected beat.
 
@@ -292,6 +293,12 @@ def build_ecg_measurement_bundle(
         raise ValueError("min_beats must be a positive integer")
     if not 0 <= irregular_rr_threshold <= 1:
         raise ValueError("irregular_rr_threshold must be between 0 and 1")
+    if (
+        not np.isfinite(max_template_residual_fraction)
+        or max_template_residual_fraction <= 0
+        or max_template_residual_fraction > 1
+    ):
+        raise ValueError("max_template_residual_fraction must be greater than 0 and at most 1")
 
     observed_source_order = list(record.signals)
     if not observed_source_order:
@@ -590,6 +597,11 @@ def build_ecg_measurement_bundle(
             amplitude = 0.0
         noise = baseline_noise_by_lead.get(name)
         snr = amplitude / max(float(noise or 0.0), np.finfo(float).eps) if len(template_median) else None
+        residual_fraction = (
+            float(template_residual_scale / max(amplitude, np.finfo(float).eps))
+            if template_residual_scale is not None and len(template_median)
+            else None
+        )
         flags = []
         if normalized_units.get(name) is None:
             flags.append("voltage_unit_unknown_or_unrecognized")
@@ -599,10 +611,15 @@ def build_ecg_measurement_bundle(
             flags.append("baseline_noise_not_estimable")
         if noise is not None and amplitude < 5.0 * noise:
             flags.append("low_template_amplitude_relative_to_baseline_noise")
+        if residual_fraction is not None and residual_fraction > max_template_residual_fraction:
+            flags.append("high_template_residual_variability")
         lead_quality[name] = {
             "baseline_noise_sigma_proxy": noise,
             "baseline_noise_method": NOISE_ESTIMATOR_VERSION,
             "beat_to_template_residual_scale": template_residual_scale,
+            "beat_to_template_residual_fraction_of_template_amplitude": residual_fraction,
+            "template_residual_fraction_threshold": float(max_template_residual_fraction),
+            "template_residual_fraction_threshold_validation_status": "heuristic_not_independently_validated",
             "template_peak_to_peak_original_units": amplitude,
             "heuristic_snr_ratio": float(snr) if snr is not None else None,
             "flags": flags,
@@ -694,6 +711,8 @@ def build_ecg_measurement_bundle(
             template_fit_eligibility_reasons.append(f"{lead_name}:baseline_noise_not_estimable")
         if "low_template_amplitude_relative_to_baseline_noise" in flags:
             template_fit_eligibility_reasons.append(f"{lead_name}:low_template_amplitude_relative_to_baseline_noise")
+        if "high_template_residual_variability" in flags:
+            template_fit_eligibility_reasons.append(f"{lead_name}:high_template_residual_variability")
     template_fit_eligible = not template_fit_eligibility_reasons
 
     try:
@@ -821,6 +840,7 @@ def build_ecg_measurement_bundle(
             "detector_settings": {
                 "requested_detector": detector, "polarity": polarity, "scale_method": scale_method,
                 "primary_channel": primary_name, "supplied_r_indices": r_indices is not None,
+                "max_template_residual_fraction": float(max_template_residual_fraction),
             },
             "preprocessing_steps": list(preprocessing_steps or ["none; decoded source values retained unchanged"]),
             "preprocessing_applied_by_bundle_builder": [],
