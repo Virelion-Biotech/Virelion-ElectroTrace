@@ -315,6 +315,8 @@ def build_ecg_measurement_bundle(
     else:
         filter_metadata = {}
 
+    if lead_mapping is not None and not isinstance(lead_mapping, Mapping):
+        raise ValueError("lead_mapping must be a mapping from source labels to output labels")
     declared_mapping = {str(source): str(target).strip() for source, target in (lead_mapping or {}).items()}
     unknown_mapping_sources = sorted(set(declared_mapping) - set(observed_source_order))
     if unknown_mapping_sources:
