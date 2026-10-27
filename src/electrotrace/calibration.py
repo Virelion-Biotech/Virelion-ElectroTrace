@@ -320,7 +320,7 @@ def prepare_ecg_calibration(
             "uri": artifact_path.resolve().as_uri(),
             "sha256": digest,
             "metadata": {
-                "schema_version": CALIBRATION_SCHEMA_VERSION,
+                "schema_version": ECG_MEASUREMENT_SCHEMA_VERSION,
                 "representation": bundle["representation"],
                 "sampling_rate_hz": bundle["sampling_rate_hz"],
                 "recording_duration_s": bundle["acquisition"]["recording_duration_s"],
@@ -405,7 +405,7 @@ def prepare_ecg_calibration(
 
     return {
         "contract_version": "1.0",
-        "schema_version": ECG_MEASUREMENT_SCHEMA_VERSION,
+        "schema_version": CALIBRATION_SCHEMA_VERSION,
         "entity_id": entity_id,
         "observations": [observation],
         "likelihood_hints": hints,
