@@ -314,9 +314,16 @@ def build_ecg_measurement_bundle(
     rr_median = float(np.median(all_rr)) if len(all_rr) else None
     rr_scale = _robust_sigma(all_rr)
     rr_variability_ratio = (float(rr_scale) / rr_median) if rr_scale is not None and rr_median and rr_median > 0 else None
+    has_rr_outlier_interval = bool(
+        rr_median is not None
+        and rr_median > 0
+        and len(all_rr) > 0
+        and np.any(np.abs(all_rr - rr_median) / rr_median > irregular_rr_threshold)
+    )
     rr_pattern = (
         "insufficient_beats" if rr_variability_ratio is None
-        else "regular_rr_pattern" if rr_variability_ratio <= 0.05
+        else "regular_rr_pattern"
+        if rr_variability_ratio <= 0.05 and not has_rr_outlier_interval
         else "variable_rr_pattern"
     )
     rr_outlier_samples: set[int] = set()
