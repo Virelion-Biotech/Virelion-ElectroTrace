@@ -270,7 +270,7 @@ def prepare_ecg_calibration(
         r_indices=params.get("r_indices"),
         pre_s=float(params.get("pre_s", 0.25)),
         post_s=float(params.get("post_s", 0.45)),
-        max_beats=int(params.get("max_beats", 256)),
+        max_beats=int(params["max_beats"]) if params.get("max_beats") is not None else None,
         min_beats=int(params.get("min_beats", 3)),
         source_sha256=source_digest,
         source_uri=params.get("source_uri"),
