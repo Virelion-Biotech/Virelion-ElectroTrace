@@ -75,6 +75,51 @@ def test_v2_preserves_raw_units_beat_distribution_and_is_deterministic():
     assert json.dumps(first, sort_keys=True, allow_nan=False) == json.dumps(second, sort_keys=True, allow_nan=False)
 
 
+def test_explicit_lead_mapping_keeps_source_labels_and_emits_model_order():
+    source = _recording()
+    record = type(source)(
+        time=source.time,
+        signals={"MLII": source.signals["I"], "V1": source.signals["II"]},
+        sampling_rate_hz=source.sampling_rate_hz,
+        source_format=source.source_format,
+        channel_units={"MLII": "mV", "V1": "mV"},
+        metadata=source.metadata,
+    )
+    peaks = [200, 400, 600, 800, 1000, 1200, 1400, 1600]
+    bundle = build_ecg_measurement_bundle(
+        record,
+        primary_channel="MLII",
+        r_indices=peaks,
+        pre_s=0.20,
+        post_s=0.40,
+        source_sha256="b" * 64,
+        patient_id="patient-02",
+        encounter_id="encounter-02",
+        entity_id="case-02",
+        lead_mapping={"MLII": "II"},
+        lead_order=["V1", "II", "V2"],
+        expected_leads=["II", "V1", "V2"],
+    )
+    assert bundle["acquisition"]["lead_names_and_order"] == ["V1", "II"]
+    assert bundle["acquisition"]["lead_mapping"]["mapping_status"] == "caller_declared"
+    assert bundle["acquisition"]["lead_mapping"]["source_to_output_lead"] == {"MLII": "II", "V1": "V1"}
+    assert bundle["acquisition"]["missing_expected_leads"] == ["V2"]
+    assert bundle["raw_measurements"]["source_lead_names_and_order"] == ["MLII", "V1"]
+    assert "MLII" in bundle["raw_measurements"]["samples_by_lead_original_units"]
+    beat = bundle["beat_analysis"]["beats"][0]
+    assert set(beat["waveform_by_lead_original_units"]) == {"II", "V1"}
+    assert bundle["acquisition"]["physical_voltage_unit_by_lead"]["II"] == "mV"
+
+
+def test_invalid_or_non_unique_lead_mapping_fails_closed():
+    record = _recording()
+    peaks = [200, 400, 600, 800, 1000, 1200, 1400, 1600]
+    with pytest.raises(ValueError, match="unknown source leads"):
+        _build(record, peaks, lead_mapping={"III": "III"})
+    with pytest.raises(ValueError, match="duplicate output lead"):
+        _build(record, peaks, lead_mapping={"I": "II"})
+
+
 def test_annotations_are_preserved_and_excluded_from_fit_template():
     record = _recording()
     peaks = [200, 400, 600, 800, 1000, 1200, 1400, 1600]
