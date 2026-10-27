@@ -17,6 +17,7 @@ import numpy as np
 from .detectors import get_detector
 from .io import Recording, load_recording
 from .qrs_delineation import DELINEATOR_VERSION, delineate_qrs
+from .ecg_measurement import ECG_MEASUREMENT_SCHEMA_VERSION, build_ecg_measurement_bundle
 
 CALIBRATION_SCHEMA_VERSION = "electrotrace-ep-calibration-v1"
 SUPPORTED_MAP_KINDS = {"eam_activation", "activation_map", "repolarization_map"}
@@ -259,7 +260,8 @@ def prepare_ecg_calibration(
     params = dict(params or {})
     source = Path(input_path)
     record = load_recording(source)
-    bundle = build_ecg_calibration_bundle(
+    source_digest = _sha256_file(source)
+    bundle = build_ecg_measurement_bundle(
         record,
         primary_channel=params.get("channel", params.get("primary_channel", 0)),
         detector=str(params.get("detector", "stage1")),
@@ -268,12 +270,34 @@ def prepare_ecg_calibration(
         r_indices=params.get("r_indices"),
         pre_s=float(params.get("pre_s", 0.25)),
         post_s=float(params.get("post_s", 0.45)),
-        max_beats=int(params.get("max_beats", 256)),
+        max_beats=int(params["max_beats"]) if params.get("max_beats") is not None else None,
         min_beats=int(params.get("min_beats", 3)),
+        source_sha256=source_digest,
+        source_uri=params.get("source_uri"),
+        source_filename=source.name,
+        source_format=record.source_format,
+        patient_id=params.get("patient_id"),
+        encounter_id=params.get("encounter_id"),
+        entity_id=entity_id,
+        lead_order=params.get("lead_order"),
+        expected_leads=params.get("expected_leads"),
+        lead_mapping=params.get("lead_mapping"),
+        acquisition_metadata={
+            "voltage_unit": params.get("voltage_unit", params.get("units")),
+            "lead_units": params.get("lead_units"),
+            "device_metadata": params.get("device_metadata", {}),
+            "filter_metadata": params.get("filter_metadata", {}),
+            "start_datetime": params.get("start_datetime"),
+            "timezone": params.get("timezone"),
+        },
+        beat_annotations=params.get("beat_annotations"),
+        preprocessing_steps=params.get("preprocessing_steps"),
+        irregular_rr_threshold=float(params.get("irregular_rr_threshold", 0.20)),
+        max_template_residual_fraction=float(params.get("max_template_residual_fraction", 0.25)),
     )
     bundle["source"] = {
         "filename": source.name,
-        "sha256": _sha256_file(source),
+        "sha256": source_digest,
         "source_format": record.source_format,
     }
 
@@ -282,9 +306,11 @@ def prepare_ecg_calibration(
     artifact_path = out_dir / f"{observation_id}.json"
     digest, byte_count = _write_json_artifact(artifact_path, bundle)
 
-    lead_units = {value for value in bundle["lead_units"].values() if value}
+    declared_units = {value for value in bundle["lead_units"].values() if value}
     units = (
-        str(params.get("units")) if params.get("units") else (next(iter(lead_units)) if len(lead_units) == 1 else None)
+        str(params.get("voltage_unit", params.get("units")))
+        if params.get("voltage_unit", params.get("units"))
+        else (next(iter(declared_units)) if len(declared_units) == 1 else None)
     )
     artifact_id = f"electrotrace-{digest[:20]}"
     observation = {
@@ -296,15 +322,17 @@ def prepare_ecg_calibration(
             "uri": artifact_path.resolve().as_uri(),
             "sha256": digest,
             "metadata": {
-                "schema_version": CALIBRATION_SCHEMA_VERSION,
+                "schema_version": ECG_MEASUREMENT_SCHEMA_VERSION,
                 "representation": bundle["representation"],
                 "sampling_rate_hz": bundle["sampling_rate_hz"],
+                "recording_duration_s": bundle["acquisition"]["recording_duration_s"],
                 "lead_names": bundle["lead_names"],
+                "lead_units": bundle["lead_units"],
                 "primary_channel": bundle["primary_channel"],
                 "n_template_beats": bundle["n_template_beats"],
+                "template_fit_eligible": bundle["calibration_recommendation"]["template_fit_eligible"],
                 "qrs": bundle["qrs"],
                 "rr": bundle["rr"],
-                "uncertainty": bundle["uncertainty"],
                 "quality": bundle["quality"],
                 "source_sha256": bundle["source"]["sha256"],
                 "byte_count": byte_count,
@@ -315,39 +343,77 @@ def prepare_ecg_calibration(
         "acquired_at": params.get("acquired_at"),
     }
 
-    hints = [
-        {
-            "term_id": f"{observation_id}:morphology",
-            "observation_id": observation_id,
-            "model_output": "ecg",
-            "discrepancy": "correlation",
-            "weight": float(params.get("ecg_morphology_weight", 1.0)),
-            "noise_parameters": {},
-            "metadata": {
-                "artifact_field": "beat_template",
-                "alignment": "r_peak_relative",
-                "scale_sensitive": False,
-            },
-        }
-    ]
-    qrs_duration = bundle["qrs"].get("median_duration_ms")
-    if qrs_duration is not None:
-        sigma_ms = bundle["qrs"].get("duration_robust_sigma_ms")
+    hints = []
+    suppressed_terms = []
+    if bundle["calibration_recommendation"]["template_fit_eligible"]:
         hints.append(
             {
-                "term_id": f"{observation_id}:qrs_duration",
+                "term_id": f"{observation_id}:morphology",
                 "observation_id": observation_id,
-                "model_output": "qrs_duration_ms",
-                "discrepancy": "gaussian",
-                "weight": float(params.get("qrs_weight", 0.25)),
-                "noise_parameters": {"sigma": max(float(sigma_ms or 0.0), 1.0)},
+                "model_output": "ecg",
+                "discrepancy": "correlation",
+                "weight": float(params.get("ecg_morphology_weight", 1.0)),
+                "noise_parameters": {},
                 "metadata": {
-                    "artifact_field": "qrs.median_duration_ms",
-                    "observed_value_ms": float(qrs_duration),
-                    "noise_unit": "ms",
+                    "artifact_field": "beat_template",
+                    "alignment": "r_peak_relative",
+                    "scale_sensitive": False,
+                    "template_fit_eligible": True,
+                    "fit_beat_ids": bundle["calibration_recommendation"]["fit_beat_ids"],
+                    "quality_status": bundle["quality"]["status"],
+                    "source_sha256": bundle["source"]["sha256"],
                 },
             }
         )
+    else:
+        suppressed_terms.append({
+            "model_output": "ecg",
+            "reason": "measurement_or_rhythm_quality_gate_not_met",
+            "gate_reasons": bundle["calibration_recommendation"]["reasons"],
+        })
+
+    qrs_duration = bundle["qrs"].get("median_duration_ms")
+    qrs_sigma_ms = params.get("qrs_measurement_sigma_ms")
+    if qrs_duration is not None and qrs_sigma_ms is not None:
+        qrs_sigma_ms = float(qrs_sigma_ms)
+        if not np.isfinite(qrs_sigma_ms) or qrs_sigma_ms <= 0:
+            raise ValueError("qrs_measurement_sigma_ms must be positive and finite")
+        sigma_source = str(params.get("qrs_measurement_sigma_source") or "").strip()
+        if not sigma_source:
+            raise ValueError(
+                "qrs_measurement_sigma_source is required when supplying qrs_measurement_sigma_ms; "
+                "beat-to-beat spread is not a substitute for measurement uncertainty"
+            )
+        if bundle["calibration_recommendation"]["template_fit_eligible"]:
+            hints.append(
+                {
+                    "term_id": f"{observation_id}:qrs_duration",
+                    "observation_id": observation_id,
+                    "model_output": "qrs_duration_ms",
+                    "discrepancy": "gaussian",
+                    "weight": float(params.get("qrs_weight", 0.25)),
+                    "noise_parameters": {"sigma": qrs_sigma_ms},
+                    "metadata": {
+                        "artifact_field": "qrs.median_duration_ms",
+                        "observed_value_ms": float(qrs_duration),
+                        "noise_unit": "ms",
+                        "measurement_sigma_source": sigma_source,
+                        "quality_status": bundle["quality"]["status"],
+                        "source_sha256": bundle["source"]["sha256"],
+                    },
+                }
+            )
+        else:
+            suppressed_terms.append({
+                "model_output": "qrs_duration_ms",
+                "reason": "measurement_or_rhythm_quality_gate_not_met",
+                "gate_reasons": bundle["calibration_recommendation"]["reasons"],
+            })
+    elif qrs_duration is not None:
+        suppressed_terms.append({
+            "model_output": "qrs_duration_ms",
+            "reason": "measurement_error_scale_not_independently_calibrated",
+        })
 
     return {
         "contract_version": "1.0",
@@ -359,9 +425,13 @@ def prepare_ecg_calibration(
             "kind": "ecg",
             "artifact_id": artifact_id,
             "artifact_uri": observation["artifact"]["uri"],
+            "schema_version": ECG_MEASUREMENT_SCHEMA_VERSION,
             "n_template_beats": bundle["n_template_beats"],
             "lead_names": bundle["lead_names"],
             "qrs_median_duration_ms": qrs_duration,
+            "quality_status": bundle["quality"]["status"],
+            "acceptance_gate_status": bundle["acceptance_gate"]["status"],
+            "suppressed_likelihood_terms": suppressed_terms,
         },
     }
 

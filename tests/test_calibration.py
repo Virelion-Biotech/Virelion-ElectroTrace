@@ -69,6 +69,10 @@ def test_prepare_calibration_writes_ep_observation_artifact(tmp_path: Path) -> N
             "pre_s": 0.10,
             "post_s": 0.15,
             "units": "mV",
+            "patient_id": "S1",
+            "encounter_id": "S1-ECG-encounter-1",
+            "device_metadata": {"manufacturer": "synthetic", "model": "fixture"},
+            "filter_metadata": {"filtering": "synthetic fixture"},
             "calibration_output_dir": tmp_path / "calibration",
         },
     )

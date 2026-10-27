@@ -1,0 +1,556 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Virelion-Biotech/Virelion-ElectroTrace/blob/main/schemas/ecg-measurement-bundle-v2.schema.json",
+  "title": "ElectroTrace ECGCalibrationBundle v2",
+  "description": "Versioned measurement artifact. Structural validity does not establish clinical validity or calibrated probabilities.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "kind",
+    "acquisition",
+    "raw_measurements",
+    "beat_analysis",
+    "morphology",
+    "measurement_uncertainty",
+    "provenance",
+    "quality",
+    "acceptance_gate",
+    "calibration_recommendation"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "electrotrace-ecg-measurement-v2"
+    },
+    "kind": {
+      "const": "ecg"
+    },
+    "representation": {
+      "type": "string"
+    },
+    "acquisition": {
+      "type": "object",
+      "required": [
+        "sampling_frequency_hz",
+        "physical_voltage_unit_by_lead",
+        "normalized_voltage_unit_by_lead",
+        "unit_provenance_by_lead",
+        "lead_names_and_order",
+        "observed_source_lead_order",
+        "lead_mapping",
+        "recording_duration_s",
+        "patient_id",
+        "encounter_id",
+        "device_metadata",
+        "filter_metadata"
+      ],
+      "properties": {
+        "sampling_frequency_hz": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "sampling_frequency_inferred_from_time_axis_hz": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "sampling_rate_agrees_with_time_axis_within_1_percent": {
+          "type": "boolean"
+        },
+        "physical_voltage_unit_by_lead": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "normalized_voltage_unit_by_lead": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "unit_provenance_by_lead": {
+          "type": "object",
+          "additionalProperties": {
+            "enum": [
+              "recording_metadata",
+              "caller_declared",
+              "unknown"
+            ]
+          }
+        },
+        "lead_names_and_order": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "observed_source_lead_order": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "requested_lead_order": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "lead_mapping": {
+          "type": "object",
+          "required": [
+            "source_to_output_lead",
+            "mapping_status",
+            "caller_mapping"
+          ],
+          "properties": {
+            "source_to_output_lead": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "mapping_status": {
+              "enum": [
+                "caller_declared",
+                "source_labels_used_without_canonical_mapping"
+              ]
+            },
+            "caller_mapping": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": true
+        },
+        "expected_leads": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "missing_expected_leads": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "recording_duration_s": {
+          "type": "number",
+          "minimum": 0
+        },
+        "patient_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "encounter_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "device_metadata": {
+          "type": "object"
+        },
+        "filter_metadata": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    },
+    "raw_measurements": {
+      "type": "object",
+      "required": [
+        "source_reference",
+        "sample_count",
+        "sample_time_s_on_source_time_axis",
+        "source_lead_names_and_order",
+        "samples_by_lead_original_units",
+        "waveform_representation"
+      ],
+      "properties": {
+        "source_reference": {
+          "type": "object",
+          "required": [
+            "sha256",
+            "uri",
+            "uri_kind"
+          ],
+          "properties": {
+            "sha256": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[0-9a-fA-F]{64}$"
+            },
+            "uri": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "uri_kind": {
+              "type": "string"
+            },
+            "filename": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "format": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": true
+        },
+        "sample_count": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "sample_time_s_on_source_time_axis": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "number"
+          }
+        },
+        "source_lead_names_and_order": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "samples_by_lead_original_units": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "waveform_representation": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "beat_analysis": {
+      "type": "object",
+      "required": [
+        "r_peak_timestamps_s_on_source_time_axis",
+        "r_peak_sample_indices",
+        "beats",
+        "rhythm_characterization",
+        "relative_time_s"
+      ],
+      "properties": {
+        "r_peak_timestamps_s_on_source_time_axis": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "r_peak_sample_indices": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "relative_time_s": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "number"
+          }
+        },
+        "beats": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "beat_id",
+              "sample_index",
+              "r_peak_index",
+              "timestamp_s_from_record_start",
+              "waveform_by_lead_original_units",
+              "beat_annotation",
+              "quality",
+              "relative_time_s"
+            ],
+            "properties": {
+              "beat_id": {
+                "type": "string"
+              },
+              "sample_index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "r_peak_index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "timestamp_s_from_record_start": {
+                "type": "number",
+                "minimum": 0
+              },
+              "relative_time_s": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "waveform_by_lead_original_units": {
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "beat_annotation": {
+                "type": "object"
+              },
+              "quality": {
+                "type": "object"
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "rhythm_characterization": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    },
+    "morphology": {
+      "type": "object",
+      "required": [
+        "qrs",
+        "robust_template",
+        "beat_to_beat_variability_by_lead",
+        "p_st_t_measurements"
+      ],
+      "properties": {
+        "qrs": {
+          "type": "object"
+        },
+        "robust_template": {
+          "type": "object",
+          "required": [
+            "samples_by_lead_original_units",
+            "eligible_for_calibration_fit",
+            "template_beat_sample_indices"
+          ],
+          "properties": {
+            "samples_by_lead_original_units": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              }
+            },
+            "eligible_for_calibration_fit": {
+              "type": "boolean"
+            },
+            "template_beat_sample_indices": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            },
+            "status": {
+              "type": "string"
+            }
+          }
+        },
+        "beat_to_beat_variability_by_lead": {
+          "type": "object"
+        },
+        "p_st_t_measurements": {
+          "type": "object",
+          "properties": {
+            "validation_status": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "measurement_uncertainty": {
+      "type": "object",
+      "required": [
+        "baseline_noise_sigma_proxy_by_lead",
+        "baseline_noise_method",
+        "beat_to_template_residual_scale_by_lead",
+        "qrs_segmentation_uncertainty_ms",
+        "qrs_segmentation_uncertainty_status",
+        "independent_adjudication_calibration"
+      ],
+      "properties": {
+        "baseline_noise_sigma_proxy_by_lead": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "baseline_noise_method": {
+          "type": "string"
+        },
+        "beat_to_template_residual_scale_by_lead": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "qrs_segmentation_uncertainty_ms": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "qrs_segmentation_uncertainty_status": {
+          "type": "string"
+        },
+        "independent_adjudication_calibration": {
+          "type": "object",
+          "required": [
+            "status",
+            "required_before_probabilistic_or_clinical_interpretation"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "not_run",
+                "run"
+              ]
+            },
+            "required_before_probabilistic_or_clinical_interpretation": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "algorithm_versions",
+        "detector_settings",
+        "preprocessing_steps",
+        "preprocessing_applied_by_bundle_builder",
+        "rejected_or_omitted_segments",
+        "source_sha256",
+        "deterministic_serialization"
+      ]
+    },
+    "quality": {
+      "type": "object",
+      "required": [
+        "status",
+        "reasons",
+        "lead_quality",
+        "not_a_probability_of_measurement_correctness"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "provisional_pass",
+            "qualified",
+            "rejected"
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "lead_quality": {
+          "type": "object"
+        },
+        "not_a_probability_of_measurement_correctness": {
+          "const": true
+        }
+      }
+    },
+    "acceptance_gate": {
+      "type": "object",
+      "required": [
+        "status",
+        "reason"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "not_demonstrated",
+            "passed",
+            "failed"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "calibration_recommendation": {
+      "type": "object",
+      "required": [
+        "template_fit_eligible",
+        "fit_beat_ids",
+        "excluded_from_template_sample_indices"
+      ],
+      "properties": {
+        "template_fit_eligible": {
+          "type": "boolean"
+        },
+        "fit_beat_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "excluded_from_template_sample_indices": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

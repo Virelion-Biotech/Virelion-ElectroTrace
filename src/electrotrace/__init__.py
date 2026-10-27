@@ -9,6 +9,15 @@ from .calibration import (
     register_map_calibration,
 )
 from .candidate_suppressor import CandidateSuppressor
+from .ecg_measurement import (
+    ECG_MEASUREMENT_SCHEMA_VERSION,
+    ECGCalibrationBundle,
+    apply_uncertainty_calibration_map,
+    build_ecg_measurement_bundle,
+    evaluate_uncertainty_calibration,
+    fit_uncertainty_calibration_map,
+    validate_ecg_measurement_bundle,
+)
 from .io import load_recording
 from .provenance import DatasetManifest, manifest_from_dict
 from .qrs_delineation import delineate_qrs
@@ -21,6 +30,13 @@ __all__ = [
     "__version__",
     "CandidateSuppressor",
     "build_ecg_calibration_bundle",
+    "ECGCalibrationBundle",
+    "ECG_MEASUREMENT_SCHEMA_VERSION",
+    "apply_uncertainty_calibration_map",
+    "build_ecg_measurement_bundle",
+    "evaluate_uncertainty_calibration",
+    "fit_uncertainty_calibration_map",
+    "validate_ecg_measurement_bundle",
     "prepare_calibration",
     "prepare_ecg_calibration",
     "register_map_calibration",
