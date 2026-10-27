@@ -17,6 +17,7 @@ import numpy as np
 from .detectors import get_detector
 from .io import Recording, load_recording
 from .qrs_delineation import DELINEATOR_VERSION, delineate_qrs
+from .ecg_measurement import ECG_MEASUREMENT_SCHEMA_VERSION, build_ecg_measurement_bundle
 
 CALIBRATION_SCHEMA_VERSION = "electrotrace-ep-calibration-v1"
 SUPPORTED_MAP_KINDS = {"eam_activation", "activation_map", "repolarization_map"}
@@ -259,7 +260,8 @@ def prepare_ecg_calibration(
     params = dict(params or {})
     source = Path(input_path)
     record = load_recording(source)
-    bundle = build_ecg_calibration_bundle(
+    source_digest = _sha256_file(source)
+    bundle = build_ecg_measurement_bundle(
         record,
         primary_channel=params.get("channel", params.get("primary_channel", 0)),
         detector=str(params.get("detector", "stage1")),
@@ -270,10 +272,30 @@ def prepare_ecg_calibration(
         post_s=float(params.get("post_s", 0.45)),
         max_beats=int(params.get("max_beats", 256)),
         min_beats=int(params.get("min_beats", 3)),
+        source_sha256=source_digest,
+        source_uri=params.get("source_uri"),
+        source_filename=source.name,
+        source_format=record.source_format,
+        patient_id=params.get("patient_id"),
+        encounter_id=params.get("encounter_id"),
+        entity_id=entity_id,
+        lead_order=params.get("lead_order"),
+        expected_leads=params.get("expected_leads"),
+        acquisition_metadata={
+            "voltage_unit": params.get("voltage_unit", params.get("units")),
+            "lead_units": params.get("lead_units"),
+            "device_metadata": params.get("device_metadata", {}),
+            "filter_metadata": params.get("filter_metadata", {}),
+            "start_datetime": params.get("start_datetime"),
+            "timezone": params.get("timezone"),
+        },
+        beat_annotations=params.get("beat_annotations"),
+        preprocessing_steps=params.get("preprocessing_steps"),
+        irregular_rr_threshold=float(params.get("irregular_rr_threshold", 0.20)),
     )
     bundle["source"] = {
         "filename": source.name,
-        "sha256": _sha256_file(source),
+        "sha256": source_digest,
         "source_format": record.source_format,
     }
 
