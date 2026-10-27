@@ -129,13 +129,19 @@ def test_uncertainty_evaluation_requires_independent_manual_reference():
     with pytest.raises(ValueError, match="independent adjudicated"):
         evaluate_uncertainty_calibration(
             [1.0, 2.0], [1.0, 2.0],
-            adjudication_source="manual-review", independent_reference=False,
+            adjudication_source="manual-review",
+            measurement_unit="ms",
+            subject_ids=["s1", "s2"],
+            encounter_ids=["e1", "e2"],
+            independent_reference=False,
         )
     with pytest.raises(ValueError, match="independent validation/test"):
         evaluate_uncertainty_calibration(
             [1.0, 2.0], [1.0, 2.0],
             adjudication_source="manual-review",
             measurement_unit="ms",
+            subject_ids=["s1", "s2"],
+            encounter_ids=["e1", "e2"],
             reference_split="training",
             independent_reference=True,
         )
