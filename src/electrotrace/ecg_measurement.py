@@ -11,6 +11,7 @@ from typing import Any, Mapping, Sequence, TypedDict
 
 import numpy as np
 from scipy.stats import spearmanr
+from sklearn.isotonic import IsotonicRegression
 
 from .detectors import get_detector
 from .io import Recording
@@ -814,6 +815,82 @@ def validate_ecg_measurement_bundle(bundle: Mapping[str, Any]) -> None:
             waveform = np.asarray(values, dtype=float)
             if waveform.ndim != 1 or not np.isfinite(waveform).all():
                 raise ValueError(f"beat waveform for lead {name!r} must be a finite vector")
+
+
+def fit_uncertainty_calibration_map(
+    predicted_uncertainty: Sequence[float],
+    adjudicated_absolute_error: Sequence[float],
+    *,
+    adjudication_source: str,
+    measurement_unit: str,
+    reference_split: str = "adjudicated_calibration",
+    independent_reference: bool = True,
+    minimum_samples: int = 20,
+) -> dict[str, Any]:
+    """Fit an empirical scale-to-absolute-error mapping on a manual calibration subset.
+
+    Fit this map only on a predeclared adjudicated calibration partition. Evaluate
+    the frozen map on a separate untouched validation/test partition; do not fit
+    and report performance on the same observations.
+    """
+    if not independent_reference:
+        raise ValueError("uncertainty-map fitting requires an independent adjudicated reference subset")
+    if reference_split not in {"adjudicated_calibration", "calibration"}:
+        raise ValueError("fit the uncertainty map only on a declared adjudicated calibration split")
+    if not str(adjudication_source).strip() or not str(measurement_unit).strip():
+        raise ValueError("adjudication_source and measurement_unit are required")
+    if isinstance(minimum_samples, bool) or not isinstance(minimum_samples, int) or minimum_samples < 3:
+        raise ValueError("minimum_samples must be an integer >= 3")
+    predicted = np.asarray(predicted_uncertainty, dtype=float)
+    error = np.asarray(adjudicated_absolute_error, dtype=float)
+    if predicted.ndim != 1 or error.ndim != 1 or len(predicted) != len(error):
+        raise ValueError("predicted uncertainty and adjudicated errors must be paired vectors")
+    if len(predicted) < minimum_samples:
+        raise ValueError(f"need at least {minimum_samples} adjudicated measurements to fit an uncertainty map")
+    if not np.isfinite(predicted).all() or not np.isfinite(error).all() or np.any(predicted < 0) or np.any(error < 0):
+        raise ValueError("uncertainty scales and absolute errors must be finite and nonnegative")
+    if len(np.unique(predicted)) < 2:
+        raise ValueError("at least two distinct predicted uncertainty scales are required")
+
+    model = IsotonicRegression(increasing=True, y_min=0.0, out_of_bounds="clip")
+    model.fit(predicted, error)
+    return {
+        "schema_version": "electrotrace-uncertainty-map-v1",
+        "method": "isotonic_regression_predicted_scale_to_mean_absolute_error",
+        "measurement_unit": str(measurement_unit),
+        "adjudication_source": str(adjudication_source),
+        "reference_split": reference_split,
+        "independent_reference_declared_by_caller": True,
+        "n_training_measurements": int(len(predicted)),
+        "minimum_samples": int(minimum_samples),
+        "x_thresholds": [float(x) for x in model.X_thresholds_],
+        "y_thresholds": [float(y) for y in model.y_thresholds_],
+        "interpretation": "empirical expected absolute measurement-error scale, not a correctness probability or confidence interval",
+        "limitations": [
+            "Patient/encounter separation and adjudicator independence are caller-declared and require an auditable split manifest.",
+            "The map must be frozen before evaluating a separate untouched validation/test set.",
+            "A map is specific to the measurement type, algorithm version, units, and applicable acquisition/rhythm strata.",
+        ],
+    }
+
+
+def apply_uncertainty_calibration_map(
+    predicted_uncertainty: Sequence[float],
+    calibration_map: Mapping[str, Any],
+) -> list[float]:
+    """Apply a frozen empirical uncertainty map to one or more predicted scales."""
+    if calibration_map.get("schema_version") != "electrotrace-uncertainty-map-v1":
+        raise ValueError("unsupported uncertainty calibration-map schema")
+    x = np.asarray(calibration_map.get("x_thresholds", []), dtype=float)
+    y = np.asarray(calibration_map.get("y_thresholds", []), dtype=float)
+    values = np.asarray(predicted_uncertainty, dtype=float)
+    if x.ndim != 1 or y.ndim != 1 or len(x) < 2 or len(x) != len(y):
+        raise ValueError("calibration map must contain at least two paired thresholds")
+    if not np.isfinite(x).all() or not np.isfinite(y).all() or np.any(np.diff(x) < 0) or np.any(np.diff(y) < 0):
+        raise ValueError("calibration-map thresholds must be finite and monotonically nondecreasing")
+    if values.ndim != 1 or not np.isfinite(values).all() or np.any(values < 0):
+        raise ValueError("predicted uncertainty must be a finite nonnegative vector")
+    return [float(v) for v in np.interp(values, x, y, left=y[0], right=y[-1])]
 
 
 def evaluate_uncertainty_calibration(
