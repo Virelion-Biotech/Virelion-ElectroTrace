@@ -255,6 +255,7 @@ def build_ecg_measurement_bundle(
     entity_id: str | None = None,
     lead_order: Sequence[str] | None = None,
     expected_leads: Sequence[str] | None = None,
+    lead_mapping: Mapping[str, str] | None = None,
     acquisition_metadata: Mapping[str, Any] | None = None,
     beat_annotations: Mapping[Any, Any] | None = None,
     preprocessing_steps: Sequence[Any] | None = None,
@@ -280,17 +281,19 @@ def build_ecg_measurement_bundle(
     if not 0 <= irregular_rr_threshold <= 1:
         raise ValueError("irregular_rr_threshold must be between 0 and 1")
 
-    observed_order = list(record.signals)
-    if not observed_order:
+    observed_source_order = list(record.signals)
+    if not observed_source_order:
         raise ValueError("recording must contain at least one ECG lead")
     time = np.asarray(record.time, dtype=float)
-    arrays = {name: np.asarray(record.signals[name], dtype=float) for name in observed_order}
+    source_arrays = {
+        name: np.asarray(record.signals[name], dtype=float) for name in observed_source_order
+    }
     if time.ndim != 1 or len(time) < 2 or not np.isfinite(time).all() or np.any(np.diff(time) <= 0):
         raise ValueError("recording time axis must be finite, one-dimensional, and strictly increasing")
     n_samples = len(time)
-    if any(values.ndim != 1 or len(values) != n_samples for values in arrays.values()):
+    if any(values.ndim != 1 or len(values) != n_samples for values in source_arrays.values()):
         raise ValueError("all ECG leads must be one-dimensional and match the time axis")
-    if any(not np.isfinite(values).all() for values in arrays.values()):
+    if any(not np.isfinite(values).all() for values in source_arrays.values()):
         raise ValueError("raw ECG values must be finite; repair or explicitly reject missing/non-finite segments before bundling")
 
     acquisition = dict(acquisition_metadata or {})
@@ -311,17 +314,43 @@ def build_ecg_measurement_bundle(
         filter_metadata = {"description": str(raw_filter_metadata)}
     else:
         filter_metadata = {}
-    primary_index, primary_name = _resolve_primary_channel(record, primary_channel)
+
+    declared_mapping = {str(source): str(target).strip() for source, target in (lead_mapping or {}).items()}
+    unknown_mapping_sources = sorted(set(declared_mapping) - set(observed_source_order))
+    if unknown_mapping_sources:
+        raise ValueError(f"lead_mapping references unknown source leads: {unknown_mapping_sources}")
+    if any(not source.strip() or not target for source, target in declared_mapping.items()):
+        raise ValueError("lead_mapping source and target labels must be non-empty")
+    source_to_output = {
+        source: declared_mapping.get(source, source) for source in observed_source_order
+    }
+    output_names = list(source_to_output.values())
+    if len(output_names) != len(set(output_names)):
+        raise ValueError("lead_mapping produces duplicate output lead names; mapping must be one-to-one")
+    arrays = {source_to_output[source]: source_arrays[source] for source in observed_source_order}
+    observed_order = list(arrays)
+
+    primary_index, primary_source_name = _resolve_primary_channel(record, primary_channel)
+    primary_name = source_to_output[primary_source_name]
     requested_order = [str(name) for name in (lead_order or observed_order)]
     if len(requested_order) != len(set(requested_order)) or any(not x.strip() for x in requested_order):
         raise ValueError("lead_order must contain unique non-empty lead names")
     ordered_leads = [name for name in requested_order if name in arrays]
     ordered_leads.extend(name for name in observed_order if name not in ordered_leads)
     expected = [str(name) for name in (expected_leads or ())]
-    if len(expected) != len(set(expected)):
-        raise ValueError("expected_leads must be unique")
+    if len(expected) != len(set(expected)) or any(not name.strip() for name in expected):
+        raise ValueError("expected_leads must contain unique non-empty lead names")
     missing_leads = [name for name in expected if name not in arrays]
-    units, unit_sources = _source_units(record, acquisition, ordered_leads)
+
+    source_units, source_unit_sources = _source_units(record, acquisition, observed_source_order)
+    units = {source_to_output[source]: source_units[source] for source in observed_source_order}
+    unit_sources = {source_to_output[source]: source_unit_sources[source] for source in observed_source_order}
+    declared_unit_mapping = acquisition.get("lead_units")
+    if isinstance(declared_unit_mapping, Mapping):
+        for name, unit in declared_unit_mapping.items():
+            if name in units and unit is not None and str(unit).strip():
+                units[name] = str(unit).strip()
+                unit_sources[name] = "caller_declared"
     normalized_units = {name: _normalise_voltage_unit(units.get(name)) for name in ordered_leads}
 
     time_diffs = np.diff(time)
@@ -642,8 +671,13 @@ def build_ecg_measurement_bundle(
             "normalized_voltage_unit_by_lead": normalized_units,
             "unit_provenance_by_lead": unit_sources,
             "lead_names_and_order": ordered_leads,
-            "observed_source_lead_order": observed_order,
+            "observed_source_lead_order": observed_source_order,
             "requested_lead_order": requested_order,
+            "lead_mapping": {
+                "source_to_output_lead": source_to_output,
+                "mapping_status": "caller_declared" if lead_mapping else "source_labels_used_without_canonical_mapping",
+                "caller_mapping": declared_mapping,
+            },
             "expected_leads": expected,
             "missing_expected_leads": missing_leads,
             "primary_lead": {"index_in_original_recording": primary_index, "name": primary_name},
@@ -661,7 +695,10 @@ def build_ecg_measurement_bundle(
             "source_reference": source_reference,
             "sample_count": int(n_samples),
             "sample_time_s_on_source_time_axis": time.astype(float).tolist(),
-            "samples_by_lead_original_units": {name: arrays[name].astype(float).tolist() for name in ordered_leads},
+            "source_lead_names_and_order": observed_source_order,
+            "samples_by_lead_original_units": {
+                name: source_arrays[name].astype(float).tolist() for name in observed_source_order
+            },
             "waveform_representation": "decoded numeric samples without filtering, resampling, normalization, or unit conversion",
         },
         "beat_analysis": {
