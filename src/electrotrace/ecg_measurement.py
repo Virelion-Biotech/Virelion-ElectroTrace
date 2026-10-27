@@ -308,7 +308,7 @@ def build_ecg_measurement_bundle(
         for peak in peaks[~full_window_mask]
     ]
     selected_peaks = complete_peaks
-    if len(selected_peaks) > max_beats:
+    if max_beats is not None and len(selected_peaks) > max_beats:
         chosen = np.unique(np.linspace(0, len(selected_peaks) - 1, max_beats).round().astype(int))
         chosen_peaks = selected_peaks[chosen]
         selected_set = set(map(int, chosen_peaks))
