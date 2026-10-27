@@ -834,7 +834,7 @@ def build_ecg_measurement_bundle(
             "reasons": template_fit_eligibility_reasons,
             "fit_beat_ids": [f"beat-{int(p):08d}" for p in template_peaks] if template_fit_eligible else [],
             "excluded_from_template_sample_indices": [int(p) for p in selected_peaks if int(p) not in set(template_peaks)],
-            "reason": "stable beat subset is retained separately; confirm units, lead mapping, linkage, and rhythm suitability before fitting",
+            "reason": "the explicit measurement/rhythm gate controls automatic fitting; any eligible artifact still requires independent acceptance validation",
         },
         "acceptance_gate": {
             "status": "not_demonstrated",
