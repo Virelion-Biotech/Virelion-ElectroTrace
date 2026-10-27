@@ -140,6 +140,34 @@ def test_annotations_are_preserved_and_excluded_from_fit_template():
     assert len(bundle["beat_analysis"]["beats"]) == len(peaks)
 
 
+@pytest.mark.parametrize(
+    "peaks, message",
+    [
+        ([200, 400, 400, 800], "must not contain duplicates"),
+        ([200, 400.5, 800], "must be integer sample indices"),
+        ([200, 400, 2000], "lies outside the recording"),
+    ],
+)
+def test_invalid_supplied_r_peak_indices_fail_closed(peaks, message):
+    record = _recording()
+    with pytest.raises(ValueError, match=message):
+        _build(record, peaks)
+
+
+def test_automated_detection_rejects_irregular_sample_time_axis():
+    record = _recording()
+    record.time[400] += 0.025
+    with pytest.raises(ValueError, match="automated R-peak detection requires"):
+        build_ecg_measurement_bundle(
+            record,
+            primary_channel="I",
+            source_sha256="c" * 64,
+            patient_id="patient-03",
+            encounter_id="encounter-03",
+            entity_id="case-03",
+        )
+
+
 def test_noisy_unknown_units_missing_lead_and_irregular_rhythm_are_qualified():
     peaks = [200, 400, 600, 900, 1100, 1300, 1500, 1700]
     record = _recording(noise=0.8, peaks=peaks, units=False)
