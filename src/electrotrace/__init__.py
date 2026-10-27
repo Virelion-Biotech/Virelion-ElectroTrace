@@ -9,6 +9,7 @@ from .calibration import (
     register_map_calibration,
 )
 from .ecg_measurement import (
+    ECGCalibrationBundle,
     ECG_MEASUREMENT_SCHEMA_VERSION,
     build_ecg_measurement_bundle,
     evaluate_uncertainty_calibration,
@@ -27,6 +28,7 @@ __all__ = [
     "__version__",
     "CandidateSuppressor",
     "build_ecg_calibration_bundle",
+    "ECGCalibrationBundle",
     "ECG_MEASUREMENT_SCHEMA_VERSION",
     "build_ecg_measurement_bundle",
     "evaluate_uncertainty_calibration",
