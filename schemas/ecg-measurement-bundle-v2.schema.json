@@ -1,0 +1,240 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Virelion-Biotech/Virelion-ElectroTrace/blob/main/schemas/ecg-measurement-bundle-v2.schema.json",
+  "title": "ElectroTrace ECG Measurement Bundle v2",
+  "description": "Versioned measurement artifact. Structural validity does not establish clinical validity or calibrated probabilities.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "kind",
+    "acquisition",
+    "raw_measurements",
+    "beat_analysis",
+    "morphology",
+    "measurement_uncertainty",
+    "provenance",
+    "quality",
+    "acceptance_gate"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "electrotrace-ecg-measurement-v2"
+    },
+    "kind": {
+      "const": "ecg"
+    },
+    "representation": {
+      "type": "string"
+    },
+    "acquisition": {
+      "type": "object",
+      "required": [
+        "sampling_frequency_hz",
+        "physical_voltage_unit_by_lead",
+        "lead_names_and_order",
+        "recording_duration_s",
+        "patient_id",
+        "encounter_id"
+      ],
+      "properties": {
+        "sampling_frequency_hz": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "physical_voltage_unit_by_lead": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "lead_names_and_order": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "recording_duration_s": {
+          "type": "number",
+          "minimum": 0
+        },
+        "patient_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "encounter_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "missing_expected_leads": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "raw_measurements": {
+      "type": "object",
+      "required": [
+        "source_reference",
+        "sample_count",
+        "sample_time_s_on_source_time_axis",
+        "samples_by_lead_original_units",
+        "waveform_representation"
+      ],
+      "properties": {
+        "source_reference": {
+          "type": "object",
+          "required": [
+            "sha256",
+            "uri"
+          ],
+          "properties": {
+            "sha256": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "uri": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": true
+        },
+        "sample_count": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "sample_time_s_on_source_time_axis": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "number"
+          }
+        },
+        "samples_by_lead_original_units": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "waveform_representation": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "beat_analysis": {
+      "type": "object",
+      "required": [
+        "r_peak_timestamps_s_on_source_time_axis",
+        "r_peak_sample_indices",
+        "beats",
+        "rhythm_characterization"
+      ],
+      "properties": {
+        "r_peak_timestamps_s_on_source_time_axis": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "r_peak_sample_indices": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "beats": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "beat_id",
+              "sample_index",
+              "waveform_by_lead_original_units",
+              "beat_annotation",
+              "quality"
+            ],
+            "additionalProperties": true
+          }
+        },
+        "rhythm_characterization": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    },
+    "morphology": {
+      "type": "object",
+      "required": [
+        "qrs",
+        "robust_template",
+        "beat_to_beat_variability_by_lead",
+        "p_st_t_measurements"
+      ],
+      "properties": {
+        "qrs": {
+          "type": "object"
+        },
+        "robust_template": {
+          "type": "object",
+          "required": [
+            "samples_by_lead_original_units",
+            "eligible_for_calibration_fit"
+          ]
+        },
+        "beat_to_beat_variability_by_lead": {
+          "type": "object"
+        },
+        "p_st_t_measurements": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    },
+    "measurement_uncertainty": {
+      "type": "object"
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "algorithm_versions",
+        "preprocessing_steps",
+        "source_sha256"
+      ]
+    },
+    "quality": {
+      "type": "object",
+      "required": [
+        "status",
+        "reasons",
+        "not_a_probability_of_measurement_correctness"
+      ]
+    },
+    "acceptance_gate": {
+      "type": "object",
+      "required": [
+        "status",
+        "reason"
+      ]
+    }
+  },
+  "additionalProperties": true
+}
