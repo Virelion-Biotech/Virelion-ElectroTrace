@@ -1,11 +1,12 @@
-# ECG measurement bundle v2
+# ECGCalibrationBundle v2
 
 **Schema:** `electrotrace-ecg-measurement-v2`  
+**Default retention:** every complete beat window is retained; `max_beats` is an optional explicit cap. When set, omitted beats are listed in provenance.  
 **Machine-readable schema:** [`schemas/ecg-measurement-bundle-v2.schema.json`](../schemas/ecg-measurement-bundle-v2.schema.json)
 
 ## Purpose
 
-The ECG measurement artifact is now designed to preserve the observed recording and the beat distribution, not only a pointwise median beat. The existing `build_ecg_calibration_bundle` remains available as the legacy `electrotrace-ep-calibration-v1` builder. The `prepare_ecg_calibration` path emits the v2 artifact and retains flat compatibility fields (including `beat_template`, `lead_names`, `qrs`, and `rr`) for existing handoff consumers.
+The `ECGCalibrationBundle` ECG measurement artifact is now designed to preserve the observed recording and the beat distribution, not only a pointwise median beat. The existing `build_ecg_calibration_bundle` remains available as the legacy `electrotrace-ep-calibration-v1` builder. The `prepare_ecg_calibration` path emits the v2 artifact and retains flat compatibility fields (including `beat_template`, `lead_names`, `qrs`, and `rr`) for existing handoff consumers.
 
 The builder performs **no filtering, resampling, normalization, or voltage conversion**. The source-file SHA-256 identifies the original file bytes; the raw numeric arrays preserve the values decoded by the current loader. A source hash does not prove that the device labels or declared voltage units are correct, so unit provenance is stored separately.
 
@@ -58,7 +59,7 @@ When too few stable beats remain, the bundle may retain a descriptive median of 
 
 The baseline noise and template residual estimates are scales, not calibrated error probabilities. Template residuals can include real beat-to-beat physiological differences; they must not automatically be interpreted as electronic noise or measurement error. The current QRS delineator does not produce a validated uncertainty interval.
 
-`evaluate_uncertainty_calibration` accepts paired predicted uncertainty scales and absolute measurement errors from an independently adjudicated validation/test subset. It reports an equal-count empirical scale-to-error curve, Spearman association, and a binned median-scale/median-error difference. It rejects training-set references and caller-declared non-independent references. Independence and patient/encounter separation still require an auditable protocol outside this utility. The metrics are empirical calibration diagnostics—not probabilities of correctness.
+`fit_uncertainty_calibration_map` fits a monotonic empirical scale-to-absolute-error map on a dedicated adjudicated calibration split. `apply_uncertainty_calibration_map` applies the frozen map. `evaluate_uncertainty_calibration` then accepts paired predicted uncertainty scales and absolute measurement errors from a separate independently adjudicated validation/test subset. All require an explicit measurement unit, adjudication source, subject and encounter identifiers, and `independent_reference=True`; at least three distinct subjects and encounters are required. It reports an equal-count empirical scale-to-error curve, Spearman association, and a binned median-scale/median-error difference. It rejects training-set references and caller-declared non-independent references. Independence and patient/encounter separation still require an auditable protocol outside this utility. The metrics are empirical calibration diagnostics—not probabilities of correctness.
 
 Example:
 
@@ -69,6 +70,10 @@ report = evaluate_uncertainty_calibration(
     predicted_uncertainty=[...],
     adjudicated_absolute_error=[...],
     adjudication_source="frozen-manual-review-v1",
+    measurement_unit="ms",
+    subject_ids=[...],      # one ID per measurement; independent split required
+    encounter_ids=[...],    # one ID per measurement
+    independent_reference=True,
     reference_split="independent_test",
 )
 ```
