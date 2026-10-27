@@ -57,7 +57,7 @@ If the loaded file uses aliases rather than the model's expected lead labels, pa
 
 All selected beat waveforms remain in `beat_analysis.beats`, even when the template excludes a beat. The template candidate set excludes beats explicitly annotated as ectopic or paced and beats flagged by a simple RR-outlier screen. The threshold is configurable. This screen is only a conservative heuristic: it is **not** an ectopy detector or rhythm diagnosis.
 
-When too few stable beats remain, the bundle may retain a descriptive median of available beats, but marks it `descriptive_only_not_recommended_for_fit` and suppresses the ECG morphology likelihood hint. A valid-looking template is not evidence that multiple rhythms or conduction states can safely share one template.
+When too few stable beats remain, the bundle may retain a descriptive median of available beats, but marks it `descriptive_only_not_recommended_for_fit` and suppresses the ECG morphology likelihood hint. Automatic fitting is also suppressed when the RR screen is variable, units are unknown, the timebase is mismatched/irregular, expected leads are missing, source hash or patient/encounter linkage is missing, device/filter metadata is absent, or a lead-quality scale is not estimable/indicates very low amplitude relative to its noise proxy. The exact blockers are listed in `calibration_recommendation.reasons`. Caller-declared units remain marked as unverified. A valid-looking template is not evidence that multiple rhythms or conduction states can safely share one template.
 
 ## Uncertainty estimates and independent adjudication
 
