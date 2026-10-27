@@ -88,8 +88,20 @@ def _detect_peaks(
     supplied: Sequence[int] | None,
 ) -> tuple[np.ndarray, dict[str, Any]]:
     if supplied is not None:
-        raw = np.asarray(list(supplied), dtype=int)
-        peaks = np.unique(raw[(raw >= 0) & (raw < len(signal))])
+        try:
+            raw_values = np.asarray(list(supplied), dtype=float)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("supplied R-peak indices must be integer sample indices") from exc
+        if raw_values.ndim != 1 or len(raw_values) == 0 or not np.isfinite(raw_values).all():
+            raise ValueError("supplied R-peak indices must be a non-empty finite vector")
+        if np.any(raw_values != np.floor(raw_values)):
+            raise ValueError("supplied R-peak indices must be integer sample indices")
+        raw = raw_values.astype(int)
+        if np.any(raw < 0) or np.any(raw >= len(signal)):
+            raise ValueError("supplied R-peak index lies outside the recording")
+        if len(np.unique(raw)) != len(raw):
+            raise ValueError("supplied R-peak indices must not contain duplicates")
+        peaks = np.sort(raw)
         return peaks, {
             "name": "supplied",
             "version": "caller-supplied",
@@ -364,6 +376,11 @@ def build_ecg_measurement_bundle(
     irregular_sampling_fraction = float(np.mean(interval_relative_deviation > 0.01))
     irregular_sampling = irregular_sampling_fraction > 0.01
 
+    if r_indices is None and (not sampling_rate_agrees or irregular_sampling):
+        raise ValueError(
+            "automated R-peak detection requires a sampling rate consistent with a near-uniform time axis; "
+            "supply trusted sample indices or explicitly resample a separate analysis copy"
+        )
     peaks, detector_meta = _detect_peaks(
         arrays[primary_name], fs, detector=detector, polarity=polarity,
         scale_method=scale_method, supplied=r_indices
@@ -499,7 +516,7 @@ def build_ecg_measurement_bundle(
         else:
             onset = int(boundary.onset)
             offset = int(boundary.offset)
-            duration_ms = float((offset - onset) * 1000.0 / fs)
+            duration_ms = float((time[offset] - time[onset]) * 1000.0)
             qrs = {
                 "algorithm": DELINEATOR_VERSION,
                 "onset_sample_index": onset, "offset_sample_index": offset,
@@ -598,8 +615,8 @@ def build_ecg_measurement_bundle(
             peak = int(beat["r_peak_index"])
             qrs_rows.append({
                 "beat_id": beat["beat_id"],
-                "onset_relative_ms": float((qrs["onset_sample_index"] - peak) * 1000.0 / fs),
-                "offset_relative_ms": float((qrs["offset_sample_index"] - peak) * 1000.0 / fs),
+                "onset_relative_ms": float((time[qrs["onset_sample_index"]] - time[peak]) * 1000.0),
+                "offset_relative_ms": float((time[qrs["offset_sample_index"]] - time[peak]) * 1000.0),
                 "duration_ms": float(qrs["duration_ms"]),
             })
     qrs_durations = np.asarray([row["duration_ms"] for row in qrs_rows], dtype=float)
