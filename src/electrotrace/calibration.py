@@ -304,9 +304,11 @@ def prepare_ecg_calibration(
     artifact_path = out_dir / f"{observation_id}.json"
     digest, byte_count = _write_json_artifact(artifact_path, bundle)
 
-    lead_units = {value for value in bundle["lead_units"].values() if value}
+    declared_units = {value for value in bundle["lead_units"].values() if value}
     units = (
-        str(params.get("units")) if params.get("units") else (next(iter(lead_units)) if len(lead_units) == 1 else None)
+        str(params.get("voltage_unit", params.get("units")))
+        if params.get("voltage_unit", params.get("units"))
+        else (next(iter(declared_units)) if len(declared_units) == 1 else None)
     )
     artifact_id = f"electrotrace-{digest[:20]}"
     observation = {
@@ -318,15 +320,17 @@ def prepare_ecg_calibration(
             "uri": artifact_path.resolve().as_uri(),
             "sha256": digest,
             "metadata": {
-                "schema_version": CALIBRATION_SCHEMA_VERSION,
+                "schema_version": ECG_MEASUREMENT_SCHEMA_VERSION,
                 "representation": bundle["representation"],
                 "sampling_rate_hz": bundle["sampling_rate_hz"],
+                "recording_duration_s": bundle["acquisition"]["recording_duration_s"],
                 "lead_names": bundle["lead_names"],
+                "lead_units": bundle["lead_units"],
                 "primary_channel": bundle["primary_channel"],
                 "n_template_beats": bundle["n_template_beats"],
+                "template_fit_eligible": bundle["calibration_recommendation"]["template_fit_eligible"],
                 "qrs": bundle["qrs"],
                 "rr": bundle["rr"],
-                "uncertainty": bundle["uncertainty"],
                 "quality": bundle["quality"],
                 "source_sha256": bundle["source"]["sha256"],
                 "byte_count": byte_count,
@@ -337,24 +341,46 @@ def prepare_ecg_calibration(
         "acquired_at": params.get("acquired_at"),
     }
 
-    hints = [
-        {
-            "term_id": f"{observation_id}:morphology",
-            "observation_id": observation_id,
+    hints = []
+    suppressed_terms = []
+    if bundle["calibration_recommendation"]["template_fit_eligible"]:
+        hints.append(
+            {
+                "term_id": f"{observation_id}:morphology",
+                "observation_id": observation_id,
+                "model_output": "ecg",
+                "discrepancy": "correlation",
+                "weight": float(params.get("ecg_morphology_weight", 1.0)),
+                "noise_parameters": {},
+                "metadata": {
+                    "artifact_field": "beat_template",
+                    "alignment": "r_peak_relative",
+                    "scale_sensitive": False,
+                    "template_fit_eligible": True,
+                    "fit_beat_ids": bundle["calibration_recommendation"]["fit_beat_ids"],
+                    "quality_status": bundle["quality"]["status"],
+                    "source_sha256": bundle["source"]["sha256"],
+                },
+            }
+        )
+    else:
+        suppressed_terms.append({
             "model_output": "ecg",
-            "discrepancy": "correlation",
-            "weight": float(params.get("ecg_morphology_weight", 1.0)),
-            "noise_parameters": {},
-            "metadata": {
-                "artifact_field": "beat_template",
-                "alignment": "r_peak_relative",
-                "scale_sensitive": False,
-            },
-        }
-    ]
+            "reason": "no_stable_template_meets_the_configured_minimum_beat_gate",
+        })
+
     qrs_duration = bundle["qrs"].get("median_duration_ms")
-    if qrs_duration is not None:
-        sigma_ms = bundle["qrs"].get("duration_robust_sigma_ms")
+    qrs_sigma_ms = params.get("qrs_measurement_sigma_ms")
+    if qrs_duration is not None and qrs_sigma_ms is not None:
+        qrs_sigma_ms = float(qrs_sigma_ms)
+        if not np.isfinite(qrs_sigma_ms) or qrs_sigma_ms <= 0:
+            raise ValueError("qrs_measurement_sigma_ms must be positive and finite")
+        sigma_source = str(params.get("qrs_measurement_sigma_source") or "").strip()
+        if not sigma_source:
+            raise ValueError(
+                "qrs_measurement_sigma_source is required when supplying qrs_measurement_sigma_ms; "
+                "beat-to-beat spread is not a substitute for measurement uncertainty"
+            )
         hints.append(
             {
                 "term_id": f"{observation_id}:qrs_duration",
@@ -362,18 +388,24 @@ def prepare_ecg_calibration(
                 "model_output": "qrs_duration_ms",
                 "discrepancy": "gaussian",
                 "weight": float(params.get("qrs_weight", 0.25)),
-                "noise_parameters": {"sigma": max(float(sigma_ms or 0.0), 1.0)},
+                "noise_parameters": {"sigma": qrs_sigma_ms},
                 "metadata": {
                     "artifact_field": "qrs.median_duration_ms",
                     "observed_value_ms": float(qrs_duration),
                     "noise_unit": "ms",
+                    "measurement_sigma_source": sigma_source,
                 },
             }
         )
+    elif qrs_duration is not None:
+        suppressed_terms.append({
+            "model_output": "qrs_duration_ms",
+            "reason": "measurement_error_scale_not_independently_calibrated",
+        })
 
     return {
         "contract_version": "1.0",
-        "schema_version": CALIBRATION_SCHEMA_VERSION,
+        "schema_version": ECG_MEASUREMENT_SCHEMA_VERSION,
         "entity_id": entity_id,
         "observations": [observation],
         "likelihood_hints": hints,
@@ -381,9 +413,13 @@ def prepare_ecg_calibration(
             "kind": "ecg",
             "artifact_id": artifact_id,
             "artifact_uri": observation["artifact"]["uri"],
+            "schema_version": ECG_MEASUREMENT_SCHEMA_VERSION,
             "n_template_beats": bundle["n_template_beats"],
             "lead_names": bundle["lead_names"],
             "qrs_median_duration_ms": qrs_duration,
+            "quality_status": bundle["quality"]["status"],
+            "acceptance_gate_status": bundle["acceptance_gate"]["status"],
+            "suppressed_likelihood_terms": suppressed_terms,
         },
     }
 
