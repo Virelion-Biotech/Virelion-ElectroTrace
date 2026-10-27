@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Versioned `ECGCalibrationBundle` v2 for patient-calibration measurement artifacts, preserving decoded raw waveforms, source-byte SHA-256, acquisition and lead/unit provenance, R-peak times, per-beat multi-lead waveforms, rhythm screening, per-beat QRS measurements, robust templates, and beat-to-beat variability.
+- Structural validation, machine-readable JSON Schema, deterministic artifact tests, and explicit acceptance-gate status. The implementation leaves the frozen independent-adjudication gate `not_demonstrated` until that corpus is executed.
+- Independent-adjudication uncertainty-map fitting/application and held-out scale-to-error evaluation utilities, with units, subject/encounter identifiers, split labels, and explicit non-probabilistic interpretation.
+
+### Changed
+- The HeartTwin calibration handoff envelope remains on its existing v1 contract for compatibility while the linked artifact is explicitly marked v2.
+- ECG likelihood hints are withheld when a stable template is ineligible. QRS measurement likelihoods require a separately supplied measurement-error scale and provenance; beat-to-beat spread is not silently treated as measurement error.
+- All complete beat windows are retained by default. Capping the number of exported beats requires an explicit `max_beats` value.
+
+### Evidence boundary
+- These are measurement-layer and software-contract improvements. They do not demonstrate passing the independent, manually adjudicated frozen acceptance set or establish clinical accuracy, patient-specific forward-model validity, or clinical readiness.
+
 ## 1.10.0 — 2026-10-06
 
 ### Added
