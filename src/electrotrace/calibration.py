@@ -281,6 +281,7 @@ def prepare_ecg_calibration(
         entity_id=entity_id,
         lead_order=params.get("lead_order"),
         expected_leads=params.get("expected_leads"),
+        lead_mapping=params.get("lead_mapping"),
         acquisition_metadata={
             "voltage_unit": params.get("voltage_unit", params.get("units")),
             "lead_units": params.get("lead_units"),
