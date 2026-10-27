@@ -540,9 +540,10 @@ def build_ecg_measurement_bundle(
         if ectopic is True or paced is True or int(peak) in rr_outlier_samples:
             continue
         template_candidates.append(int(peak))
-    template_eligible = len(template_candidates) >= min_beats
-    # When the stable subset is too small, keep a descriptive median but prohibit automatic fitting.
-    template_peaks = template_candidates if template_eligible else list(map(int, selected_peaks))
+    stable_subset_sufficient = len(template_candidates) >= min_beats
+    # Prefer the screened stable subset. If there are too few candidates, retain an all-beat
+    # descriptive median but prohibit automatic fitting.
+    template_peaks = template_candidates if stable_subset_sufficient else list(map(int, selected_peaks))
     template: dict[str, list[float]] = {}
     beat_to_beat_variability: dict[str, dict[str, Any]] = {}
     residual_sigma_by_lead: dict[str, float | None] = {}
@@ -656,11 +657,44 @@ def build_ecg_measurement_bundle(
         reasons.append("expected_leads_missing")
     if rr_pattern == "variable_rr_pattern":
         reasons.append("variable_rr_pattern_requires_rhythm_aware_fit_selection")
-    if not template_eligible:
+    if not stable_subset_sufficient:
         reasons.append("insufficient_stable_beats_for_a_calibration_template")
     if any(lead_quality[name]["flags"] for name in ordered_leads):
         reasons.append("one_or_more_lead_quality_flags")
     status = "rejected" if len(selected_peaks) < min_beats else "qualified" if reasons else "provisional_pass"
+
+    template_fit_eligibility_reasons: list[str] = []
+    if len(selected_peaks) < min_beats:
+        template_fit_eligibility_reasons.append("fewer_than_minimum_complete_beats")
+    if not stable_subset_sufficient:
+        template_fit_eligibility_reasons.append("insufficient_stable_beats_for_a_calibration_template")
+    if rr_pattern == "variable_rr_pattern":
+        template_fit_eligibility_reasons.append("variable_rr_pattern_requires_rhythm_aware_fit_selection")
+    if any(normalized_units.get(name) is None for name in ordered_leads):
+        template_fit_eligibility_reasons.append("one_or_more_voltage_units_unknown_or_unrecognized")
+    if not sampling_rate_agrees:
+        template_fit_eligibility_reasons.append("sampling_rate_disagrees_with_time_axis")
+    if irregular_sampling:
+        template_fit_eligibility_reasons.append("irregular_sampling_intervals")
+    if missing_leads:
+        template_fit_eligibility_reasons.append("expected_leads_missing")
+    if not source_sha256 or len(str(source_sha256)) != 64:
+        template_fit_eligibility_reasons.append("missing_or_invalid_immutable_source_sha256")
+    if not patient_id:
+        template_fit_eligibility_reasons.append("patient_linkage_missing")
+    if not encounter_id:
+        template_fit_eligibility_reasons.append("encounter_linkage_missing")
+    if not device_metadata:
+        template_fit_eligibility_reasons.append("device_metadata_missing")
+    if not filter_metadata:
+        template_fit_eligibility_reasons.append("filter_metadata_missing")
+    for lead_name in ordered_leads:
+        flags = lead_quality[lead_name]["flags"]
+        if "baseline_noise_not_estimable" in flags:
+            template_fit_eligibility_reasons.append(f"{lead_name}:baseline_noise_not_estimable")
+        if "low_template_amplitude_relative_to_baseline_noise" in flags:
+            template_fit_eligibility_reasons.append(f"{lead_name}:low_template_amplitude_relative_to_baseline_noise")
+    template_fit_eligible = not template_fit_eligibility_reasons
 
     try:
         package_version = version("electrotrace")
@@ -749,9 +783,9 @@ def build_ecg_measurement_bundle(
                 "aggregation": "pointwise_median", "relative_time_s": relative_time,
                 "samples_by_lead_original_units": template, "n_template_beats": int(len(template_peaks)),
                 "template_beat_sample_indices": [int(p) for p in template_peaks],
-                "eligible_for_calibration_fit": bool(template_eligible),
-                "eligibility_rule": "exclude adjudicated ectopic/paced beats and RR-outlier-screened beats, then require minimum beat count",
-                "status": "eligible" if template_eligible else "descriptive_only_not_recommended_for_fit",
+                "eligible_for_calibration_fit": bool(template_fit_eligible),
+                "eligibility_rule": "exclude adjudicated ectopic/paced beats and RR-outlier-screened beats; require enough stable beats, a non-variable RR screen, known units, aligned sampling, expected leads, source hash, patient/encounter linkage, device/filter metadata, and estimable lead quality",
+                "status": "eligible" if template_fit_eligible else "descriptive_only_not_recommended_for_fit",
             },
             "beat_to_beat_variability_by_lead": beat_to_beat_variability,
             "p_st_t_measurements": {
@@ -796,8 +830,9 @@ def build_ecg_measurement_bundle(
             "deterministic_serialization": "JSON sorted keys; no generation timestamp included",
         },
         "calibration_recommendation": {
-            "template_fit_eligible": bool(template_eligible and len(selected_peaks) >= min_beats),
-            "fit_beat_ids": [f"beat-{int(p):08d}" for p in template_peaks] if template_eligible else [],
+            "template_fit_eligible": bool(template_fit_eligible),
+            "reasons": template_fit_eligibility_reasons,
+            "fit_beat_ids": [f"beat-{int(p):08d}" for p in template_peaks] if template_fit_eligible else [],
             "excluded_from_template_sample_indices": [int(p) for p in selected_peaks if int(p) not in set(template_peaks)],
             "reason": "stable beat subset is retained separately; confirm units, lead mapping, linkage, and rhythm suitability before fitting",
         },
