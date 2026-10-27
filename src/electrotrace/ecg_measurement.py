@@ -897,7 +897,7 @@ def apply_uncertainty_calibration_map(
     y = np.asarray(calibration_map.get("y_thresholds", []), dtype=float)
     values = np.asarray(predicted_uncertainty, dtype=float)
     if x.ndim != 1 or y.ndim != 1 or len(x) < 1 or len(x) != len(y):
-        raise ValueError("calibration map must contain at least two paired thresholds")
+        raise ValueError("calibration map must contain paired thresholds")
     if not np.isfinite(x).all() or not np.isfinite(y).all() or np.any(np.diff(x) < 0) or np.any(np.diff(y) < 0):
         raise ValueError("calibration-map thresholds must be finite and monotonically nondecreasing")
     if values.ndim != 1 or not np.isfinite(values).all() or np.any(values < 0):
@@ -910,6 +910,7 @@ def evaluate_uncertainty_calibration(
     adjudicated_absolute_error: Sequence[float],
     *,
     adjudication_source: str,
+    measurement_unit: str,
     subject_ids: Sequence[str],
     encounter_ids: Sequence[str],
     reference_split: str = "independent_test",
@@ -927,8 +928,8 @@ def evaluate_uncertainty_calibration(
         raise ValueError("uncertainty calibration requires an independent adjudicated reference subset")
     if reference_split not in {"independent_test", "test", "validation"}:
         raise ValueError("reference_split must identify an independent validation/test subset")
-    if not str(adjudication_source).strip():
-        raise ValueError("adjudication_source must identify the independent annotation source")
+    if not str(adjudication_source).strip() or not str(measurement_unit).strip():
+        raise ValueError("adjudication_source and measurement_unit must identify the independent annotation source and error units")
     if isinstance(bins, bool) or not isinstance(bins, int) or bins < 2 or isinstance(minimum_samples, bool) or not isinstance(minimum_samples, int) or minimum_samples < 2:
         raise ValueError("bins and minimum_samples must be integers >= 2")
     predicted = np.asarray(predicted_uncertainty, dtype=float)
@@ -971,7 +972,8 @@ def evaluate_uncertainty_calibration(
         "status": "empirical_reference_available" if len(predicted) >= minimum_samples else "insufficient_reference_data",
         "n_measurements": int(len(predicted)), "minimum_samples_for_status": int(minimum_samples),
         "n_distinct_subjects": int(len(set(subjects))), "n_distinct_encounters": int(len(set(encounters))),
-        "adjudication_source": str(adjudication_source), "reference_split": reference_split,
+        "adjudication_source": str(adjudication_source), "measurement_unit": str(measurement_unit),
+        "reference_split": reference_split,
         "independent_reference_declared_by_caller": True,
         "spearman_scale_error_correlation": corr,
         "binned_median_scale_absolute_error_difference": binned_scale_mae,
