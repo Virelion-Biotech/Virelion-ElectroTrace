@@ -156,7 +156,7 @@ def test_invalid_supplied_r_peak_indices_fail_closed(peaks, message):
 
 def test_automated_detection_rejects_irregular_sample_time_axis():
     record = _recording()
-    record.time[400] += 0.025
+    record.time[400] += 0.001
     with pytest.raises(ValueError, match="automated R-peak detection requires"):
         build_ecg_measurement_bundle(
             record,
