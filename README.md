@@ -179,11 +179,11 @@ electrotrace calibration prepare recording.csv \
   -o calibration-handoff.json
 ```
 
-The ECG handoff contains an aligned multi-lead median-beat template, R-relative timing, QRS delineation summary, robust residual-noise estimates, lead-quality metadata, source SHA-256, and a typed artifact reference. HeartTwin exposes the same path as `electrical.prepare_calibration`.
+The ECG handoff now writes the versioned `electrotrace-ecg-measurement-v2` artifact. It preserves the decoded raw waveform and original-unit values, source-file SHA-256, acquisition/device/filter declarations, lead names and order, all detected R-peak timestamps, selected beat-specific multi-lead waveforms, ectopic/paced annotations when supplied, RR/rhythm screening, QRS measurements, beat-to-beat variability, and a robust template with an explicit fit-eligibility gate. The flat v1 fields remain as a compatibility layer for existing handoff consumers. HeartTwin exposes the same path as `electrical.prepare_calibration`.
 
-Pre-aligned EAM activation, activation-map, and repolarization-map files can also be registered as calibration observations, but ElectroTrace deliberately does not invent a spatial registration: callers must supply the coordinate frame and units.
+See [ECG measurement bundle v2](docs/ECG_MEASUREMENT_BUNDLE_V2.md) for schema contents, unit/linkage metadata, QC semantics, and the frozen-set acceptance plan. Pre-aligned EAM activation, activation-map, and repolarization-map files can also be registered as calibration observations, but ElectroTrace deliberately does not invent spatial registration: callers must supply the coordinate frame and units.
 
-This handoff is an inverse-model input contract. It is not evidence that the downstream EP model, discrepancy function, or inferred patient parameters are clinically valid.
+The baseline-noise and template-residual values are scales, **not probabilities of measurement correctness**. The v2 bundle deliberately leaves the global acceptance gate as `not_demonstrated` until it is run on an independent, manually adjudicated frozen set. QRS measurement uncertainty is not passed to CardiInfer as a Gaussian noise term unless the caller supplies an independently calibrated measurement-error scale and its source. This handoff remains an inverse-model input contract, not evidence that the downstream EP model or inferred patient parameters are clinically valid.
 
 ## Why ElectroTrace exists
 
