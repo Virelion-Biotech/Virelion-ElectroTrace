@@ -49,6 +49,10 @@ print(handoff["summary"])
 
 The caller-supplied device/filter fields are recorded as declarations; ElectroTrace does not independently verify them. If patient or encounter linkage is unavailable, pass neither value rather than fabricating one. The resulting artifact will flag the missing linkage.
 
+### Lead naming and order
+
+If the loaded file uses aliases rather than the model's expected lead labels, pass an explicit source-to-output mapping. For example, `lead_mapping={"MLII": "II"}` maps the source column `MLII` to output lead `II`; `lead_order=["V1", "II"]` orders the canonical output leads after mapping. The raw-measurements section continues to store the source labels and values unchanged, and the bundle records both source order and the caller-declared map. Unknown mapping sources or duplicate output labels are rejected. An explicit mapping is still a caller declaration; compare it against the acquisition header/protocol in the independent acceptance corpus.
+
 ## Template selection and rhythm handling
 
 All selected beat waveforms remain in `beat_analysis.beats`, even when the template excludes a beat. The template candidate set excludes beats explicitly annotated as ectopic or paced and beats flagged by a simple RR-outlier screen. The threshold is configurable. This screen is only a conservative heuristic: it is **not** an ectopy detector or rhythm diagnosis.
