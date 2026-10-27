@@ -823,8 +823,10 @@ def fit_uncertainty_calibration_map(
     *,
     adjudication_source: str,
     measurement_unit: str,
+    subject_ids: Sequence[str],
+    encounter_ids: Sequence[str],
     reference_split: str = "adjudicated_calibration",
-    independent_reference: bool = True,
+    independent_reference: bool = False,
     minimum_samples: int = 20,
 ) -> dict[str, Any]:
     """Fit an empirical scale-to-absolute-error mapping on a manual calibration subset.
@@ -847,6 +849,14 @@ def fit_uncertainty_calibration_map(
         raise ValueError("predicted uncertainty and adjudicated errors must be paired vectors")
     if len(predicted) < minimum_samples:
         raise ValueError(f"need at least {minimum_samples} adjudicated measurements to fit an uncertainty map")
+    subjects = [str(x).strip() for x in subject_ids]
+    encounters = [str(x).strip() for x in encounter_ids]
+    if len(subjects) != len(predicted) or len(encounters) != len(predicted):
+        raise ValueError("subject_ids and encounter_ids must align one-to-one with the adjudicated measurements")
+    if any(not x for x in subjects) or any(not x for x in encounters):
+        raise ValueError("subject_ids and encounter_ids must be non-empty")
+    if len(set(subjects)) < 3 or len(set(encounters)) < 3:
+        raise ValueError("uncertainty-map calibration requires at least three distinct subjects and encounters")
     if not np.isfinite(predicted).all() or not np.isfinite(error).all() or np.any(predicted < 0) or np.any(error < 0):
         raise ValueError("uncertainty scales and absolute errors must be finite and nonnegative")
     if len(np.unique(predicted)) < 2:
@@ -862,6 +872,8 @@ def fit_uncertainty_calibration_map(
         "reference_split": reference_split,
         "independent_reference_declared_by_caller": True,
         "n_training_measurements": int(len(predicted)),
+        "n_distinct_subjects": int(len(set(subjects))),
+        "n_distinct_encounters": int(len(set(encounters))),
         "minimum_samples": int(minimum_samples),
         "x_thresholds": [float(x) for x in model.X_thresholds_],
         "y_thresholds": [float(y) for y in model.y_thresholds_],
@@ -884,7 +896,7 @@ def apply_uncertainty_calibration_map(
     x = np.asarray(calibration_map.get("x_thresholds", []), dtype=float)
     y = np.asarray(calibration_map.get("y_thresholds", []), dtype=float)
     values = np.asarray(predicted_uncertainty, dtype=float)
-    if x.ndim != 1 or y.ndim != 1 or len(x) < 2 or len(x) != len(y):
+    if x.ndim != 1 or y.ndim != 1 or len(x) < 1 or len(x) != len(y):
         raise ValueError("calibration map must contain at least two paired thresholds")
     if not np.isfinite(x).all() or not np.isfinite(y).all() or np.any(np.diff(x) < 0) or np.any(np.diff(y) < 0):
         raise ValueError("calibration-map thresholds must be finite and monotonically nondecreasing")
@@ -898,8 +910,10 @@ def evaluate_uncertainty_calibration(
     adjudicated_absolute_error: Sequence[float],
     *,
     adjudication_source: str,
+    subject_ids: Sequence[str],
+    encounter_ids: Sequence[str],
     reference_split: str = "independent_test",
-    independent_reference: bool = True,
+    independent_reference: bool = False,
     bins: int = 5,
     minimum_samples: int = 20,
 ) -> dict[str, Any]:
@@ -915,7 +929,7 @@ def evaluate_uncertainty_calibration(
         raise ValueError("reference_split must identify an independent validation/test subset")
     if not str(adjudication_source).strip():
         raise ValueError("adjudication_source must identify the independent annotation source")
-    if isinstance(bins, bool) or bins < 2 or isinstance(minimum_samples, bool) or minimum_samples < 2:
+    if isinstance(bins, bool) or not isinstance(bins, int) or bins < 2 or isinstance(minimum_samples, bool) or not isinstance(minimum_samples, int) or minimum_samples < 2:
         raise ValueError("bins and minimum_samples must be integers >= 2")
     predicted = np.asarray(predicted_uncertainty, dtype=float)
     error = np.asarray(adjudicated_absolute_error, dtype=float)
@@ -923,6 +937,14 @@ def evaluate_uncertainty_calibration(
         raise ValueError("predicted uncertainty and adjudicated errors must be paired one-dimensional arrays")
     if not np.isfinite(predicted).all() or not np.isfinite(error).all() or np.any(predicted < 0) or np.any(error < 0):
         raise ValueError("uncertainty scales and absolute errors must be finite and nonnegative")
+    subjects = [str(x).strip() for x in subject_ids]
+    encounters = [str(x).strip() for x in encounter_ids]
+    if len(subjects) != len(predicted) or len(encounters) != len(predicted):
+        raise ValueError("subject_ids and encounter_ids must align one-to-one with the adjudicated measurements")
+    if any(not x for x in subjects) or any(not x for x in encounters):
+        raise ValueError("subject_ids and encounter_ids must be non-empty")
+    if len(set(subjects)) < 3 or len(set(encounters)) < 3:
+        raise ValueError("uncertainty evaluation requires at least three distinct subjects and encounters")
 
     order = np.argsort(predicted, kind="stable")
     groups = np.array_split(order, min(bins, len(order)))
@@ -948,6 +970,7 @@ def evaluate_uncertainty_calibration(
         "method": "equal-count empirical predicted-scale versus adjudicated-absolute-error curve",
         "status": "empirical_reference_available" if len(predicted) >= minimum_samples else "insufficient_reference_data",
         "n_measurements": int(len(predicted)), "minimum_samples_for_status": int(minimum_samples),
+        "n_distinct_subjects": int(len(set(subjects))), "n_distinct_encounters": int(len(set(encounters))),
         "adjudication_source": str(adjudication_source), "reference_split": reference_split,
         "independent_reference_declared_by_caller": True,
         "spearman_scale_error_correlation": corr,
