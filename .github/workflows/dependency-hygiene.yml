@@ -83,8 +83,7 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
     steps:
       - name: Check out repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -144,37 +143,21 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - name: Open draft lock refresh pull request
-        id: create_lock_pr
-        continue-on-error: true
-        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+      - name: Upload resolver lock candidate
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          branch: automation/dependency-lock-refresh
-          delete-branch: true
-          add-paths: |
+          name: resolver-lock-candidate-${{ github.run_id }}
+          path: |
             uv.lock
-          commit-message: "chore(deps): refresh resolver locks"
-          title: "chore(deps): refresh resolver locks"
-          body: |
-            ## Summary
-            - Refresh the universal Python resolver lock with uv 0.13.6.
-            - Resolve HeartTwin service dependencies separately when declared.
+            requirements-services.lock
+          if-no-files-found: warn
+          retention-days: 14
 
-            ## Security review
-            This PR is intentionally draft. Review the Dependency hygiene run summary; any failed audit is a merge blocker.
-
-            The lock files pin resolved transitive package versions. Git dependencies remain tied to exact commit SHAs.
-          labels: |
-            dependencies
-            automated
-          draft: true
-
-      - name: Explain manual PR fallback
-        if: steps.create_lock_pr.outcome == 'failure'
+      - name: Summarize resolver lock candidate
+        if: always()
         run: |
           {
-            echo "### Resolver locks generated; automatic PR creation was denied"
-            echo "GitHub Actions is not permitted to create pull requests in this repository."
-            echo "Download the resolver-lock-candidate artifact from this run and open a draft PR with the generated lock file(s)."
+            echo "### Resolver lock candidate"
+            echo "The universal Python lock is attached to this run as a 14-day artifact."
+            echo "Review pip-audit results above before opening a draft PR with the downloaded lock file."
           } >> "$GITHUB_STEP_SUMMARY"
