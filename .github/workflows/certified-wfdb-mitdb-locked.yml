@@ -24,7 +24,7 @@ jobs:
       WFDB_TOOLKIT_SOURCE_RELEASE: "10.7.0"
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v5
         with:
