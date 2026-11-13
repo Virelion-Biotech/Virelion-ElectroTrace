@@ -1,0 +1,160 @@
+name: Dependency hygiene
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/dependency-hygiene.yml"
+      - ".github/dependabot.yml"
+      - "pyproject.toml"
+      - "requirements*.txt"
+      - "requirements-services.txt"
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-hygiene-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Frozen dependency and security checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out full Git history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Install pinned uv and Python 3.12
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.6"
+          python-version: "3.12"
+          enable-cache: false
+
+      - name: Verify or bootstrap universal lock
+        shell: bash
+        run: |
+          if [[ -f uv.lock ]]; then
+            uv lock --check --python 3.12
+          else
+            echo "::warning::uv.lock is not committed yet; creating a temporary universal resolver lock."
+            uv lock --python 3.12
+          fi
+
+      - name: Export complete Python dependency graph
+        run: uv export --locked --python 3.12 --all-extras --all-groups --no-emit-project --format requirements-txt --output-file /tmp/virelion-python-dependencies.txt
+
+      - name: Remove direct VCS package entries for advisory lookup
+        run: |
+          grep -vE '^[[:space:]]*[^[:space:]]+[[:space:]]+@[[:space:]]+git\+' /tmp/virelion-python-dependencies.txt > /tmp/virelion-pypi-dependencies.txt || true
+          test -s /tmp/virelion-pypi-dependencies.txt
+
+      - name: Audit locked PyPI dependencies
+        run: uvx --python 3.12 --from pip-audit pip-audit --strict --requirement /tmp/virelion-pypi-dependencies.txt
+
+      - name: Resolve and audit HeartTwin service dependency graph
+        if: hashFiles('requirements-services.txt') != ''
+        shell: bash
+        run: |
+          uv pip compile --python-version 3.12 --universal --no-annotate requirements-services.txt --output-file /tmp/requirements-services.lock
+          grep -vE '^[[:space:]]*[^[:space:]]+[[:space:]]+@[[:space:]]+git\+' /tmp/requirements-services.lock > /tmp/requirements-services-pypi.txt || true
+          test -s /tmp/requirements-services-pypi.txt
+          uvx --python 3.12 --from pip-audit pip-audit --strict --requirement /tmp/requirements-services-pypi.txt
+
+      - name: Audit Node dependencies when present
+        if: hashFiles('ci/package-lock.json') != ''
+        run: |
+          npm ci --prefix ci
+          npm audit --prefix ci --audit-level=high
+
+      - name: Scan complete Git history for exposed secrets
+        run: |
+          docker run --rm -v "$PWD:/path" -w /path ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f git --redact --verbose /path
+
+  refresh:
+    name: Propose resolver lock updates
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Install pinned uv and Python 3.12
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.6"
+          python-version: "3.12"
+          enable-cache: false
+
+      - name: Resolve latest compatible Python dependencies
+        run: uv lock --upgrade --python 3.12
+
+      - name: Resolve latest compatible HeartTwin service dependencies
+        if: hashFiles('requirements-services.txt') != ''
+        run: uv pip compile --python-version 3.12 --universal --no-annotate requirements-services.txt --output-file requirements-services.lock
+
+      - name: Export candidate Python dependency graph
+        run: uv export --locked --python 3.12 --all-extras --all-groups --no-emit-project --format requirements-txt --output-file /tmp/virelion-candidate-dependencies.txt
+
+      - name: Audit candidate Python dependencies
+        id: python_audit
+        continue-on-error: true
+        run: |
+          grep -vE '^[[:space:]]*[^[:space:]]+[[:space:]]+@[[:space:]]+git\+' /tmp/virelion-candidate-dependencies.txt > /tmp/virelion-candidate-pypi.txt || true
+          uvx --python 3.12 --from pip-audit pip-audit --strict --requirement /tmp/virelion-candidate-pypi.txt
+
+      - name: Audit candidate HeartTwin service dependencies
+        id: service_audit
+        if: hashFiles('requirements-services.lock') != ''
+        continue-on-error: true
+        run: |
+          grep -vE '^[[:space:]]*[^[:space:]]+[[:space:]]+@[[:space:]]+git\+' requirements-services.lock > /tmp/requirements-services-pypi.txt || true
+          uvx --python 3.12 --from pip-audit pip-audit --strict --requirement /tmp/requirements-services-pypi.txt
+
+      - name: Summarize candidate audit status
+        if: always()
+        run: |
+          {
+            echo "### Dependency refresh"
+            echo "Python dependency audit: ${{ steps.python_audit.outcome }}"
+            echo "HeartTwin service dependency audit: ${{ steps.service_audit.outcome || 'not applicable' }}"
+            echo ""
+            echo "The generated pull request is draft. A failed audit is a merge blocker and must be triaged before promotion."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open draft lock refresh pull request
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: automation/dependency-lock-refresh
+          delete-branch: true
+          add-paths: |
+            uv.lock
+            requirements-services.lock
+          commit-message: "chore(deps): refresh resolver locks"
+          title: "chore(deps): refresh resolver locks"
+          body: |
+            ## Summary
+            - Refresh the universal Python resolver lock with uv 0.13.6.
+            - Resolve HeartTwin service dependencies separately when declared.
+
+            ## Security review
+            This PR is intentionally draft. Review the Dependency hygiene run summary; any failed audit is a merge blocker.
+
+            The lock files pin resolved transitive package versions. Git dependencies remain tied to exact commit SHAs.
+          labels: |
+            dependencies
+            automated
+          draft: true
