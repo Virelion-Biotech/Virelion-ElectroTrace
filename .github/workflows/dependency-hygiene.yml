@@ -142,7 +142,6 @@ jobs:
           delete-branch: true
           add-paths: |
             uv.lock
-            requirements-services.lock
           commit-message: "chore(deps): refresh resolver locks"
           title: "chore(deps): refresh resolver locks"
           body: |
