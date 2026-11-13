@@ -134,6 +134,16 @@ jobs:
             echo "The generated pull request is draft. A failed audit is a merge blocker and must be triaged before promotion."
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Archive generated resolver locks before PR action
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: resolver-lock-candidate-${{ github.run_id }}
+          path: |
+            uv.lock
+            requirements-services.lock
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Open draft lock refresh pull request
         id: create_lock_pr
         continue-on-error: true
@@ -159,17 +169,6 @@ jobs:
             dependencies
             automated
           draft: true
-
-      - name: Upload resolver locks when automatic PR creation is blocked
-        if: steps.create_lock_pr.outcome == 'failure'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: resolver-lock-candidate-${{ github.run_id }}
-          path: |
-            uv.lock
-            requirements-services.lock
-          if-no-files-found: ignore
-          retention-days: 14
 
       - name: Explain manual PR fallback
         if: steps.create_lock_pr.outcome == 'failure'
