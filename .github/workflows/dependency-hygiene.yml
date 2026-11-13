@@ -135,6 +135,8 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Open draft lock refresh pull request
+        id: create_lock_pr
+        continue-on-error: true
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -157,3 +159,23 @@ jobs:
             dependencies
             automated
           draft: true
+
+      - name: Upload resolver locks when automatic PR creation is blocked
+        if: steps.create_lock_pr.outcome == 'failure'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: resolver-lock-candidate-${{ github.run_id }}
+          path: |
+            uv.lock
+            requirements-services.lock
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Explain manual PR fallback
+        if: steps.create_lock_pr.outcome == 'failure'
+        run: |
+          {
+            echo "### Resolver locks generated; automatic PR creation was denied"
+            echo "GitHub Actions is not permitted to create pull requests in this repository."
+            echo "Download the resolver-lock-candidate artifact from this run and open a draft PR with the generated lock file(s)."
+          } >> "$GITHUB_STEP_SUMMARY"
