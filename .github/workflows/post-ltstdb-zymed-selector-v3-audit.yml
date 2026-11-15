@@ -75,7 +75,7 @@ jobs:
               "threadpools": threadpoolctl.threadpool_info(),
           }
           Path("validation_reports/experiments/2026-09-ltstdb-zymed-posthoc/runtime_manifest.json").write_text(
-              json.dumps(payload, indent=2, sort_keys=True) + "\\n", encoding="utf-8"
+              json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
           )
           PY
 
