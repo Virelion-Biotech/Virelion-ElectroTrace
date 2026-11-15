@@ -49,6 +49,9 @@ jobs:
           mkdir -p /tmp/wfdb-src
           tar -xzf /tmp/wfdb.tar.gz -C /tmp/wfdb-src --strip-components=1
           cd /tmp/wfdb-src
+          # WFDB 10.7.0 retains K&R-style declarations; pin GNU C17 so
+          # GCC's newer default C23 mode does not reinterpret empty prototypes.
+          export CFLAGS="${CFLAGS:-} -std=gnu17"
           ./configure --prefix=/usr/local
           make -j2
           sudo make install
