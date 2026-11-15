@@ -29,7 +29,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: '3.13.15'
 
       - name: Install pinned audit runtime
         run: |
@@ -41,7 +41,9 @@ jobs:
             "scipy==1.16.3" \
             "scikit-learn==1.6.1" \
             "skops==0.16.0" \
-            "wfdb==4.3.1"
+            "wfdb==4.3.1" \
+            "joblib==1.6.0" \
+            "threadpoolctl==3.7.0"
           python -m pip install -e . --no-deps
 
       - name: Test post-hoc audit code
@@ -51,6 +53,31 @@ jobs:
             tests/test_ltstdb_zymed_selector_v3_prospective.py \
             tests/test_lead_selection_v3.py \
             tests/test_lead_quality.py
+
+      - name: Capture exact numerical runtime
+        run: |
+          set -euo pipefail
+          mkdir -p validation_reports/experiments/2026-09-ltstdb-zymed-posthoc
+          python - <<'PY'
+          import json, platform, sys
+          import numpy, pandas, scipy, sklearn, wfdb, skops, joblib, threadpoolctl
+          from pathlib import Path
+          payload = {
+              "python": sys.version,
+              "implementation": platform.python_implementation(),
+              "platform": platform.platform(),
+              "packages": {
+                  "numpy": numpy.__version__, "pandas": pandas.__version__,
+                  "scipy": scipy.__version__, "scikit_learn": sklearn.__version__,
+                  "wfdb": wfdb.__version__, "skops": skops.__version__,
+                  "joblib": joblib.__version__, "threadpoolctl": threadpoolctl.__version__,
+              },
+              "threadpools": threadpoolctl.threadpool_info(),
+          }
+          Path("validation_reports/experiments/2026-09-ltstdb-zymed-posthoc/runtime_manifest.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          PY
 
       - name: Restore trusted frozen v4 model
         run: |
@@ -154,6 +181,7 @@ jobs:
           {
             echo "git_head=$(git rev-parse HEAD)"
             sha256sum "${OUT}"
+            sha256sum validation_reports/experiments/2026-09-ltstdb-zymed-posthoc/runtime_manifest.json
           } | tee validation_reports/experiments/2026-09-ltstdb-zymed-posthoc/POSTHOC_SHA256.txt
 
       - name: Upload post-hoc comparator artifact
@@ -165,3 +193,4 @@ jobs:
           path: |
             validation_reports/experiments/2026-09-ltstdb-zymed-posthoc/ltstdb_zymed_selector_v3_posthoc_audit.json
             validation_reports/experiments/2026-09-ltstdb-zymed-posthoc/POSTHOC_SHA256.txt
+            validation_reports/experiments/2026-09-ltstdb-zymed-posthoc/runtime_manifest.json
