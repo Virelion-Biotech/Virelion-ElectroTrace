@@ -46,7 +46,9 @@ jobs:
           mkdir -p /tmp/wfdb-src
           tar -xzf /tmp/wfdb.tar.gz -C /tmp/wfdb-src --strip-components=1
           cd /tmp/wfdb-src
-          ./configure --prefix=/usr/local
+          # WFDB 10.7.0 retains K&R-style declarations; compile with GNU C17
+          # rather than the runner compiler's newer default C23 dialect.
+          CC="gcc -std=gnu17" ./configure --prefix=/usr/local
           make -j2
           sudo make install
           sudo ldconfig
