@@ -172,7 +172,7 @@ jobs:
           } | tee "${DIR}/SHA256.txt"
 
       - name: Upload complete INCART characterization
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: electrotrace-incart-frozen-v4-complete-characterization
           retention-days: 90
