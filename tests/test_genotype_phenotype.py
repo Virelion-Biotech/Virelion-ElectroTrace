@@ -50,3 +50,13 @@ def test_ectopy_burden_uses_annotations_only():
 def test_synthetic_profile_requires_seed_and_generator():
     with pytest.raises(ValueError,match="seed"):
         build_genotype_phenotype_profile(bundle(),synthetic={"generator_version":"test"})
+
+
+def test_unsupported_gene_symbol_is_rejected():
+    errors = validate_genotype_context({
+        "status": "curated",
+        "variants": [{"gene_symbol": "NOT_A_SUPPORTED_GENE", "variant_nomenclature": "c.1A>G"}],
+        "source_record_ids": ["source-1"],
+        "source_provenance": source(),
+    })
+    assert any("not in the supported curation set" in error for error in errors)
