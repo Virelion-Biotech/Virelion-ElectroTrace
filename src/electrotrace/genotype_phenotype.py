@@ -33,7 +33,7 @@ def validate_genotype_context(context:Mapping[str,Any]|None)->list[str]:
     else:
         for i,v in enumerate(variants):
             if not isinstance(v,dict) or not _text(v.get("gene_symbol")): errors.append(f"variants[{i}] requires gene_symbol"); continue
-            if v["gene_symbol"].upper() not in SUPPORTED_GENES and not _text(v.get("gene_symbol")): errors.append(f"variants[{i}] gene_symbol is invalid")
+            if v["gene_symbol"].upper() not in SUPPORTED_GENES: errors.append(f"variants[{i}] gene_symbol is not in the supported curation set")
             if status!="unknown" and not _text(v.get("variant_nomenclature")): errors.append(f"variants[{i}] variant_nomenclature must be supplied or explicitly unknown")
     if status in {"reported","curated"}:
         if not context.get("source_record_ids"): errors.append("reported/curated genotype requires source_record_ids")
