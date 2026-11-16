@@ -71,7 +71,10 @@ def build_genotype_phenotype_profile(ecg_bundle:dict[str,Any],*,genotype_context
     errors=validate_genotype_context(genotype_context)
     if errors: raise ValueError("; ".join(errors))
     genotype=dict(genotype_context or {"status":"unknown","variants":[]})
+    genotype.setdefault("status","unknown"); genotype.setdefault("variants",[])
     label=dict(phenotype_label or {"status":"unknown","label":None})
+    if label.get("status") in {"observed","curated"} and not _text(label.get("label")): raise ValueError("observed/curated phenotype label requires a non-empty label")
+    if label.get("status")=="synthetic" and (synthetic is None or synthetic.get("seed") is None or not _text(synthetic.get("generator_version"))): raise ValueError("synthetic phenotype label requires synthetic seed and generator_version")
     if label.get("status") not in {"unknown","observed","curated","synthetic"}: raise ValueError("phenotype label status is unsupported")
     if label.get("status") in {"observed","curated"}:
         if not label.get("source_record_ids"): raise ValueError("observed/curated phenotype label requires source_record_ids")
