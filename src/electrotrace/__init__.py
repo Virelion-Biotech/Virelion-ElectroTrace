@@ -25,7 +25,11 @@ from .research_validation import build_validation_report, summarize_records_rigo
 from .signal import apply_pipeline
 from .validation import validate_record
 from .validation_detectors import detect_r_peaks, detect_r_peaks_two_stage
-from .genotype_phenotype import PROFILE_VERSION as GENOTYPE_EP_PROFILE_VERSION, build_genotype_phenotype_profile, validate_genotype_context
+from .genotype_phenotype import (
+    PROFILE_VERSION as GENOTYPE_EP_PROFILE_VERSION,
+    build_genotype_phenotype_profile,
+    validate_genotype_context,
+)
 
 __all__ = [
     "__version__",
