@@ -38,3 +38,8 @@ prioritisation examples, not patient-level diagnostic rules.
 A genotype-linked phenotype record must include source provenance, assay/measurement
 context, uncertainty, adjudication state and a clear distinction between observed,
 derived and inferred fields. Missing clinical data must not be imputed as normal.
+
+
+## Implemented v1 profile
+
+The implementation is available as `build_genotype_phenotype_profile(ecg_bundle, ...)` in `electrotrace.genotype_phenotype`. It consumes an existing `electrotrace-ecg-measurement-v2` artifact, attaches only caller-supplied genotype/label context, and returns a versioned feature-family projection. QT/QTc is withheld unless an externally supplied interval includes method, lead, RR interval and adjudication status. Ectopy/pacing counts use annotations only. Short-recording SDNN/RMSSD are descriptive. The profile carries explicit subject/study/split IDs without deriving subject identity from filenames. See the v1 JSON Schema and regression tests.
