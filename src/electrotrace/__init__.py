@@ -18,6 +18,11 @@ from .ecg_measurement import (
     fit_uncertainty_calibration_map,
     validate_ecg_measurement_bundle,
 )
+from .genotype_phenotype import PROFILE_VERSION as GENOTYPE_EP_PROFILE_VERSION
+from .genotype_phenotype import (
+    build_genotype_phenotype_profile,
+    validate_genotype_context,
+)
 from .io import load_recording
 from .provenance import DatasetManifest, manifest_from_dict
 from .qrs_delineation import delineate_qrs
@@ -51,4 +56,7 @@ __all__ = [
     "build_validation_report",
     "summarize_records_rigorous",
     "write_validation_report",
+    "GENOTYPE_EP_PROFILE_VERSION",
+    "build_genotype_phenotype_profile",
+    "validate_genotype_context",
 ]

@@ -249,3 +249,8 @@ See `CONTRIBUTING.md`. Detector plugins can register through the `electrotrace.d
 ## License
 
 AGPL-3.0-or-later.
+
+
+## Genotype-linked electrophysiology phenotypes
+
+The versioned `electrotrace-genotype-ep-phenotype-v1` profile links explicitly supplied/curated genotype and phenotype-label provenance to an existing ECG measurement v2 bundle. It preserves QRS/conduction, exploratory repolarization proxies, externally adjudicated QT/QTc methodology, annotation-derived ectopy/pacing, short-recording HRV descriptors and signal-quality provenance. Genotype is never inferred from ECG, and missing metadata remains unknown. See [the genotype-to-EP evidence contract](docs/GENOTYPE_ELECTROPHYSIOLOGY_EVIDENCE_CONTRACT.md).

@@ -1,0 +1,22 @@
+{
+ "$schema":"https://json-schema.org/draft/2020-12/schema",
+ "$id":"https://github.com/Virelion-Biotech/Virelion-ElectroTrace/blob/main/schemas/genotype-ep-phenotype.v1.schema.json",
+ "title":"ElectroTrace genotype-linked electrophysiology phenotype profile v1",
+ "type":"object",
+ "required":["schema_version","profile_version","evidence_state","genotype_context","phenotype_label","subject_linkage","acquisition","rhythm_context","feature_families","feature_provenance","synthetic_metadata","safety_policy"],
+ "properties":{
+  "schema_version":{"const":"electrotrace-genotype-ep-phenotype-v1"},
+  "profile_version":{"type":"string"},
+  "evidence_state":{"enum":["observed","synthetic"]},
+  "genotype_context":{"type":"object","required":["status","variants"],"properties":{"status":{"enum":["unknown","reported","curated"]},"variants":{"type":"array"},"source_record_ids":{"type":"array","items":{"type":"string"}},"source_provenance":{"type":"array"},"inferred_from_ecg":{"const":false}},"additionalProperties":true},
+  "phenotype_label":{"type":"object"},
+  "subject_linkage":{"type":"object","required":["subject_id","study_id","split_group_id","status"]},
+  "acquisition":{"type":"object"},
+  "rhythm_context":{"type":"object"},
+  "feature_families":{"type":"object","required":["conduction","qrs_morphology","repolarization","qt_qtc","ectopy_pacing","heart_rate_variability","signal_quality"]},
+  "feature_provenance":{"type":"object"},
+  "synthetic_metadata":{"type":"object"},
+  "safety_policy":{"type":"object","required":["genotype_never_inferred_from_ecg","disease_associations_descriptive_only","no_diagnostic_thresholds","no_clinical_recommendations"],"properties":{"genotype_never_inferred_from_ecg":{"const":true},"disease_associations_descriptive_only":{"const":true},"no_diagnostic_thresholds":{"const":true},"no_clinical_recommendations":{"const":true}}}
+ },
+ "additionalProperties":false
+}
